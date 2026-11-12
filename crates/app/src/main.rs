@@ -42,6 +42,11 @@ struct Config {
     autoplay_next: bool,
     #[serde(default)]
     auto_skip_intro: bool,
+    /// Seconds the rewind / skip-forward buttons and arrow keys jump.
+    #[serde(default = "default_rewind_secs")]
+    rewind_secs: i32,
+    #[serde(default = "default_forward_secs")]
+    forward_secs: i32,
     #[serde(default = "yes")]
     hw_decode: bool,
     #[serde(default)]
@@ -110,6 +115,21 @@ fn default_notify_interval() -> usize {
     1
 }
 
+fn default_rewind_secs() -> i32 {
+    10
+}
+
+fn default_forward_secs() -> i32 {
+    30
+}
+
+/// Choices offered in Settings for the rewind / skip-forward step.
+const SKIP_STEPS: [i32; 7] = [5, 10, 15, 30, 45, 60, 90];
+
+fn skip_step_index(secs: i32) -> i32 {
+    SKIP_STEPS.iter().position(|&v| v == secs).unwrap_or(1) as i32
+}
+
 fn default_accent_mode() -> usize {
     1
 }
@@ -131,6 +151,8 @@ impl Default for Config {
             autoplay_next: true,
             hw_decode: true,
             auto_skip_intro: false,
+            rewind_secs: default_rewind_secs(),
+            forward_secs: default_forward_secs(),
             hw_mode: 0,
             always_on_top: false,
             sub_lang: 0,
@@ -1297,6 +1319,10 @@ impl Ctx {
         });
         ui.set_autoplay_next(s.cfg.autoplay_next);
         ui.set_auto_skip_intro(s.cfg.auto_skip_intro);
+        ui.set_rewind_secs(s.cfg.rewind_secs);
+        ui.set_forward_secs(s.cfg.forward_secs);
+        ui.set_rewind_index(skip_step_index(s.cfg.rewind_secs));
+        ui.set_forward_index(skip_step_index(s.cfg.forward_secs));
         ui.set_hw_decode(s.cfg.hw_decode);
         ui.set_hw_mode(s.cfg.hw_mode as i32);
         ui.set_on_top(s.cfg.always_on_top);
@@ -2003,13 +2029,14 @@ impl Ctx {
             E::PlayPause => send(K::TogglePause),
             E::Stop => send(K::Quit),
             E::SeekTicks(t) => send(K::SeekTo(t as f64 / TICKS_PER_SEC as f64)),
-            E::Rewind => send(K::SeekBy(-10)),
-            E::FastForward => send(K::SeekBy(30)),
+            E::Rewind => send(K::SeekBy(-self.st.lock().unwrap().cfg.rewind_secs.max(1))),
+            E::FastForward => send(K::SeekBy(self.st.lock().unwrap().cfg.forward_secs.max(1))),
             E::SetVolume(v) => send(K::SetVolume(v)),
             E::Mute => send(K::SetMute(true)),
             E::Unmute => send(K::SetMute(false)),
             E::ToggleMute => send(K::ToggleMute),
-            E::Next | E::Previous => {}
+            E::Next => goto_episode(self, false),
+            E::Previous => goto_episode(self, true),
             E::Message { header, text } => {
                 if self.st.lock().unwrap().playing {
                     send(K::SetPause(true));
@@ -2735,9 +2762,32 @@ struct SkipState {
     kind: i32,
     credits_dismissed: bool,
     force_next: bool,
+    /// Neighbouring episodes in the same season, for the previous / next buttons.
+    prev_ep: Option<String>,
+    next_ep: Option<String>,
+    /// Set by the previous / next buttons: the episode to switch to once mpv has stopped.
+    goto: Option<String>,
 }
 
-static SKIP: Mutex<SkipState> = Mutex::new(SkipState { intro: None, duration: 0.0, kind: 0, credits_dismissed: false, force_next: false });
+/// Previous / next episode button: stop this one and let the play loop open the other.
+fn goto_episode(c: &Ctx, prev: bool) {
+    let target = {
+        let mut k = SKIP.lock().unwrap();
+        let t = if prev { k.prev_ep.clone() } else { k.next_ep.clone() };
+        if t.is_some() {
+            k.goto = t.clone();
+            k.force_next = true;
+        }
+        t
+    };
+    if target.is_some() {
+        if let Some(tx) = &c.st.lock().unwrap().player_tx {
+            let _ = tx.send(player::Control::Quit);
+        }
+    }
+}
+
+static SKIP: Mutex<SkipState> = Mutex::new(SkipState { intro: None, duration: 0.0, kind: 0, credits_dismissed: false, force_next: false, prev_ep: None, next_ep: None, goto: None });
 
 enum PlayResult {
     Done,
@@ -2797,16 +2847,30 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     };
     let is_live = item.is_none();
     // The episode after this one (for the "Play next" prompt and for autoplay).
-    let next_ep: Option<String> = item.as_ref().filter(|i| i.kind == "Episode").and_then(|item| {
-        let (series, season) = (item.series_id.as_ref()?, item.season_id.as_ref()?);
-        let eps = rt.block_on(client.episodes(uid, series, season)).ok()?;
-        let pos = eps.iter().position(|e| e.id == item.id)?;
-        eps.get(pos + 1).map(|n| n.id.clone())
-    });
+    let (prev_ep, next_ep): (Option<String>, Option<String>) = item
+        .as_ref()
+        .filter(|i| i.kind == "Episode")
+        .and_then(|item| {
+            let (series, season) = (item.series_id.as_ref()?, item.season_id.as_ref()?);
+            let eps = rt.block_on(client.episodes(uid, series, season)).ok()?;
+            let pos = eps.iter().position(|e| e.id == item.id)?;
+            let prev = pos.checked_sub(1).and_then(|p| eps.get(p)).map(|n| n.id.clone());
+            Some((prev, eps.get(pos + 1).map(|n| n.id.clone())))
+        })
+        .unwrap_or((None, None));
+    {
+        let (weak, p, n) = (env.ui.clone(), prev_ep.is_some(), next_ep.is_some());
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = weak.upgrade() {
+                ui.set_player_has_prev(p);
+                ui.set_player_has_next(n);
+            }
+        });
+    }
     let credits_marker = item.as_ref().and_then(|i| i.credits_start());
     {
         let mut k = SKIP.lock().unwrap();
-        *k = SkipState { intro: item.as_ref().and_then(|i| i.intro()), duration: 0.0, kind: 0, credits_dismissed: false, force_next: k.force_next };
+        *k = SkipState { intro: item.as_ref().and_then(|i| i.intro()), duration: 0.0, kind: 0, credits_dismissed: false, force_next: k.force_next, prev_ep: prev_ep.clone(), next_ep: next_ep.clone(), goto: None };
     }
     let mut intro_auto_done = false;
     let mut ext_subs: Vec<player::ExtSub> = Vec::new();
@@ -2953,9 +3017,10 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             Some(n) => PlayResult::Next(n),
             None => PlayResult::Done,
         },
-        player::Outcome::Stopped => match restart_pos {
-            Some(p) => PlayResult::Restart(p),
-            None => PlayResult::Done,
+        player::Outcome::Stopped => match (SKIP.lock().unwrap().goto.take(), restart_pos) {
+            (Some(id), _) => PlayResult::Next(id),
+            (None, Some(p)) => PlayResult::Restart(p),
+            (None, None) => PlayResult::Done,
         },
         player::Outcome::Failed(m) => PlayResult::Failed(m),
     }
@@ -3127,11 +3192,19 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             return;
         }
+        if matches!(name.as_str(), "prev" | "next") {
+            goto_episode(&c, name.as_str() == "prev");
+            return;
+        }
+        let (rewind, forward) = {
+            let s = c.st.lock().unwrap();
+            (s.cfg.rewind_secs.max(1), s.cfg.forward_secs.max(1))
+        };
         let k = match name.as_str() {
             "quit" => K::Quit,
             "pause" => K::TogglePause,
-            "back10" => K::SeekBy(-10),
-            "fwd30" => K::SeekBy(30),
+            "back10" => K::SeekBy(-rewind),
+            "fwd30" => K::SeekBy(forward),
             "volup" => K::VolumeBy(5),
             "voldown" => K::VolumeBy(-5),
             "mute" => K::ToggleMute,
@@ -3406,6 +3479,22 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.on_set_autoplay(move |v| c.update_cfg(|cfg| cfg.autoplay_next = v));
     let c = ctx.clone();
     ui.on_set_auto_skip_intro(move |v| c.update_cfg(|cfg| cfg.auto_skip_intro = v));
+    let c = ctx.clone();
+    ui.on_set_rewind_index(move |i| {
+        let v = SKIP_STEPS[(i.max(0) as usize).min(SKIP_STEPS.len() - 1)];
+        c.update_cfg(|cfg| cfg.rewind_secs = v);
+        if let Some(ui) = c.ui.upgrade() {
+            ui.set_rewind_secs(v);
+        }
+    });
+    let c = ctx.clone();
+    ui.on_set_forward_index(move |i| {
+        let v = SKIP_STEPS[(i.max(0) as usize).min(SKIP_STEPS.len() - 1)];
+        c.update_cfg(|cfg| cfg.forward_secs = v);
+        if let Some(ui) = c.ui.upgrade() {
+            ui.set_forward_secs(v);
+        }
+    });
     let c = ctx.clone();
     ui.on_set_hw_mode(move |i| c.update_cfg(|cfg| cfg.hw_mode = i.max(0) as usize));
     let c = ctx.clone();

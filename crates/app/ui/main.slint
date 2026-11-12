@@ -1127,6 +1127,14 @@ export component AppWindow inherits Window {
     in property <string> player-audio;
     in property <string> player-sub;
     in property <bool> player-live;
+    in property <bool> player-has-prev: false;
+    in property <bool> player-has-next: false;
+    in-out property <int> rewind-secs: 10;
+    in-out property <int> forward-secs: 30;
+    in-out property <int> rewind-index: 1;
+    in-out property <int> forward-index: 3;
+    callback set-rewind-index(int);
+    callback set-forward-index(int);
 
     // search
     in-out property <string> search-text;
@@ -2122,6 +2130,26 @@ export component AppWindow inherits Window {
                             ToggleSwitch {
                                 checked <=> root.auto-skip-intro;
                                 toggled(c) => { root.set-auto-skip-intro(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Rewind button";
+                            description: "How far the rewind button and the Left arrow jump back.";
+                            Dropdown {
+                                width: 230px;
+                                model: ["5 seconds", "10 seconds", "15 seconds", "30 seconds", "45 seconds", "60 seconds", "90 seconds"];
+                                current-index <=> root.rewind-index;
+                                selected => { root.set-rewind-index(self.current-index); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Skip forward button";
+                            description: "How far the skip forward button and the Right arrow jump ahead.";
+                            Dropdown {
+                                width: 230px;
+                                model: ["5 seconds", "10 seconds", "15 seconds", "30 seconds", "45 seconds", "60 seconds", "90 seconds"];
+                                current-index <=> root.forward-index;
+                                selected => { root.set-forward-index(self.current-index); }
                             }
                         }
                         SettingRow {
@@ -4018,6 +4046,7 @@ export component AppWindow inherits Window {
                     font-size: 18px;
                     font-weight: 600;
                     vertical-alignment: center;
+                    height: 40px;
                     overflow: elide;
                 }
             }
@@ -4096,15 +4125,23 @@ export component AppWindow inherits Window {
                         icon: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
                         clicked => { root.player-key("pause"); }
                     }
+                    if root.player-has-prev: IconButton {
+                        icon: @image-url("icons/skip-previous.svg");
+                        clicked => { root.player-key("prev"); }
+                    }
                     if !root.player-live: IconButton {
                         icon: @image-url("icons/replay.svg");
-                        badge: "10";
+                        badge: "\{root.rewind-secs}";
                         clicked => { root.player-key("back10"); }
                     }
                     if !root.player-live: IconButton {
                         icon: @image-url("icons/forward.svg");
-                        badge: "30";
+                        badge: "\{root.forward-secs}";
                         clicked => { root.player-key("fwd30"); }
+                    }
+                    if root.player-has-next: IconButton {
+                        icon: @image-url("icons/skip-next.svg");
+                        clicked => { root.player-key("next"); }
                     }
                     IconButton {
                         icon: root.player-muted ? @image-url("icons/volume-off.svg") : @image-url("icons/volume-up.svg");
