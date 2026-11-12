@@ -2118,7 +2118,7 @@ export component AppWindow inherits Window {
                         }
                         SettingRow {
                             title: "Play next episode automatically";
-                            description: "Continues with the next episode when one finishes.";
+                            description: "Continues with the next episode when one finishes. After 5 in a row it stops and asks if you are still watching.";
                             ToggleSwitch {
                                 checked <=> root.autoplay-next;
                                 toggled(c) => { root.set-autoplay(c); }

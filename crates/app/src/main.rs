@@ -124,6 +124,9 @@ fn default_forward_secs() -> i32 {
 }
 
 /// Choices offered in Settings for the rewind / skip-forward step.
+/// After this many episodes autoplay in a row, stop and ask whether you're still watching.
+const AUTOPLAY_STREAK_LIMIT: u32 = 5;
+
 const SKIP_STEPS: [i32; 7] = [5, 10, 15, 30, 45, 60, 90];
 
 fn skip_step_index(secs: i32) -> i32 {
@@ -2326,6 +2329,9 @@ impl Ctx {
             let env = PlayEnv { controls: rx, surface: ctx.surface.clone(), ui: ctx.ui.clone(), now: ctx.now.clone(), bandwidth: ctx.bandwidth.clone(), restart: ctx.restart.clone(), hw_decode, hw_mode, auto_skip_intro, tx };
             let mut source = source;
             let mut error: Option<(String, String)> = None; // (item id, message)
+            // Episodes that rolled on by themselves since you last pressed something.
+            let mut auto_streak = 0;
+            let mut still_watching = false;
             loop {
                 match play_one(&ctx.rt, &client, &uid, &source, &env) {
                     PlayResult::Next(next) => {
@@ -2333,6 +2339,15 @@ impl Ctx {
                         let forced = std::mem::take(&mut SKIP.lock().unwrap().force_next);
                         if !autoplay && !forced {
                             break;
+                        }
+                        if forced {
+                            auto_streak = 0;
+                        } else {
+                            auto_streak += 1;
+                            if auto_streak >= AUTOPLAY_STREAK_LIMIT {
+                                still_watching = true;
+                                break;
+                            }
                         }
                         if let Source::Item { quality, .. } = source {
                             source = Source::Item { id: next, resume: false, quality, from: None };
@@ -2374,6 +2389,13 @@ impl Ctx {
                     ui.set_play_error(m.into());
                 } else {
                     ctx2.reload_current();
+                }
+                if still_watching {
+                    ui.set_message_header("Still watching?".into());
+                    ui.set_message_text(
+                        format!("{AUTOPLAY_STREAK_LIMIT} episodes have played in a row, so autoplay has stopped. Pick the next episode to keep going.").into(),
+                    );
+                    ui.set_message_open(true);
                 }
             });
         });
