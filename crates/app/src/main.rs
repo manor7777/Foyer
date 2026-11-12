@@ -2762,7 +2762,7 @@ struct SkipState {
     kind: i32,
     credits_dismissed: bool,
     force_next: bool,
-    /// Neighbouring episodes in the same season, for the previous / next buttons.
+    /// Neighbouring episodes in the series (across seasons), for the previous / next buttons.
     prev_ep: Option<String>,
     next_ep: Option<String>,
     /// Set by the previous / next buttons: the episode to switch to once mpv has stopped.
@@ -2851,8 +2851,9 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
         .as_ref()
         .filter(|i| i.kind == "Episode")
         .and_then(|item| {
-            let (series, season) = (item.series_id.as_ref()?, item.season_id.as_ref()?);
-            let eps = rt.block_on(client.episodes(uid, series, season)).ok()?;
+            let series = item.series_id.as_ref()?;
+            // Whole series, so the last episode of a season links on to the next season.
+            let eps = rt.block_on(client.series_episodes(uid, series)).ok()?;
             let pos = eps.iter().position(|e| e.id == item.id)?;
             let prev = pos.checked_sub(1).and_then(|p| eps.get(p)).map(|n| n.id.clone());
             Some((prev, eps.get(pos + 1).map(|n| n.id.clone())))
