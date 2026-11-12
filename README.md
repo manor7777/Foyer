@@ -38,7 +38,7 @@ Foyer is a from-scratch replacement for the old Windows desktop theatre apps: on
 1. Download **`Foyer.exe`** from the [latest release](https://github.com/manor7777/Foyer/releases/latest).
 2. Put it anywhere you can write to (not Program Files) and run it.
 3. First launch downloads the mpv video engine once (about 30 MB, from the LGPL builds at [zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild)). If you'd rather bring your own, drop `libmpv-2.dll` (or `mpv-1.dll`) next to `Foyer.exe`.
-4. Enter your Emby server address, sign in, and you're in. Use **Find servers** to discover one on your network. Needs an Emby server (4.7 or later for intro markers).
+4. Enter your Emby server address, sign in, and you're in. Use **Find servers** to discover one on your network. Needs an Emby server.
 
 Requires Windows 10 or 11 and a working GPU driver.
 
