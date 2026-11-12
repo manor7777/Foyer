@@ -5,3 +5,5 @@
 .vs/
 .idea/
 Thumbs.db
+/crates/app/android/libs/
+*.keystore

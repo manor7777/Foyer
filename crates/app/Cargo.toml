@@ -40,3 +40,43 @@ windows-sys = { version = "0.59", features = ["Win32_System_Registry", "Win32_Fo
 [build-dependencies]
 slint-build = "1.18"
 embed-resource = "3"
+
+# Android packaging (cargo-apk). libmpv.so per ABI goes in crates/app/android/libs/<abi>/ (not committed;
+# the CI job fetches it). One APK runs on phones, tablets and Android TV.
+[package.metadata.android]
+package = "app.foyer.player"
+apk_name = "Foyer"
+build_targets = ["aarch64-linux-android"]
+runtime_libs = "android/libs"
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 34
+
+[package.metadata.android.application]
+label = "Foyer"
+theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+
+[package.metadata.android.application.activity]
+config_changes = "orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode"
+orientation = "unspecified"
+
+# Touchscreen is optional so the APK installs on Android TV, which has none.
+[[package.metadata.android.uses_feature]]
+name = "android.hardware.touchscreen"
+required = false
+
+[[package.metadata.android.uses_feature]]
+name = "android.software.leanback"
+required = false
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.POST_NOTIFICATIONS"
+
+# Shows up in both the phone launcher and the TV launcher.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER", "android.intent.category.LEANBACK_LAUNCHER"]

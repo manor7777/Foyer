@@ -1,0 +1,51 @@
+name: Android
+
+# Manual for now: builds an APK and attaches it to the run. It joins the release workflow
+# (step 5 of docs/ANDROID-PLAN.md) once it has been tried on a real phone and TV.
+on:
+  workflow_dispatch:
+    inputs:
+      libmpv_url:
+        description: "URL of a zip with libmpv.so per ABI (arm64-v8a/libmpv.so ...)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test (shared code, Linux)
+        run: |
+          sudo apt-get update && sudo apt-get install -y libfontconfig1-dev libxkbcommon-dev
+          cargo test --locked --workspace
+
+      - name: Fetch libmpv
+        env:
+          URL: ${{ inputs.libmpv_url }}
+        run: |
+          mkdir -p crates/app/android/libs
+          curl -fsSL "$URL" -o libmpv.zip
+          unzip -q libmpv.zip -d crates/app/android/libs
+
+      - name: Install cargo-apk
+        run: cargo install cargo-apk --locked
+
+      - name: Build APK
+        working-directory: crates/app
+        run: cargo apk build --release --lib --locked
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Foyer-apk
+          path: target/release/apk/Foyer.apk
+          if-no-files-found: error

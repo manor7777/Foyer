@@ -1,6 +1,6 @@
 # Android and Android TV plan
 
-Status: idea, not started. Goal: one codebase, one release run that publishes `Foyer.exe` and `Foyer.apk`, with the same features on every platform.
+Status: in progress (steps 1-2 scaffolded, nothing run on a device yet). Goal: one codebase, one release run that publishes `Foyer.exe` and `Foyer.apk`, with the same features on every platform.
 
 ## What carries over
 
@@ -40,3 +40,10 @@ Status: idea, not started. Goal: one codebase, one release run that publishes `F
 ## Testing
 
 None of this can be tested on a device from the development machine used so far. Each step needs a real phone or TV (or an emulator) to try it.
+
+## Progress
+
+- Done: OS-specific code sits behind `crates/app/src/platform` (Windows, desktop, Android backends). The app builds and tests pass on Linux.
+- Done: app crate is a lib (`run()`, plus `android_main` on Android) and a thin desktop bin. Engine download and the exe updater are skipped on Android; the player loads a bundled `libmpv.so` and asks for MediaCodec.
+- Written but untested (no NDK in the dev environment): cargo-apk metadata in `crates/app/Cargo.toml` and the manual `.github/workflows/android.yml` job. Expect fixes on the first real build.
+- Next: a libmpv.so build for arm64, then the first APK on a device; touch layouts; Android TV focus handling. `main.rs` was renamed `lib.rs`; the larger split into a core crate is still to do.
