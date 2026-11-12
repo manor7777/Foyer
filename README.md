@@ -20,18 +20,16 @@ Foyer is a from-scratch replacement for the old Windows desktop theatre apps: on
 
 ## Highlights
 
-| | |
-|---|---|
-| **Playback that just works** | libmpv with hardware decoding, a big read-ahead cache, direct play by default, and optional transcoding presets (Auto, 20 Mbps … 720p). Audio/subtitle menus, subtitle search through your Emby server, audio-delay nudge, always-on-top. |
-| **Skip intro, play next** | A *Skip intro* button appears when your Emby server has marked an intro (press **Space**), with an optional auto-skip. Near the end of an episode: *Keep watching* or *Play next* (**Space** = next). |
-| **Looks like it belongs on Windows 11** | Fluent controls, Mica / Acrylic / solid backdrops, a floating glass sidebar that collapses smoothly, and an accent colour that follows Windows or your own pick. |
-| **Home that you control** | Continue Watching, Next Up (the episode *after* the one you're on), My Media, Latest, and your requests. Hide any row, reorder them. |
-| **Live TV guide** | A proper time-grid guide with now-playing highlights. |
-| **Requests built in** | Native [Overseerr / Jellyseerr](https://docs.overseerr.dev/) screens: discover, search, request (with season picking), request status at a glance, issues, an admin view with user limits and permissions. No API key, just sign in. Hidden until you switch it on. |
-| **Notifications** | New episodes the moment the *first one or two* are available (Seerr only tells you about whole seasons), new issues, replies, and Windows toasts. |
-| **Remote control** | Shows up in your Emby server's dashboard as a controllable player: pause, stop, send messages. |
-| **Self-updating, safely** | Updates are checked on start and installed automatically. Every release is signed (ECDSA P-256); an unsigned or tampered download is refused. |
-| **Private by design** | Debug logging is off by default and never records passwords, tokens or cookies. |
+- **Playback that just works.** libmpv with hardware decoding, a big read-ahead cache, direct play by default, and optional transcoding presets (Auto, 20 Mbps … 720p). Audio/subtitle menus, subtitle search through your Emby server, audio-delay nudge, always-on-top.
+- **Skip intro, play next.** A *Skip intro* button appears when your Emby server has marked an intro (press **Space**), with an optional auto-skip. Near the end of an episode: *Keep watching* or *Play next* (**Space** = next).
+- **Looks like it belongs on Windows 11.** Fluent controls, Mica / Acrylic / solid backdrops, a floating glass sidebar that collapses smoothly, and an accent colour that follows Windows or your own pick.
+- **Home that you control.** Continue Watching, Next Up (the episode *after* the one you're on), My Media, Latest, and your requests. Hide any row, reorder them.
+- **Live TV guide.** A proper time-grid guide with now-playing highlights.
+- **Requests built in.** Native [Overseerr / Jellyseerr](https://docs.overseerr.dev/) screens: discover, search, request (with season picking), request status at a glance, issues, an admin view with user limits and permissions. No API key, just sign in. Hidden until you switch it on.
+- **Notifications.** New episodes the moment the *first one or two* are available (Seerr only tells you about whole seasons), new issues, replies, and Windows toasts.
+- **Remote control.** Shows up in your Emby server's dashboard as a controllable player: pause, stop, send messages.
+- **Self-updating, safely.** Updates are checked on start and installed automatically. Every release is signed (ECDSA P-256); an unsigned or tampered download is refused.
+- **Private by design.** Debug logging is off by default and never records passwords, tokens or cookies.
 
 ## Install
 
