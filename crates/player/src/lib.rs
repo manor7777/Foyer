@@ -167,7 +167,8 @@ struct Api {
     render_report_swap: unsafe extern "C" fn(*mut c_void),
 }
 
-/// Where a downloaded libmpv lives (%APPDATA%\Foyer\mpv).
+/// Where a downloaded libmpv lives (%APPDATA%\Foyer\mpv). Not used on Android, where libmpv.so
+/// is packaged in the APK.
 pub fn engine_dir() -> PathBuf {
     std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("Foyer").join("mpv")
 }
@@ -192,13 +193,25 @@ fn dll_candidates() -> Vec<PathBuf> {
 
 /// True when a libmpv DLL is present (next to the app, or downloaded).
 pub fn available() -> bool {
+    if cfg!(target_os = "android") {
+        return true;
+    }
     dll_candidates().iter().any(|p| p.exists())
+}
+
+/// Android loads by bare name: the system linker finds libmpv.so among the APK's native libraries.
+fn lib_candidates() -> Vec<PathBuf> {
+    if cfg!(target_os = "android") {
+        vec![PathBuf::from("libmpv.so")]
+    } else {
+        dll_candidates()
+    }
 }
 
 fn load_api() -> Result<Api, String> {
     let mut last = String::from("the video engine (libmpv) is not installed yet");
-    for p in dll_candidates() {
-        if !p.exists() {
+    for p in lib_candidates() {
+        if !cfg!(target_os = "android") && !p.exists() {
             continue;
         }
         // Leaked on purpose: never unloaded.
@@ -445,6 +458,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
         set("force-media-title", &opts.title);
         if !opts.hw_decode {
             set("hwdec", "no");
+        } else if cfg!(target_os = "android") {
+            // MediaCodec; "mediacodec" renders straight to the GL surface, "-copy" is the safe fallback.
+            set("hwdec", if opts.hw_mode == 4 { "mediacodec" } else { "mediacodec-copy" });
         } else {
             match opts.hw_mode {
                 2 => set("hwdec", "dxva2-copy"),

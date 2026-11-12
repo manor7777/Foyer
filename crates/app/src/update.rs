@@ -76,6 +76,10 @@ fn is_newer(candidate: &str, running: &str) -> bool {
 }
 
 pub async fn check() -> Result<Checked, String> {
+    // The Android updater (signed APK handed to the package installer) is a later step of docs/ANDROID-PLAN.md.
+    if cfg!(target_os = "android") {
+        return Ok(Checked::Latest);
+    }
     let http = http()?;
     let resp = http.get(LATEST).header("Accept", "application/vnd.github+json").send().await.map_err(|e| e.without_url().to_string())?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
@@ -132,6 +136,9 @@ async fn fetch(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
 /// Downloads, verifies and swaps in the new exe. The running exe is renamed to `.old` (Windows
 /// allows that, not deleting), so the next start picks up the new one.
 pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String> {
+    if cfg!(target_os = "android") {
+        return Err("In-app updates are not available on Android yet.".into());
+    }
     let http = http()?;
     let sha = fetch(&http, &rel.sha_url).await?;
     let sig = fetch(&http, &rel.sig_url).await?;
@@ -183,6 +190,9 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
 
 /// Removes files an earlier update left behind.
 pub fn cleanup() {
+    if cfg!(target_os = "android") {
+        return;
+    }
     let Ok(exe) = std::env::current_exe() else { return };
     let _ = std::fs::remove_file(exe.with_extension("exe.new"));
     let (Some(dir), Some(name)) = (exe.parent(), exe.file_stem().and_then(|s| s.to_str())) else { return };
