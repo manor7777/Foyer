@@ -1,0 +1,7 @@
+/target
+/dist
+*.pem
+*.log
+.vs/
+.idea/
+Thumbs.db

@@ -1,0 +1,95 @@
+name: Release
+
+# Manual only: Actions > Release > Run workflow. The version comes from Cargo.toml
+# ([workspace.package] version); bump it first, then run this.
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Release notes (optional; defaults to the commits since the last release)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the signing key is set
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if [ -z "$UPDATE_SIGNING_KEY" ]; then
+            echo "::error::Repository secret UPDATE_SIGNING_KEY is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Work out the version
+        id: plan
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists. Bump the version in Cargo.toml first."
+            exit 1
+          fi
+          last="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          if [ -n "$NOTES" ]; then
+            echo "$NOTES" > notes.md
+          elif [ -n "$last" ]; then
+            { echo "## Changes since $last"; echo; git log "$last"..HEAD --no-merges --format='- %s'; } > notes.md
+          else
+            echo "First release of Foyer. See the README for what it does." > notes.md
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --locked --workspace
+
+      - name: Build (release, C runtime linked in)
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --locked -p foyer
+
+      - name: Check the exe needs no extra DLLs
+        run: |
+          bad="$(grep -aoiE '(vcruntime|msvcp|concrt|ucrtbase|api-ms-win-crt)[a-z0-9_.-]*\.dll' target/release/foyer.exe | sort -u || true)"
+          if [ -n "$bad" ]; then echo "::error::exe depends on redistributable DLLs: $bad"; exit 1; fi
+
+      - name: Package
+        run: |
+          cp target/release/foyer.exe Foyer.exe
+          # The version is signed along with the hash, so an old build can't be passed off as a new release.
+          { sha256sum Foyer.exe | awk '{print $1}'; echo "version=${{ steps.plan.outputs.version }}"; } > Foyer.exe.sha256
+
+      - name: Sign the checksum (ECDSA P-256; Foyer refuses updates without a valid signature)
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > "$RUNNER_TEMP/key.pem"
+          openssl dgst -sha256 -sign "$RUNNER_TEMP/key.pem" -out Foyer.exe.sha256.sig Foyer.exe.sha256
+          rm -f "$RUNNER_TEMP/key.pem"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.plan.outputs.tag }}" Foyer.exe Foyer.exe.sha256 Foyer.exe.sha256.sig \
+            --title "Foyer ${{ steps.plan.outputs.version }}" \
+            --notes-file notes.md --target "$GITHUB_SHA" --latest
