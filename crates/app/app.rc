@@ -12,8 +12,8 @@ BEGIN
       VALUE "FileDescription", "Foyer"
       VALUE "InternalName", "foyer"
       VALUE "OriginalFilename", "foyer.exe"
-      VALUE "ProductVersion", "0.12.0"
-      VALUE "FileVersion", "0.12.0"
+      VALUE "ProductVersion", "0.13.0"
+      VALUE "FileVersion", "0.13.0"
     END
   END
   BLOCK "VarFileInfo"
