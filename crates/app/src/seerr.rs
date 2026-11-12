@@ -1634,7 +1634,7 @@ impl Ctx {
         if self.st.lock().unwrap().cfg.notify_windows {
             let (t, b) = (title.clone(), body.clone());
             std::thread::spawn(move || {
-                let _ = notify_rust::Notification::new().appname("Foyer").summary(&t).body(&b).show();
+                crate::platform::system_notify(&t, &b);
             });
         }
         let ctx = self.clone();

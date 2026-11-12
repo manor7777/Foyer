@@ -13,6 +13,7 @@ use tokio::sync::Semaphore;
 slint::include_modules!();
 
 mod engine;
+mod platform;
 mod update;
 mod seerr;
 use seerr::SeerrState;
@@ -185,7 +186,7 @@ impl Default for Config {
 }
 
 fn data_dir() -> PathBuf {
-    let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    let base = platform::data_base();
     let dir = base.join("Foyer");
     // Carry over settings and sign-in from the pre-rename folder.
     let old = base.join("EmbyRevived");
@@ -219,28 +220,11 @@ fn dlog(msg: &str) {
     }
 }
 
-fn os_version() -> String {
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        std::process::Command::new("cmd")
-            .args(["/C", "ver"])
-            .creation_flags(0x0800_0000)
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_default()
-    }
-    #[cfg(not(windows))]
-    {
-        String::new()
-    }
-}
-
 fn debug_banner(cfg: &Config) {
     let host = |u: &str| u.split("://").last().unwrap_or("").split('/').next().unwrap_or("").to_string();
     dlog("=== Foyer extensive debug logging is on ===");
     dlog(&format!("version {} | exe {:?}", env!("CARGO_PKG_VERSION"), std::env::current_exe().ok()));
-    dlog(&format!("os: {}", os_version()));
+    dlog(&format!("os: {}", platform::os_version()));
     dlog(&format!(
         "settings: quality={:?} hwdec={} autoplay={} material={} accent_mode={} nav_pinned={} seerr={} notify={}",
         Quality::from_cfg(&cfg.quality),
@@ -1362,7 +1346,7 @@ impl Ctx {
             let s = self.st.lock().unwrap();
             (s.cfg.accent_mode, s.cfg.accent_rgb)
         };
-        let rgb = if mode == 0 { windows_accent().unwrap_or(picked) } else { picked };
+        let rgb = if mode == 0 { platform::system_accent().unwrap_or(picked) } else { picked };
         if let Some(ui) = self.ui.upgrade() {
             ui.set_accent_mode(mode as i32);
             apply_accent(&ui, rgb, sync_picker);
@@ -2402,30 +2386,6 @@ impl Ctx {
     }
 }
 
-/// The accent colour set in Windows (Settings > Personalization > Colours), as 0xRRGGBB.
-#[cfg(windows)]
-fn windows_accent() -> Option<u32> {
-    use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
-    let sub: Vec<u16> = "Software\\Microsoft\\Windows\\DWM\0".encode_utf16().collect();
-    let val: Vec<u16> = "AccentColor\0".encode_utf16().collect();
-    let mut data: u32 = 0;
-    let mut size: u32 = 4;
-    // SAFETY: valid NUL-terminated wide strings and a correctly sized DWORD out buffer.
-    let rc = unsafe {
-        RegGetValueW(HKEY_CURRENT_USER, sub.as_ptr(), val.as_ptr(), RRF_RT_REG_DWORD, std::ptr::null_mut(), &mut data as *mut u32 as *mut _, &mut size)
-    };
-    if rc != 0 {
-        return None;
-    }
-    // stored as 0xAABBGGRR
-    Some(((data & 0xFF) << 16) | (data & 0xFF00) | ((data >> 16) & 0xFF))
-}
-
-#[cfg(not(windows))]
-fn windows_accent() -> Option<u32> {
-    None
-}
-
 fn rgb_to_hsv(rgb: u32) -> (f32, f32, f32) {
     let (r, g, b) = (((rgb >> 16) & 0xFF) as f32 / 255.0, ((rgb >> 8) & 0xFF) as f32 / 255.0, (rgb & 0xFF) as f32 / 255.0);
     let max = r.max(g).max(b);
@@ -2474,15 +2434,10 @@ fn apply_accent(ui: &AppWindow, rgb: u32, sync_picker: bool) {
     }
 }
 
-/// Window material: 0 solid, 1 Mica, 2 Acrylic (Windows 11; needs the transparent window).
+/// Window material: 0 solid, 1 Mica, 2 Acrylic (Windows 11 only; solid elsewhere).
 fn apply_material(ui: &AppWindow, idx: usize) {
-    use slint::winit_030::{winit::platform::windows::{BackdropType, WindowExtWindows}, WinitWindowAccessor};
-    let kind = match idx {
-        1 => BackdropType::MainWindow,
-        2 => BackdropType::TransientWindow,
-        _ => BackdropType::None,
-    };
-    ui.window().with_winit_window(|w| w.set_system_backdrop(kind));
+    let idx = if platform::SUPPORTS_MATERIAL { idx } else { 0 };
+    platform::set_material(ui.window(), idx);
     ui.global::<Palette>().set_material(idx as i32);
 }
 
@@ -3455,7 +3410,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     ui.on_open_logs(move || {
         let _ = std::fs::create_dir_all(logs_dir());
-        let _ = std::process::Command::new("explorer").arg(logs_dir()).spawn();
+        platform::open_folder(&logs_dir());
     });
     ui.on_clear_logs(move || {
         if let Ok(rd) = std::fs::read_dir(logs_dir()) {
@@ -3638,7 +3593,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
             if c.st.lock().unwrap().cfg.accent_mode != 0 {
                 return;
             }
-            if let Some(rgb) = windows_accent() {
+            if let Some(rgb) = platform::system_accent() {
                 if rgb != last {
                     last = rgb;
                     c.refresh_accent(false);
@@ -3829,48 +3784,6 @@ fn home_rows_model(cfg: &Config) -> ModelRc<HomeRowCfg> {
 }
 
 
-/// Names of the installed display adapters (Windows registry), e.g. "Intel(R) UHD Graphics".
-#[cfg(windows)]
-fn gpu_names() -> Vec<String> {
-    use windows_sys::Win32::System::Registry::{RegCloseKey, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW, HKEY_LOCAL_MACHINE, KEY_READ, RRF_RT_REG_SZ};
-    let base: Vec<u16> = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11cd-be10-08002be10318}".encode_utf16().chain(Some(0)).collect();
-    let mut out = Vec::new();
-    // SAFETY: valid NUL-terminated wide strings, correctly sized buffers, handle closed after use.
-    unsafe {
-        let mut key = std::ptr::null_mut();
-        if RegOpenKeyExW(HKEY_LOCAL_MACHINE, base.as_ptr(), 0, KEY_READ, &mut key) != 0 {
-            return out;
-        }
-        let mut i = 0;
-        loop {
-            let mut name = [0u16; 64];
-            let mut len = name.len() as u32;
-            if RegEnumKeyExW(key, i, name.as_mut_ptr(), &mut len, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()) != 0 {
-                break;
-            }
-            i += 1;
-            let sub: Vec<u16> = String::from_utf16_lossy(&name[..len as usize]).encode_utf16().chain(Some(0)).collect();
-            let val: Vec<u16> = "DriverDesc".encode_utf16().chain(Some(0)).collect();
-            let mut buf = [0u16; 256];
-            let mut size = (buf.len() * 2) as u32;
-            if RegGetValueW(key, sub.as_ptr(), val.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buf.as_mut_ptr() as *mut _, &mut size) == 0 {
-                let n = (size as usize / 2).saturating_sub(1).min(buf.len());
-                let d = String::from_utf16_lossy(&buf[..n]);
-                if !d.is_empty() && !d.to_lowercase().contains("basic") && !d.to_lowercase().contains("remote") {
-                    out.push(d);
-                }
-            }
-        }
-        RegCloseKey(key);
-    }
-    out
-}
-
-#[cfg(not(windows))]
-fn gpu_names() -> Vec<String> {
-    Vec::new()
-}
-
 /// Integrated graphics (Intel, or an AMD APU) rather than a dedicated card.
 fn is_integrated(name: &str) -> bool {
     let n = name.to_lowercase();
@@ -3885,7 +3798,7 @@ fn is_integrated(name: &str) -> bool {
 fn auto_hw_mode() -> usize {
     static MODE: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *MODE.get_or_init(|| {
-        let gpus = gpu_names();
+        let gpus = platform::gpu_names();
         let preferred = gpus.iter().find(|g| is_integrated(g)).or(gpus.first()).cloned().unwrap_or_default();
         dlog(&format!("graphics adapters: {gpus:?}; preferred for decoding: {preferred:?}"));
         1
