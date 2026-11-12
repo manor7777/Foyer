@@ -54,7 +54,7 @@ jobs:
           export ANDROID_HOME=/usr/local/lib/android/sdk
           export ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
           echo "NDK: $ANDROID_NDK_HOME"
-          mkdir -p android/libs
+          mkdir -p android/libs/arm64-v8a
           cargo apk build --release --lib
 
       - uses: actions/upload-artifact@v4
