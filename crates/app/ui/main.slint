@@ -530,8 +530,8 @@ component Pill inherits Rectangle {
     in property <string> label;
     in property <bool> compact: false;
     callback clicked();
-    height: 36px;
-    border-radius: 18px;
+    height: 40px;
+    border-radius: 20px;
     background: ta.pressed ? #ffffff40 : (ta.has-hover ? #ffffff26 : #ffffff14);
     HorizontalLayout {
         padding-left: root.compact ? 10px : 12px;
@@ -1067,7 +1067,10 @@ export component AppWindow inherits Window {
     min-height: 380px;
     preferred-width: 1180px;
     preferred-height: 720px;
-    background: transparent;
+    // opaque while playing so resize frames (fullscreen toggle) don't flash the backdrop through
+    background: root.playing ? black : transparent;
+    // fade out after stopping so the library can load in behind it
+    animate background { duration: 250ms; easing: ease-out; }
     // pinned windows stay on top only while a video is playing
     always-on-top: root.playing && root.on-top;
 
@@ -1169,6 +1172,10 @@ export component AppWindow inherits Window {
     in-out property <bool> auto-skip-intro: false;
     callback set-auto-skip-intro(bool);
     in-out property <bool> controls-shown: false;
+    property <bool> controls-on: root.controls-shown || root.player-paused || !root.player-started;
+    // quick fade in, slower fade out
+    property <float> controls-op: root.controls-on ? 1.0 : 0.0;
+    animate controls-op { duration: root.controls-on ? 150ms : 500ms; easing: ease-out; }
     in property <[TrackRow]> audio-tracks;
     in property <[TrackRow]> sub-tracks;
     in-out property <bool> menu-hold: false;
@@ -1423,6 +1430,16 @@ export component AppWindow inherits Window {
     function poke-controls() {
         controls-shown = true;
         root.mouse-moved();
+    }
+
+    // quick fade between pages: drop the opacity on change, a one-shot timer then fades it back up
+    property <float> page-op: 1.0;
+    animate page-op { duration: 150ms; easing: ease-out; }
+    changed page => { root.page-op = 0.2; page-fade.running = true; }
+    page-fade := Timer {
+        interval: 16ms;
+        running: false;
+        triggered => { self.running = false; root.page-op = 1.0; }
     }
 
     server-timer := Timer {
@@ -1708,6 +1725,7 @@ export component AppWindow inherits Window {
 
         Rectangle {
             horizontal-stretch: 1;
+            opacity: root.page-op;
 
             if busy: Spinner {
                 indeterminate: true;
@@ -3975,7 +3993,9 @@ export component AppWindow inherits Window {
             }
         }
 
-        if root.controls-shown || root.player-paused || !root.player-started: Rectangle {
+        Rectangle {
+            visible: root.controls-op > 0;
+            opacity: root.controls-op;
             y: 0px;
             height: 96px;
             background: @linear-gradient(180deg, #000000c8 0%, #00000000 100%);
@@ -4003,7 +4023,9 @@ export component AppWindow inherits Window {
             }
         }
 
-        if root.controls-shown || root.player-paused || !root.player-started: Rectangle {
+        Rectangle {
+            visible: root.controls-op > 0;
+            opacity: root.controls-op;
             y: parent.height - self.height;
             height: 150px;
             background: @linear-gradient(180deg, #00000000 0%, #000000e6 100%);
@@ -4068,11 +4090,10 @@ export component AppWindow inherits Window {
                     }
                 }
                 HorizontalLayout {
-                    height: 48px;
+                    height: 40px;
                     spacing: 4px;
                     IconButton {
                         icon: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
-                        size: 44px;
                         clicked => { root.player-key("pause"); }
                     }
                     if !root.player-live: IconButton {
@@ -4091,10 +4112,10 @@ export component AppWindow inherits Window {
                     }
                     Rectangle {
                         visible: root.width >= 900px;
-                        width: root.width >= 900px ? 84px : 0px;
+                        width: root.width >= 900px ? 92px : 0px;
                         Rectangle {
                             x: 0px;
-                            width: parent.width;
+                            width: parent.width - 8px;
                             y: (parent.height - self.height) / 2;
                             height: 4px;
                             border-radius: 2px;
@@ -4105,10 +4126,11 @@ export component AppWindow inherits Window {
                             y: (parent.height - self.height) / 2;
                             height: 4px;
                             border-radius: 2px;
-                            width: parent.width * min(1.0, root.player-volume / 100);
+                            width: (parent.width - 8px) * min(1.0, root.player-volume / 100);
                             background: root.player-muted ? #ffffff88 : white;
                         }
                         TouchArea {
+                            width: parent.width - 8px;
                             pointer-event(e) => {
                                 if e.kind == PointerEventKind.move { root.poke-controls(); }
                             }
@@ -4637,3 +4659,4 @@ export component AppWindow inherits Window {
     }
     }
 }
+
