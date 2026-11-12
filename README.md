@@ -4,7 +4,7 @@
 
 # Foyer
 
-**A fast, native media client for your home server. Glassy WinUI-style interface, mpv playback, no web view.**
+**A fast, native media client for your Emby server. Glassy WinUI-style interface, mpv playback, no web view.**
 
 [![Release](https://img.shields.io/github/v/release/manor7777/Foyer?style=flat-square&color=2bb3ff)](https://github.com/manor7777/Foyer/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0a84ff?style=flat-square)](#install)
