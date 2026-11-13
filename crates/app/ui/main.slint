@@ -11,6 +11,11 @@ export global Hover {
     callback left();
 }
 
+/// Home-screen / grid card size multiplier (Settings > Appearance).
+export global Scale {
+    in-out property <float> factor: 1.0;
+}
+
 export global Palette {
     /// 0 solid, 1 Mica, 2 Acrylic (set from Rust)
     in-out property <int> material: 0;
@@ -352,6 +357,7 @@ export struct Detail {
     logo: image,
     played: bool,
     favorite: bool,
+    following: bool,
     progress: float,
     remaining: string,
     summary: string,
@@ -498,6 +504,15 @@ export struct ServerInfo {
     detail: string,
     update: bool,
     restart-pending: bool,
+}
+
+export struct NoteRow {
+    id: string,
+    title: string,
+    body: string,
+    when: string,
+    item: string,
+    read: bool,
 }
 
 component IconButton inherits Rectangle {
@@ -878,8 +893,8 @@ component CardView inherits Rectangle {
     in property <bool> wide: false;
     callback clicked();
 
-    width: wide ? 240px : 150px;
-    height: (wide ? 135px : 225px) + 52px;
+    width: (wide ? 240px : 150px) * Scale.factor;
+    height: (wide ? 135px : 225px) * Scale.factor + 52px;
     background: transparent;
 
     fs := FocusScope {
@@ -895,7 +910,7 @@ component CardView inherits Rectangle {
     VerticalLayout {
         spacing: 4px;
         Rectangle {
-            height: wide ? 135px : 225px;
+            height: (wide ? 135px : 225px) * Scale.factor;
             border-radius: 8px;
             background: Palette.control-background;
             clip: true;
@@ -1021,6 +1036,7 @@ component NavItem inherits Rectangle {
     in property <bool> selected: false;
     in property <bool> compact: false;
     in property <bool> enabled: true;
+    in property <int> badge: 0;
     callback clicked();
     height: 38px;
     opacity: enabled ? 1.0 : 0.35;
@@ -1056,6 +1072,24 @@ component NavItem inherits Rectangle {
         vertical-alignment: center;
         overflow: elide;
         width: parent.width - 52px;
+    }
+    if root.badge > 0: Rectangle {
+        x: root.compact ? parent.width / 2 + 2px : parent.width - self.width - 10px;
+        y: root.compact ? 3px : (parent.height - self.height) / 2;
+        width: max(16px, bd-text.preferred-width + 10px);
+        height: 16px;
+        border-radius: 8px;
+        background: Palette.accent-background;
+        bd-text := Text {
+            text: root.badge > 99 ? "99+" : root.badge;
+            color: Palette.accent-foreground;
+            font-size: 10px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: parent.width;
+            height: parent.height;
+        }
     }
     Rectangle {
         border-radius: 6px;
@@ -1215,6 +1249,22 @@ export component AppWindow inherits Window {
     in-out property <string> lib-letter: "";
     in property <int> lib-total: 0;
     in property <bool> lib-can-more: false;
+    in property <[NoteRow]> notes;
+    in property <int> unread-count: 0;
+    callback open-notifications();
+    callback note-click(string, string);
+    callback note-mark-read(string);
+    callback notes-mark-all-read();
+    callback notes-clear();
+    in-out property <bool> close-to-tray: false;
+    callback set-close-to-tray(bool);
+    in-out property <int> card-scale-index: 2;
+    callback set-card-scale(int);
+    in property <bool> following: false;
+    callback toggle-follow();
+    in property <[string]> fav-tabs;
+    in-out property <int> fav-tab: 0;
+    callback fav-tab-picked(int);
     in-out property <bool> pl-tabs: false;
     in-out property <int> pl-tab: 0;
     callback pl-tab-picked(int);
@@ -1787,13 +1837,100 @@ export component AppWindow inherits Window {
                         spacing: 8px;
                         Heading { text: row.title; }
                         HScroll {
-                            height: (row.wide ? 135px : 225px) + 64px;
+                            height: (row.wide ? 135px : 225px) * Scale.factor + 64px;
                             HorizontalLayout {
                                 spacing: 14px;
                                 for c in row.cards: CardView {
                                     card: c;
                                     wide: row.wide;
                                     clicked => { root.open-item(c.id, c.kind); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---- notifications ----
+            if page == "notifications": ScrollView {
+                mouse-drag-pan-enabled: true;
+                VerticalLayout {
+                    alignment: start;
+                    padding: 24px;
+                    spacing: 10px;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Heading { text: "Notifications"; horizontal-stretch: 1; }
+                        if root.unread-count > 0: PillButton {
+                            text: "Mark all read";
+                            icon: @image-url("icons/check.svg");
+                            clicked => { root.notes-mark-all-read(); }
+                        }
+                        if root.notes.length > 0: PillButton {
+                            text: "Clear all";
+                            icon: @image-url("icons/delete.svg");
+                            clicked => { root.notes-clear(); }
+                        }
+                    }
+                    if root.notes.length == 0: Text {
+                        text: "No notifications yet. New episodes, ready requests and updates will be listed here.";
+                        color: Palette.foreground;
+                        opacity: 0.6;
+                        wrap: word-wrap;
+                    }
+                    for n in root.notes: Rectangle {
+                        height: nr-col.preferred-height + 24px;
+                        border-radius: 10px;
+                        background: n.read ? Palette.control-background.with-alpha(0.6) : Palette.control-background;
+                        border-width: 1px;
+                        border-color: n.read ? Palette.border : Palette.accent-background;
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.note-click(n.id, n.item); }
+                        }
+                        HorizontalLayout {
+                            padding: 12px;
+                            spacing: 12px;
+                            VerticalLayout {
+                                alignment: center;
+                                Rectangle {
+                                    width: 10px;
+                                    height: 10px;
+                                    border-radius: 5px;
+                                    background: n.read ? transparent : Palette.accent-background;
+                                }
+                            }
+                            nr-col := VerticalLayout {
+                                spacing: 3px;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: n.title;
+                                    color: Palette.foreground;
+                                    font-size: 14px;
+                                    font-weight: n.read ? 400 : 700;
+                                    wrap: word-wrap;
+                                }
+                                if n.body != "": Text {
+                                    text: n.body;
+                                    color: Palette.foreground;
+                                    opacity: 0.7;
+                                    font-size: 12px;
+                                    wrap: word-wrap;
+                                }
+                                Text {
+                                    text: n.when + (n.item != "" ? "  ·  click to open" : "");
+                                    color: Palette.foreground;
+                                    opacity: 0.5;
+                                    font-size: 11px;
+                                }
+                            }
+                            if !n.read: VerticalLayout {
+                                alignment: center;
+                                IconButton {
+                                    icon: @image-url("icons/check.svg");
+                                    size: 32px;
+                                    tint: Palette.foreground;
+                                    clicked => { root.note-mark-read(n.id); }
                                 }
                             }
                         }
@@ -1828,6 +1965,27 @@ export component AppWindow inherits Window {
                                 vertical-alignment: center;
                             }
                             pl-ta := TouchArea { clicked => { root.pl-tab-picked(i); } }
+                        }
+                    }
+                    if root.pl-tabs && root.fav-tabs.length > 0: HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
+                        for name[i] in root.fav-tabs: Rectangle {
+                            width: 84px;
+                            height: 28px;
+                            border-radius: 14px;
+                            background: i == root.fav-tab ? Palette.control-hover : (fv-ta.has-hover ? Palette.control-hover.with-alpha(0.6) : transparent);
+                            border-width: 1px;
+                            border-color: i == root.fav-tab ? Palette.accent-background : Palette.border;
+                            Text {
+                                text: name;
+                                color: Palette.foreground;
+                                font-weight: i == root.fav-tab ? 700 : 400;
+                                font-size: 12px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            fv-ta := TouchArea { clicked => { root.fav-tab-picked(i); } }
                         }
                     }
                     if root.lib-controls: HorizontalLayout {
@@ -1871,8 +2029,8 @@ export component AppWindow inherits Window {
                     GridLayout {
                         spacing: 14px;
                         for c[i] in cards: CardView {
-                            row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / 164px)));
-                            col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / 164px)));
+                            row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
+                            col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
                             card: c;
                             clicked => { root.open-item(c.id, c.kind); }
                         }
@@ -1966,8 +2124,8 @@ export component AppWindow inherits Window {
                         GridLayout {
                             spacing: 14px;
                             for c[i] in cards: CardView {
-                                row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / 164px)));
-                                col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / 164px)));
+                                row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
+                                col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
                                 card: c;
                                 clicked => { root.open-item(c.id, c.kind); }
                             }
@@ -2235,6 +2393,14 @@ export component AppWindow inherits Window {
                             }
                         }
                         SettingRow {
+                            title: "Close to tray";
+                            description: "Closing the window keeps Foyer running in the notification area so it can keep checking for new episodes. Right-click the tray icon to quit.";
+                            ToggleSwitch {
+                                checked <=> root.close-to-tray;
+                                toggled(c) => { root.set-close-to-tray(c); }
+                            }
+                        }
+                        SettingRow {
                             title: "Full screen";
                             description: "Press F11 any time, or double-click the video.";
                             divider: false;
@@ -2276,6 +2442,16 @@ export component AppWindow inherits Window {
                             ToggleSwitch {
                                 checked <=> root.hover-backdrop;
                                 toggled(c) => { root.set-hover-backdrop(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Poster size";
+                            description: "Scales the posters on the home screen and in lists.";
+                            Dropdown {
+                                width: 230px;
+                                model: ["Smallest", "Small", "Default", "Large", "Largest"];
+                                current-index <=> root.card-scale-index;
+                                selected => { root.set-card-scale(self.current-index); }
                             }
                         }
                         SettingRow {
@@ -2729,7 +2905,7 @@ export component AppWindow inherits Window {
                             spacing: 8px;
                             Heading { text: row.title; }
                             HScroll {
-                                height: 289px;
+                                height: 225px * Scale.factor + 64px;
                                 HorizontalLayout {
                                     spacing: 14px;
                                     for c in row.cards: CardView {
@@ -2753,8 +2929,8 @@ export component AppWindow inherits Window {
                         GridLayout {
                             spacing: 14px;
                             for c[i] in root.sr-cards: CardView {
-                                row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / 164px)));
-                                col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / 164px)));
+                                row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
+                                col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
                                 card: c;
                                 clicked => {
                                     if c.badge-kind == 4 { root.sr-open-library(c.kind, c.id); } else { root.sr-open(c.kind, c.id); }
@@ -2860,7 +3036,7 @@ export component AppWindow inherits Window {
                         spacing: 8px;
                         Heading { text: "Cast"; }
                         HScroll {
-                            height: 289px;
+                            height: 225px * Scale.factor + 64px;
                             HorizontalLayout {
                                 spacing: 14px;
                                 for p in root.sr-cast: CardView {
@@ -3044,8 +3220,8 @@ export component AppWindow inherits Window {
                     GridLayout {
                         spacing: 14px;
                         for c[i] in root.sr-cards: CardView {
-                            row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / 164px)));
-                            col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / 164px)));
+                            row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
+                            col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
                             card: c;
                             clicked => {
                                 if c.badge-kind == 4 { root.sr-open-library(c.kind, c.id); } else { root.sr-open(c.kind, c.id); }
@@ -3708,6 +3884,15 @@ export component AppWindow inherits Window {
                                 opacity: 0.65;
                                 wrap: word-wrap;
                             }
+                            if detail.kind == "Series": HorizontalLayout {
+                                alignment: start;
+                                PillButton {
+                                    text: root.following ? "Following" : "Notify me of new episodes";
+                                    icon: @image-url("icons/bell.svg");
+                                    primary: root.following;
+                                    clicked => { root.toggle-follow(); }
+                                }
+                            }
                             if detail.playable: HorizontalLayout {
                                 spacing: 10px;
                                 alignment: start;
@@ -3813,7 +3998,7 @@ export component AppWindow inherits Window {
                         spacing: 8px;
                         Heading { text: "Cast & crew"; }
                         HScroll {
-                            height: 225px + 64px;
+                            height: 225px * Scale.factor + 64px;
                             HorizontalLayout {
                                 spacing: 14px;
                                 for p in detail-cast: CardView {
@@ -3830,7 +4015,7 @@ export component AppWindow inherits Window {
                         spacing: 8px;
                         Heading { text: root.related-title; }
                         HScroll {
-                            height: root.related-wide ? 199px : 289px;
+                            height: (root.related-wide ? 135px : 225px) * Scale.factor + 64px;
                             start-offset: root.related-offset;
                             HorizontalLayout {
                                 spacing: 14px;
@@ -4036,6 +4221,17 @@ export component AppWindow inherits Window {
                     clicked => {
                         root.nav-pinned = !root.nav-pinned;
                         root.set-nav-pinned(root.nav-pinned);
+                    }
+                }
+                NavItem {
+                    compact: !root.nav-expanded;
+                    label: "Notifications";
+                    icon: @image-url("icons/bell.svg");
+                    badge: root.unread-count;
+                    selected: root.page == "notifications";
+                    clicked => {
+                        root.nav-open = false;
+                        root.open-notifications();
                     }
                 }
                 if root.seerr-on: NavItem {

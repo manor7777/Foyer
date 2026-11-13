@@ -1273,7 +1273,7 @@ fn save_seen(s: &Seen) {
 pub const NOTIFY_INTERVALS: [u64; 4] = [5, 10, 30, 60];
 
 /// "S1 E1-E3, E5" style summary of newly arrived episodes.
-fn describe_eps(eps: &[&Item]) -> String {
+pub fn describe_eps(eps: &[&Item]) -> String {
     let mut by_season: std::collections::BTreeMap<i32, Vec<i32>> = std::collections::BTreeMap::new();
     for e in eps {
         by_season.entry(e.parent_index_number.unwrap_or(0)).or_default().push(e.index_number.unwrap_or(0));
@@ -1682,6 +1682,7 @@ impl Ctx {
     /// In-app banner plus (optionally) a Windows notification.
     pub fn notify_user(&self, title: String, body: String, item: Option<String>) {
         dlog(&format!("notification: {title} / {body}"));
+        self.record_note(&title, &body, item.as_deref().unwrap_or(""));
         if self.st.lock().unwrap().cfg.notify_windows {
             let (t, b) = (title.clone(), body.clone());
             std::thread::spawn(move || {

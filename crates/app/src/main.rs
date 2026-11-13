@@ -15,6 +15,8 @@ slint::include_modules!();
 mod engine;
 mod update;
 mod seerr;
+mod notes;
+use notes::{Follow, NoteRec};
 use seerr::SeerrState;
 
 // ---------------------------------------------------------------- config
@@ -112,6 +114,28 @@ struct Config {
     update_install: bool,
     #[serde(default)]
     debug_logging: bool,
+    /// Closing the window hides it to the tray icon instead of quitting.
+    #[serde(default)]
+    close_to_tray: bool,
+    /// Index into CARD_SCALES; 2 = default size.
+    #[serde(default = "default_card_scale")]
+    card_scale: usize,
+    /// Last window size (physical pixels) and whether it was maximised.
+    #[serde(default)]
+    win_w: u32,
+    #[serde(default)]
+    win_h: u32,
+    #[serde(default)]
+    win_max: bool,
+    /// Series the user wants new-episode notifications for.
+    #[serde(default)]
+    followed: Vec<Follow>,
+}
+
+const CARD_SCALES: [f32; 5] = [0.8, 0.9, 1.0, 1.15, 1.3];
+
+fn default_card_scale() -> usize {
+    2
 }
 
 fn default_notify_interval() -> usize {
@@ -184,6 +208,12 @@ impl Default for Config {
             update_check: true,
             update_install: true,
             debug_logging: false,
+            close_to_tray: false,
+            card_scale: default_card_scale(),
+            win_w: 0,
+            win_h: 0,
+            win_max: false,
+            followed: Vec::new(),
         }
     }
 }
@@ -690,6 +720,7 @@ enum Page {
     SeerrIssue { id: i64 },
     SeerrUsers,
     SeerrUser { id: i64 },
+    Notifications,
 }
 
 struct State {
@@ -710,6 +741,11 @@ struct State {
     /// Ids of the server's "playlists" library views (they get a Mine / Server tab pair).
     playlist_views: Vec<String>,
     sr: SeerrState,
+    /// Log of every notification Foyer has shown, newest first.
+    notes: Vec<NoteRec>,
+    /// The Mine tab's favourites and which sub-tab (TV / Movies / Other) is showing.
+    fav_items: Vec<Item>,
+    fav_sub: usize,
 }
 
 /// What the library page is currently showing.
@@ -848,6 +884,7 @@ impl Ctx {
             Page::SeerrIssue { id } => self.show_sr_issue(id),
             Page::SeerrUsers => self.show_sr_users(),
             Page::SeerrUser { id } => self.show_sr_user(id),
+            Page::Notifications => self.show_notifications(),
         }
     }
 
@@ -1002,6 +1039,7 @@ impl Ctx {
         self.post(my, move |ui| {
             ui.set_busy(false);
             ui.set_pl_tabs(false);
+            ui.set_fav_tabs(ModelRc::new(VecModel::<SharedString>::default()));
             ui.set_lib_controls(false);
             ui.set_lib_can_more(false);
             ui.set_grid_title(title.into());
@@ -1139,12 +1177,44 @@ impl Ctx {
         self.rt.spawn(async move {
             match client.favorites(&uid, 300).await {
                 Ok(items) => {
-                    ctx.show_grid(my, &client, title, items, "grid");
-                    ctx.post(my, |ui| ui.set_pl_tabs(true));
+                    {
+                        // Open on the first sub-tab that has something in it.
+                        let mut s = ctx.st.lock().unwrap();
+                        s.fav_sub = (0..3).find(|k| items.iter().any(|i| fav_group(i) == *k)).unwrap_or(0);
+                        s.fav_items = items;
+                    }
+                    ctx.favs_view(my, &client);
                 }
                 Err(e) => ctx.fail(my, e),
             }
         });
+    }
+
+    /// Shows the Mine tab's current TV / Movies / Other sub-tab.
+    fn favs_view(&self, my: u64, client: &Client) {
+        let (items, sub, title) = {
+            let s = self.st.lock().unwrap();
+            (s.fav_items.clone(), s.fav_sub, s.lib.title.clone())
+        };
+        let mut tabs = vec!["TV", "Movies"];
+        if items.iter().any(|i| fav_group(i) == 2) {
+            tabs.push("Other");
+        }
+        let sub = sub.min(tabs.len() - 1);
+        let shown: Vec<Item> = items.into_iter().filter(|i| fav_group(i) == sub).collect();
+        self.show_grid(my, client, title, shown, "grid");
+        self.post(my, move |ui| {
+            ui.set_pl_tabs(true);
+            ui.set_fav_tabs(ModelRc::new(VecModel::from(tabs.into_iter().map(SharedString::from).collect::<Vec<_>>())));
+            ui.set_fav_tab(sub as i32);
+        });
+    }
+
+    fn fav_tab_picked(&self, i: i32) {
+        let Some((client, _)) = self.session() else { return };
+        self.st.lock().unwrap().fav_sub = i.max(0) as usize;
+        let my = self.begin();
+        self.favs_view(my, &client);
     }
 
     fn pl_tab_picked(&self, i: i32) {
@@ -1176,6 +1246,7 @@ impl Ctx {
             ui.set_cards(ModelRc::new(VecModel::<Card>::default()));
             ui.set_grid_title(title.into());
             ui.set_lib_controls(true);
+            ui.set_fav_tabs(ModelRc::new(VecModel::<SharedString>::default()));
             ui.set_lib_can_more(false);
             ui.set_lib_total(0);
             ui.set_lib_sort_index(sort as i32);
@@ -1423,6 +1494,9 @@ impl Ctx {
         ui.set_notify_mode(s.cfg.notify_mode as i32);
         ui.set_notify_interval(s.cfg.notify_interval as i32);
         ui.set_debug_logging(s.cfg.debug_logging);
+        ui.set_close_to_tray(s.cfg.close_to_tray);
+        ui.set_card_scale_index(s.cfg.card_scale.min(CARD_SCALES.len() - 1) as i32);
+        ui.global::<Scale>().set_factor(CARD_SCALES[s.cfg.card_scale.min(CARD_SCALES.len() - 1)]);
         ui.set_sr_url(s.cfg.seerr_url.clone().into());
     }
 
@@ -1865,13 +1939,14 @@ impl Ctx {
                 }
             }
             jobs.extend(related_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Related(i), u))));
-            let related_offset = related_index as f32 * 254.0;
+            let related_offset = related_index as f32 * 254.0 * CARD_SCALES[ctx.st.lock().unwrap().cfg.card_scale.min(CARD_SCALES.len() - 1)];
 
             {
                 let mut s = ctx.st.lock().unwrap();
                 s.series_id = (item.kind == "Series").then(|| item.id.clone());
                 s.season_ids = season_ids;
             }
+            let following = item.kind == "Series" && ctx.is_following(&item.id);
             ctx.post(my, move |ui| {
                 ui.set_busy(false);
                 ui.set_detail(Detail {
@@ -1889,10 +1964,12 @@ impl Ctx {
                     logo: Image::default(),
                     played,
                     favorite: d_favorite,
+                    following: false,
                     progress: d_progress,
                     remaining: d_remaining.into(),
                     summary: d_summary.into(),
                 });
+                ui.set_following(following);
                 ui.set_info_rows(ModelRc::new(VecModel::from(info_rows)));
                 ui.set_seasons(ModelRc::new(VecModel::from(season_names.into_iter().map(SharedString::from).collect::<Vec<_>>())));
                 ui.set_season_index(season_index as i32);
@@ -3231,6 +3308,9 @@ fn main() -> Result<(), slint::PlatformError> {
             lib: LibView::default(),
             playlist_views: Vec::new(),
             sr: SeerrState::default(),
+            notes: notes::load_notes(),
+            fav_items: Vec::new(),
+            fav_sub: 0,
         })),
         gen: Arc::new(AtomicU64::new(0)),
         sem: Arc::new(Semaphore::new(6)),
@@ -3524,13 +3604,37 @@ fn main() -> Result<(), slint::PlatformError> {
         if let Some(ui) = c.ui.upgrade() {
             ui.set_note_open(false);
         }
-        if let Some(issue) = id.strip_prefix("issue:") {
-            if let Ok(n) = issue.parse::<i64>() {
-                c.navigate(Page::SeerrIssue { id: n }, true);
-            }
-        } else if !id.is_empty() {
-            c.navigate(Page::Detail { id: id.to_string() }, true);
+        c.open_note_item(id.as_str());
+    });
+    let c = ctx.clone();
+    ui.on_open_notifications(move || c.navigate(Page::Notifications, true));
+    let c = ctx.clone();
+    ui.on_note_click(move |id, item| {
+        c.note_mark_read(id.as_str());
+        c.open_note_item(item.as_str());
+    });
+    let c = ctx.clone();
+    ui.on_note_mark_read(move |id| c.note_mark_read(id.as_str()));
+    let c = ctx.clone();
+    ui.on_notes_mark_all_read(move || c.notes_mark_all_read());
+    let c = ctx.clone();
+    ui.on_notes_clear(move || c.notes_clear());
+    let c = ctx.clone();
+    ui.on_toggle_follow(move || c.toggle_follow());
+    let c = ctx.clone();
+    ui.on_fav_tab_picked(move |i| c.fav_tab_picked(i));
+    let c = ctx.clone();
+    ui.on_set_card_scale(move |i| {
+        let i = (i.max(0) as usize).min(CARD_SCALES.len() - 1);
+        c.update_cfg(|cfg| cfg.card_scale = i);
+        if let Some(ui) = c.ui.upgrade() {
+            ui.global::<Scale>().set_factor(CARD_SCALES[i]);
         }
+    });
+    let c = ctx.clone();
+    ui.on_set_close_to_tray(move |v| {
+        c.update_cfg(|cfg| cfg.close_to_tray = v);
+        notes::set_tray(v);
     });
     let weak = ui.as_weak();
     ui.on_note_dismiss(move || {
@@ -3774,7 +3878,9 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     ctx.update_startup();
     ctx.sr_restore();
     ctx.sr_start_notifier();
+    ctx.start_follow_checker();
     ctx.sync_settings(&ui);
+    ctx.apply_notes(&ui);
     ctx.refresh_accent(true);
     // Follow changes made in Windows Personalization while "Match Windows" is selected.
     let accent_timer = slint::Timer::default();
@@ -3867,9 +3973,67 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
         });
     }
 
+    // Window size / maximised state: restore it, and keep it saved as it changes.
+    notes::init_tray_events(ui.as_weak());
+    {
+        let cfg = ctx.st.lock().unwrap().cfg.clone();
+        if cfg.win_w >= 600 && cfg.win_h >= 380 {
+            ui.window().set_size(slint::PhysicalSize::new(cfg.win_w, cfg.win_h));
+        }
+        notes::set_tray(cfg.close_to_tray);
+    }
+    let _ = ui.show();
+    if ctx.st.lock().unwrap().cfg.win_max {
+        ui.window().set_maximized(true);
+    }
+    let save_window = {
+        let c = ctx.clone();
+        move || {
+            let Some(ui) = c.ui.upgrade() else { return };
+            let w = ui.window();
+            if w.is_fullscreen() || w.is_minimized() {
+                return;
+            }
+            let (max, size) = (w.is_maximized(), w.size());
+            let (cw, ch, cm) = {
+                let s = c.st.lock().unwrap();
+                (s.cfg.win_w, s.cfg.win_h, s.cfg.win_max)
+            };
+            // A maximised window keeps the last normal size so un-maximising goes back to it.
+            let resized = !max && size.width >= 600 && size.height >= 380 && (size.width != cw || size.height != ch);
+            if resized || max != cm {
+                c.update_cfg(|cfg| {
+                    if resized {
+                        cfg.win_w = size.width;
+                        cfg.win_h = size.height;
+                    }
+                    cfg.win_max = max;
+                });
+            }
+        }
+    };
+    let window_timer = slint::Timer::default();
+    window_timer.start(slint::TimerMode::Repeated, Duration::from_secs(2), save_window.clone());
+    {
+        let c = ctx.clone();
+        ui.window().on_close_requested(move || {
+            save_window();
+            if c.st.lock().unwrap().cfg.close_to_tray {
+                // Don't leave a video playing in a hidden window.
+                if let Some(tx) = &c.st.lock().unwrap().player_tx {
+                    let _ = tx.send(player::Control::Quit);
+                }
+            } else {
+                let _ = slint::quit_event_loop();
+            }
+            slint::CloseRequestResponse::HideWindow
+        });
+    }
+
     load_posters(ui.as_weak());
     ctx.try_saved_login();
-    let result = ui.run();
+    let result = slint::run_event_loop_until_quit();
+    drop(window_timer);
     drop(hide_timer);
     drop(accent_timer);
     result
@@ -3986,6 +4150,15 @@ fn home_rows_model(cfg: &Config) -> ModelRc<HomeRowCfg> {
 
 /// Names of the installed display adapters (Windows registry), e.g. "Intel(R) UHD Graphics".
 #[cfg(windows)]
+/// Which Mine sub-tab a favourite belongs to: 0 TV, 1 Movies, 2 anything else.
+fn fav_group(i: &Item) -> usize {
+    match i.kind.as_str() {
+        "Series" | "Season" | "Episode" => 0,
+        "Movie" => 1,
+        _ => 2,
+    }
+}
+
 fn gpu_names() -> Vec<String> {
     use windows_sys::Win32::System::Registry::{RegCloseKey, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW, HKEY_LOCAL_MACHINE, KEY_READ, RRF_RT_REG_SZ};
     let base: Vec<u16> = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11cd-be10-08002be10318}".encode_utf16().chain(Some(0)).collect();
