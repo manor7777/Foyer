@@ -549,6 +549,7 @@ component IconButton inherits Rectangle {
     in property <length> size: 40px;
     in property <color> tint: white;
     callback clicked();
+    out property <bool> hovered: ta.has-hover;
     width: size;
     height: size;
     border-radius: size / 2;
@@ -5012,9 +5013,51 @@ export component AppWindow inherits Window {
                         icon: @image-url("icons/skip-next.svg");
                         clicked => { root.player-key("next"); }
                     }
-                    IconButton {
-                        icon: root.player-muted ? @image-url("icons/volume-off.svg") : @image-url("icons/volume-up.svg");
-                        clicked => { root.player-key("mute"); }
+                    Rectangle {
+                        width: 40px;
+                        mute-btn := IconButton {
+                            icon: root.player-muted ? @image-url("icons/volume-off.svg") : @image-url("icons/volume-up.svg");
+                            clicked => { root.player-key("mute"); }
+                        }
+                        // narrow window: no inline slider, so hovering the button pops a vertical one up
+                        Rectangle {
+                            visible: root.width < 900px && (mute-btn.hovered || vol-pop.has-hover || vol-pop.pressed);
+                            x: 0px;
+                            y: -self.height;
+                            width: 40px;
+                            height: 120px;
+                            border-radius: 20px;
+                            background: #10141fe6;
+                            border-width: 1px;
+                            border-color: #ffffff30;
+                            Rectangle {
+                                x: (parent.width - self.width) / 2;
+                                y: 14px;
+                                width: 4px;
+                                height: parent.height - 28px;
+                                border-radius: 2px;
+                                background: #ffffff44;
+                            }
+                            Rectangle {
+                                x: (parent.width - self.width) / 2;
+                                width: 4px;
+                                height: (parent.height - 28px) * min(1.0, root.player-volume / 100);
+                                y: parent.height - 14px - self.height;
+                                border-radius: 2px;
+                                background: root.player-muted ? #ffffff88 : white;
+                            }
+                            vol-pop := TouchArea {
+                                pointer-event(e) => {
+                                    if e.kind == PointerEventKind.move { root.poke-controls(); }
+                                }
+                                clicked => { root.player-set-volume(max(0.0, min(1.0, 1 - (self.mouse-y - 14px) / (self.height - 28px))) * 100); }
+                                moved => {
+                                    if self.pressed {
+                                        root.player-set-volume(max(0.0, min(1.0, 1 - (self.mouse-y - 14px) / (self.height - 28px))) * 100);
+                                    }
+                                }
+                            }
+                        }
                     }
                     Rectangle {
                         visible: root.width >= 900px;
