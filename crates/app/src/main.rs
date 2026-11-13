@@ -16,6 +16,8 @@ mod engine;
 mod update;
 mod seerr;
 mod notes;
+mod hide;
+use hide::{Hide, HideTarget};
 use notes::{Follow, NoteRec};
 use seerr::SeerrState;
 
@@ -130,6 +132,10 @@ struct Config {
     /// Series the user wants new-episode notifications for.
     #[serde(default)]
     followed: Vec<Follow>,
+    /// Titles hidden from every list.
+    hidden_items: Vec<Hide>,
+    /// Movies, series and seasons removed from Continue Watching / Next Up.
+    cw_hidden: Vec<Hide>,
 }
 
 const CARD_SCALES: [f32; 5] = [0.8, 0.9, 1.0, 1.15, 1.3];
@@ -214,6 +220,8 @@ impl Default for Config {
             win_h: 0,
             win_max: false,
             followed: Vec::new(),
+            hidden_items: Vec::new(),
+            cw_hidden: Vec::new(),
         }
     }
 }
@@ -607,6 +615,7 @@ enum Slot {
     Home(usize, usize),
     Grid(usize),
     Episode(usize),
+    Season(usize),
     Backdrop,
     Poster,
     Logo(usize),
@@ -640,6 +649,7 @@ fn apply_image(ui: &AppWindow, slot: Slot, img: Image) {
         }
         Slot::Grid(i) => set_card_image(&ui.get_cards(), i, img),
         Slot::Episode(i) => set_card_image(&ui.get_episodes(), i, img),
+        Slot::Season(i) => set_card_image(&ui.get_season_cards(), i, img),
         Slot::Cast(i) => set_card_image(&ui.get_detail_cast(), i, img),
         Slot::DetailLogo => {
             let mut d = ui.get_detail();
@@ -718,6 +728,7 @@ enum Page {
     Home,
     Library { id: String, title: String },
     Detail { id: String },
+    Person { id: String },
     Search(String),
     LiveTv,
     Server,
@@ -745,6 +756,7 @@ struct State {
     block_back_until: Instant,
     series_id: Option<String>,
     season_ids: Vec<String>,
+    hide_target: Option<HideTarget>,
     /// Emby stream indexes behind the detail page's audio dropdown.
     audio_streams: Vec<i32>,
     player_tx: Option<std::sync::mpsc::Sender<player::Control>>,
@@ -888,6 +900,7 @@ impl Ctx {
             Page::Home => self.show_home(),
             Page::Library { id, title } => self.show_children(id, title),
             Page::Detail { id } => self.show_detail(id, None),
+            Page::Person { id } => self.show_person(id),
             Page::Search(t) => self.show_search(t),
             Page::LiveTv => self.show_guide(),
             Page::Server => self.load_server(true),
@@ -941,7 +954,21 @@ impl Ctx {
             self.sr_open_target(k, id, available);
             return;
         }
-        if kind == "Person" || kind == "person" {
+        if kind == "Person" {
+            // Prefer the Seerr cast page (TMDB credits, requestable); fall back to the library's own.
+            let Some((client, uid)) = self.session() else { return };
+            let ctx = self.clone();
+            self.rt.spawn(async move {
+                let tmdb = client.item(&uid, &id).await.ok().and_then(|p| p.provider_ids.iter().find(|(k, _)| k.eq_ignore_ascii_case("tmdb")).and_then(|(_, v)| v.parse::<i64>().ok()));
+                let linked = ctx.st.lock().unwrap().sr.client.is_some();
+                let _ = slint::invoke_from_event_loop(move || match tmdb.filter(|_| linked) {
+                    Some(id) => ctx.navigate(Page::SeerrPerson { id }, true),
+                    None => ctx.navigate(Page::Person { id }, true),
+                });
+            });
+            return;
+        }
+        if kind == "person" {
             return;
         }
         if kind == "TvChannel" {
@@ -1006,11 +1033,13 @@ impl Ctx {
                 ctx.spawn_images(&client, my, jobs);
                 idx += 1;
             };
-            let to_cards = |items: &[Item], wide: bool| -> Vec<CardData> { items.iter().map(|i| card_for(&client, i, wide)).collect() };
+            let cfg = ctx.st.lock().unwrap().cfg.clone();
+            let to_cards = |items: &[Item], wide: bool| -> Vec<CardData> { items.iter().filter(|i| !hide::hidden(&cfg, i, false)).map(|i| card_for(&client, i, wide)).collect() };
 
-            let resume = resume.unwrap_or_default();
+            let mut resume = resume.unwrap_or_default();
+            resume.retain(|i| !hide::hidden(&cfg, i, true));
             let order = home_order(&ctx.st.lock().unwrap().cfg);
-            let mut next = Some(next.unwrap_or_default());
+            let mut next = Some(next.unwrap_or_default().into_iter().filter(|i| !hide::hidden(&cfg, i, true)).collect::<Vec<_>>());
             for key in order {
                 if !shown(&key) {
                     continue;
@@ -1052,7 +1081,26 @@ impl Ctx {
         self.st.lock().unwrap().client.clone().expect("signed in")
     }
 
+    fn show_person(&self, id: String) {
+        let Some((client, uid)) = self.session() else { return };
+        let my = self.begin();
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_cards(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_grid_title("".into());
+            ui.set_page("grid".into());
+        }
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let name = client.item(&uid, &id).await.map(|p| p.name).unwrap_or_default();
+            match client.person_items(&uid, &id).await {
+                Ok(items) => ctx.show_grid(my, &client, name, items, "grid"),
+                Err(e) => ctx.fail(my, e),
+            }
+        });
+    }
+
     fn show_grid(&self, my: u64, client: &Client, title: String, items: Vec<Item>, page: &'static str) {
+        let items = self.visible(items);
         let cards: Vec<CardData> = items.iter().map(|i| card_for(client, i, false)).collect();
         let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Grid(i), u))).collect();
         self.post(my, move |ui| {
@@ -1343,6 +1391,7 @@ impl Ctx {
 
     #[allow(clippy::too_many_arguments)]
     fn show_library_page(&self, my: u64, client: &Client, title: String, items: Vec<Item>, total: usize, genres: Vec<String>, append: bool, offset: usize) {
+        let items = self.visible(items);
         let cards: Vec<CardData> = items.iter().map(|i| card_for(client, i, false)).collect();
         let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Grid(offset + i), u))).collect();
         let loaded = offset + cards.len();
@@ -1488,6 +1537,7 @@ impl Ctx {
     // ---- settings
 
     fn sync_settings(&self, ui: &AppWindow) {
+        self.sync_hidden(ui);
         let s = self.st.lock().unwrap();
         let q = Quality::from_cfg(&s.cfg.quality);
         ui.set_quality_index(match q {
@@ -1730,6 +1780,7 @@ impl Ctx {
             ui.set_detail(Detail::default());
             ui.set_seasons(ModelRc::new(VecModel::<SharedString>::default()));
             ui.set_episodes(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_season_cards(ModelRc::new(VecModel::<Card>::default()));
             ui.set_detail_cast(ModelRc::new(VecModel::<Card>::default()));
             ui.set_related(ModelRc::new(VecModel::<Card>::default()));
             ui.set_info_rows(ModelRc::new(VecModel::<InfoRow>::default()));
@@ -1738,23 +1789,13 @@ impl Ctx {
         }
         let ctx = self.clone();
         self.rt.spawn(async move {
-            let mut item = match client.item(&uid, &id).await {
+            let item = match client.item(&uid, &id).await {
                 Ok(i) => i,
                 Err(e) => return ctx.fail(my, e),
             };
-            // A season opens as its series with that season selected.
-            let mut season = preselect_season;
-            if item.kind == "Season" {
-                if let Some(sid) = item.series_id.clone() {
-                    season = Some(item.id.clone());
-                    match client.item(&uid, &sid).await {
-                        Ok(s) => item = s,
-                        Err(e) => return ctx.fail(my, e),
-                    }
-                }
-            }
+            let season = preselect_season;
             // Folders other than series (collections, playlists, albums...) show their contents.
-            if item.is_folder && item.kind != "Series" {
+            if item.is_folder && item.kind != "Series" && item.kind != "Season" {
                 return match client.children(&uid, &item.id, 300).await {
                     Ok(items) => ctx.show_grid(my, &client, item.name.clone(), items, "grid"),
                     Err(e) => ctx.fail(my, e),
@@ -1861,6 +1902,7 @@ impl Ctx {
             let mut season_ids: Vec<String> = Vec::new();
             let mut season_index = 0usize;
             let mut episodes: Vec<Item> = Vec::new();
+            let mut season_cards: Vec<CardData> = Vec::new();
             if item.kind == "Series" {
                 if let Ok(mut seasons) = client.seasons(&uid, &item.id).await {
                     // Specials (season 0) go last and are never the default.
@@ -1877,12 +1919,25 @@ impl Ctx {
                         .unwrap_or(0);
                     season_names = seasons.iter().map(|s| s.name.clone()).collect();
                     season_ids = seasons.iter().map(|s| s.id.clone()).collect();
-                    if let Some(sid) = season_ids.get(season_index) {
-                        episodes = client.episodes(&uid, &item.id, sid).await.unwrap_or_default();
-                    }
+                    season_cards = seasons
+                        .iter()
+                        .map(|s| {
+                            let mut c = card_for(&client, s, false);
+                            c.subtitle = match s.user_data.as_ref().and_then(|u| u.unplayed_item_count) {
+                                Some(n) if n > 0 => format!("{n} unwatched"),
+                                _ => String::new(),
+                            };
+                            c
+                        })
+                        .collect();
+                }
+            } else if item.kind == "Season" {
+                if let Some(sid) = &item.series_id {
+                    episodes = client.episodes(&uid, sid, &item.id).await.unwrap_or_default();
                 }
             }
             let ep_cards: Vec<CardData> = episodes.iter().map(|e| episode_row(&client, e)).collect();
+            jobs.extend(season_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Season(i), u))));
             jobs.extend(ep_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Episode(i), u))));
 
             // Cast & crew
@@ -1994,10 +2049,19 @@ impl Ctx {
                 let mut s = ctx.st.lock().unwrap();
                 s.series_id = (item.kind == "Series").then(|| item.id.clone());
                 s.season_ids = season_ids;
+                s.hide_target = Some(HideTarget {
+                    kind: item.kind.clone(),
+                    id: item.id.clone(),
+                    name: item.name.clone(),
+                    series_id: item.series_id.clone().unwrap_or_default(),
+                    series_name: item.series_name.clone().unwrap_or_default(),
+                    season_id: item.season_id.clone().unwrap_or_default(),
+                    season_name: item.parent_index_number.map(|n| format!("Season {n}")).unwrap_or_default(),
+                });
                 s.audio_streams = audio_idx;
             }
             let following = item.kind == "Series" && ctx.is_following(&item.id);
-            let d_series_id = if item.kind == "Episode" { item.series_id.clone().unwrap_or_default() } else { String::new() };
+            let d_series_id = if item.kind == "Episode" || item.kind == "Season" { item.series_id.clone().unwrap_or_default() } else { String::new() };
             ctx.post(my, move |ui| {
                 ui.set_busy(false);
                 ui.set_detail(Detail {
@@ -2028,6 +2092,7 @@ impl Ctx {
                 ui.set_seasons(ModelRc::new(VecModel::from(season_names.into_iter().map(SharedString::from).collect::<Vec<_>>())));
                 ui.set_season_index(season_index as i32);
                 ui.set_episodes(cards_model(&ep_cards));
+                ui.set_season_cards(cards_model(&season_cards));
                 ui.set_detail_cast(cards_model(&cast_cards));
                 ui.set_related(cards_model(&related_cards));
                 ui.set_related_offset(related_offset);
@@ -3393,6 +3458,7 @@ fn main() -> Result<(), slint::PlatformError> {
             block_back_until: Instant::now(),
             series_id: None,
             season_ids: Vec::new(),
+            hide_target: None,
             audio_streams: Vec::new(),
             player_tx: None,
             remote: None,
@@ -3739,6 +3805,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let c = ctx.clone();
     ui.on_notes_clear(move || c.notes_clear());
     let c = ctx.clone();
+    ui.on_hide_item(move || c.hide_item());
+    let c = ctx.clone();
+    ui.on_cw_hide(move |season| c.cw_hide(season));
+    let c = ctx.clone();
+    ui.on_unhide(move |id, cw| c.unhide(id.as_str(), cw));
+    let c = ctx.clone();
     ui.on_toggle_follow(move || c.toggle_follow());
     let c = ctx.clone();
     ui.on_fav_tab_picked(move |i| c.fav_tab_picked(i));
@@ -3947,7 +4019,20 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
         let weak = ui.as_weak();
+        let c = ctx.clone();
         ui.window().on_winit_window_event(move |_, ev| {
+            use winit::event::{ElementState, MouseButton, WindowEvent};
+            use winit::keyboard::{Key, NamedKey};
+            // Mouse "back" thumb button and the keyboard's Browser Back key.
+            let back = match ev {
+                WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Back, .. } => true,
+                WindowEvent::KeyboardInput { event, .. } => event.state == ElementState::Pressed && event.logical_key == Key::Named(NamedKey::BrowserBack),
+                _ => false,
+            };
+            if back {
+                c.go_back();
+                return EventResult::PreventDefault;
+            }
             if matches!(ev, winit::event::WindowEvent::CursorLeft { .. }) {
                 if let Some(ui) = weak.upgrade() {
                     if ui.get_playing() && !ui.get_menu_hold() && !ui.get_sub_dialog_open() {

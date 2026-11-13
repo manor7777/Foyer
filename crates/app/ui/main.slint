@@ -367,6 +367,12 @@ export struct Detail {
     series-id: string,
 }
 
+export struct HideRow {
+    id: string,
+    name: string,
+    cw: bool,
+}
+
 export struct InfoRow {
     head: bool,
     label: string,
@@ -1255,6 +1261,11 @@ export component AppWindow inherits Window {
     in-out property <int> audio-index: 0;
     callback select-audio(int);
     in property <[Card]> episodes;
+    in property <[Card]> season-cards;
+    in property <[HideRow]> hidden-rows;
+    callback hide-item();
+    callback cw-hide(bool);
+    callback unhide(string, bool);
     in property <bool> can-go-back: false;
 
     // live tv guide
@@ -1672,7 +1683,7 @@ export component AppWindow inherits Window {
                 root.full-screen = !root.full-screen;
                 return accept;
             }
-            if (e.text == Key.Escape || e.text == Key.Backspace) && root.can-go-back && !root.playing {
+            if (e.text == Key.Escape || e.text == Key.Backspace || (e.modifiers.alt && e.text == Key.LeftArrow)) && root.can-go-back && !root.playing {
                 root.go-back();
                 return accept;
             }
@@ -2715,6 +2726,22 @@ export component AppWindow inherits Window {
                         }
                     }
                     Rectangle { height: 6px; }
+                    SectionLabel { text: "Hidden titles"; }
+                    SettingCard {
+                        if root.hidden-rows.length == 0: SettingRow {
+                            title: "Nothing hidden";
+                            description: "Use Hide or Remove from Continue Watching on a title's page.";
+                            divider: false;
+                        }
+                        for h in root.hidden-rows: SettingRow {
+                            title: h.name;
+                            description: h.cw ? "Removed from Continue Watching" : "Hidden everywhere";
+                            Button {
+                                text: "Unhide";
+                                clicked => { root.unhide(h.id, h.cw); }
+                            }
+                        }
+                    }
                     SectionLabel { text: "Home screen"; }
                     SettingCard {
                         for r[i] in root.home-rows: SettingRow {
@@ -4175,6 +4202,23 @@ export component AppWindow inherits Window {
                                     clicked => { root.toggle-follow(); }
                                 }
                             }
+                            if detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode": HorizontalLayout {
+                                alignment: start;
+                                spacing: 8px;
+                                if detail.kind == "Series" || detail.kind == "Movie": PillButton {
+                                    text: "Hide";
+                                    icon: @image-url("icons/close.svg");
+                                    clicked => { root.hide-item(); }
+                                }
+                                if detail.kind != "Season": PillButton {
+                                    text: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
+                                    clicked => { root.cw-hide(false); }
+                                }
+                                if detail.kind == "Season" || detail.kind == "Episode": PillButton {
+                                    text: "Remove season from Continue Watching";
+                                    clicked => { root.cw-hide(true); }
+                                }
+                            }
                             if detail.playable && root.audio-options.length > 1: HorizontalLayout {
                                 alignment: start;
                                 spacing: 8px;
@@ -4301,7 +4345,7 @@ export component AppWindow inherits Window {
                                 spacing: 14px;
                                 for p in detail-cast: CardView {
                                     card: p;
-                                    clicked => { }
+                                    clicked => { root.open-item(p.id, p.kind); }
                                 }
                             }
                         }
@@ -4325,15 +4369,26 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if seasons.length > 0: VerticalLayout {
+                    if season-cards.length > 0: VerticalLayout {
+                        padding-left: 24px;
+                        padding-right: 24px;
+                        spacing: 8px;
+                        Heading { text: "Seasons"; }
+                        HScroll {
+                            height: 225px * Scale.factor + 64px;
+                            HorizontalLayout {
+                                spacing: 14px;
+                                for c in season-cards: CardView {
+                                    card: c;
+                                    clicked => { root.open-item(c.id, c.kind); }
+                                }
+                            }
+                        }
+                    }
+                    if episodes.length > 0: VerticalLayout {
                         padding: 24px;
                         spacing: 10px;
                         Heading { text: "Episodes"; }
-                        Dropdown {
-                            model: root.seasons;
-                            current-index <=> root.season-index;
-                            selected => { root.select-season(self.current-index); }
-                        }
                         for ep in episodes: Rectangle {
                             height: 64px;
                             border-radius: 6px;

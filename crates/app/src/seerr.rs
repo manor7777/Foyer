@@ -173,7 +173,7 @@ pub const ISSUE_FILTERS: [&str; 3] = ["open", "resolved", "all"];
 fn media_badge(info: &Option<sr::MediaInfo>) -> (String, i32) {
     let Some(i) = info else { return (String::new(), 0) };
     match i.status {
-        status::MEDIA_AVAILABLE => ("Available".into(), 4),
+        status::MEDIA_AVAILABLE => ("In Library".into(), 4),
         status::MEDIA_PARTIAL => ("Partial".into(), 3),
         // "Processing" in Seerr only means the request was handed to Radarr / Sonarr. It is only
         // shown while a download is actually running; otherwise it is simply requested.
@@ -1294,7 +1294,7 @@ impl Ctx {
             2 => "tv",
             _ => "",
         };
-        let cards: Vec<CardData> = self
+        let mut cards: Vec<CardData> = self
             .st
             .lock()
             .unwrap()
@@ -1304,6 +1304,7 @@ impl Ctx {
             .filter(|m| (want.is_empty() || m.media_type == want) && (q.is_empty() || m.display_title().to_lowercase().contains(&q)))
             .map(media_card)
             .collect();
+        cards.sort_by_key(|c| c.badge_kind != 4); // in-library titles first (stable)
         let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::SCard(i), u))).collect();
         let my = self.begin();
         ui.set_busy(false);

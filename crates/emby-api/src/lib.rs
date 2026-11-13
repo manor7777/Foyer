@@ -902,6 +902,17 @@ impl Client {
             .items)
     }
 
+    /// Movies and series a person appears in.
+    pub async fn person_items(&self, uid: &str, person: &str) -> Result<Vec<Item>> {
+        Ok(self
+            .get::<ItemList>(
+                &format!("/Users/{uid}/Items"),
+                &[("PersonIds", person), ("Recursive", "true"), ("IncludeItemTypes", "Movie,Series"), ("SortBy", "ProductionYear,SortName"), ("SortOrder", "Descending"), ("Limit", "300"), ("Fields", LIST_FIELDS)],
+            )
+            .await?
+            .items)
+    }
+
     /// Items similar to this one (for "More like this").
     pub async fn similar(&self, uid: &str, id: &str, limit: u32) -> Result<Vec<Item>> {
         let limit = limit.to_string();
