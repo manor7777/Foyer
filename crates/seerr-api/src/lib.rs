@@ -472,14 +472,15 @@ impl Seerr {
         }
         match code.as_u16() {
             401 => Err(Error::NotSignedIn),
-            403 => Err(Error::Forbidden),
             c => {
                 let body = resp.text().await.unwrap_or_default();
-                let msg = serde_json::from_str::<serde_json::Value>(&body)
-                    .ok()
-                    .and_then(|v| v["message"].as_str().map(String::from))
-                    .unwrap_or_else(|| format!("the server answered {c}"));
-                Err(Error::Server(msg))
+                let msg = serde_json::from_str::<serde_json::Value>(&body).ok().and_then(|v| v["message"].as_str().map(String::from));
+                match (c, msg) {
+                    // Seerr's own reason ("No remaining requests", ...) beats a generic "no permission".
+                    (403, None) => Err(Error::Forbidden),
+                    (_, Some(m)) => Err(Error::Server(m)),
+                    (c, None) => Err(Error::Server(format!("the server answered {c}"))),
+                }
             }
         }
     }

@@ -768,6 +768,7 @@ impl Ctx {
                     ctx.sr_notify("Requested", "Your request has been sent.");
                     ctx.load_sr_quota();
                 }
+                Err(e) if e.to_string().contains("already exists") => ctx.sr_notify("Already requested", "This title has already been requested."),
                 Err(e) => ctx.sr_notify("Couldn't request", &e.to_string()),
             });
         });
@@ -811,6 +812,10 @@ impl Ctx {
                 match res {
                     Ok(()) => {
                         ctx.sr_notify("Requested", &format!("{} has been requested.", d.title));
+                        ctx.show_sr_detail(d.kind.clone(), d.tmdb);
+                    }
+                    Err(e) if e.to_string().contains("already exists") => {
+                        ctx.sr_notify("Already requested", "This title has already been requested.");
                         ctx.show_sr_detail(d.kind.clone(), d.tmdb);
                     }
                     Err(e) => ctx.sr_notify("Couldn't request", &e.to_string()),
