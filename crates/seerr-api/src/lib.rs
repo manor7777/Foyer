@@ -560,6 +560,11 @@ impl Seerr {
         self.login("/auth/jellyfin", serde_json::json!({ "username": username, "password": password })).await
     }
 
+    /// Sign in with a Plex account token (Overseerr only).
+    pub async fn login_plex(&mut self, token: &str) -> Result<User> {
+        self.login("/auth/plex", serde_json::json!({ "authToken": token })).await
+    }
+
     /// Sign in with a local Seerr account (email + password).
     pub async fn login_local(&mut self, email: &str, password: &str) -> Result<User> {
         self.login("/auth/local", serde_json::json!({ "email": email, "password": password })).await

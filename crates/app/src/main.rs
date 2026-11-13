@@ -33,7 +33,15 @@ fn yes() -> bool {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 struct Config {
+    /// The active server (mirrors its entry in `servers`).
     server: String,
+    #[serde(default)]
+    kind: emby_api::Kind,
+    /// Show the server switcher in the sidebar and keep several servers signed in.
+    #[serde(default)]
+    multi_server: bool,
+    #[serde(default)]
+    servers: Vec<SavedServer>,
     user_id: String,
     user_name: String,
     token: String,
@@ -187,6 +195,9 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             server: String::new(),
+            kind: emby_api::Kind::Emby,
+            multi_server: false,
+            servers: Vec::new(),
             user_id: String::new(),
             user_name: String::new(),
             token: String::new(),
@@ -468,6 +479,25 @@ fn load_posters(weak: Weak<AppWindow>) {
             }
         });
     });
+}
+
+/// A signed-in server kept for quick switching.
+#[derive(Serialize, Deserialize, Clone)]
+struct SavedServer {
+    kind: emby_api::Kind,
+    url: String,
+    user_id: String,
+    user_name: String,
+    token: String,
+}
+
+fn login_error(e: &emby_api::Error) -> String {
+    match e {
+        emby_api::Error::Http(h) if h.status().is_some_and(|s| s.as_u16() == 401 || s.as_u16() == 400) => "Wrong user name or password.".to_string(),
+        emby_api::Error::Http(h) if h.is_connect() || h.is_timeout() => "Couldn't reach the server. Check the address.".to_string(),
+        emby_api::Error::Other(m) => m.clone(),
+        e => format!("Sign-in failed: {e}"),
+    }
 }
 
 fn load_config() -> Config {
@@ -814,6 +844,8 @@ struct State {
     audio_streams: Vec<i32>,
     player_tx: Option<std::sync::mpsc::Sender<player::Control>>,
     remote: Option<tokio::task::JoinHandle<()>>,
+    /// Plex sign-in waiting for a server choice: the plex.tv client, the user and the choices.
+    plex_pending: Option<(Client, User, Vec<emby_api::PlexServer>)>,
     last_move: Instant,
     last_click: Option<Instant>,
     click_gen: u64,
@@ -858,6 +890,7 @@ struct Ctx {
     rt: Handle,
     st: Arc<Mutex<State>>,
     gen: Arc<AtomicU64>,
+    detect_gen: Arc<AtomicU64>,
     sem: Arc<Semaphore>,
     surface: player::Surface,
     now: Arc<Mutex<NowPlaying>>,
@@ -935,8 +968,118 @@ impl Ctx {
 
     fn show_login(&self, ui: &AppWindow) {
         let server = self.st.lock().unwrap().cfg.server.clone();
+        let kind = self.st.lock().unwrap().cfg.kind;
         ui.set_server_text(server.into());
+        ui.set_login_kind(emby_api::Kind::ALL.iter().position(|k| *k == kind).unwrap_or(0) as i32);
+        ui.set_detect_note("".into());
+        ui.set_login_cancel(false);
+        ui.set_plex_picking(false);
+        self.sync_servers(ui);
         ui.set_page("login".into());
+    }
+
+    /// Pushes the saved-server list and the multi-server switch to the UI.
+    fn sync_servers(&self, ui: &AppWindow) {
+        let s = self.st.lock().unwrap();
+        let label = |x: &SavedServer| {
+            let h = x.url.split("://").last().unwrap_or("");
+            format!("{} · {} · {}", x.kind.label(), h, x.user_name)
+        };
+        let names: Vec<SharedString> = s.cfg.servers.iter().map(|x| label(x).into()).collect();
+        let active = s.cfg.servers.iter().position(|x| x.url == s.cfg.server && x.user_id == s.cfg.user_id).unwrap_or(0);
+        ui.set_multi_server(s.cfg.multi_server);
+        ui.set_server_list(ModelRc::new(VecModel::from(names)));
+        ui.set_active_server(active as i32);
+    }
+
+    /// Switches to another saved server using its stored token.
+    fn switch_to(&self, i: i32) {
+        {
+            let mut s = self.st.lock().unwrap();
+            let Some(sv) = s.cfg.servers.get(i as usize).cloned() else { return };
+            if sv.url == s.cfg.server && sv.user_id == s.cfg.user_id {
+                return;
+            }
+            s.cfg.server = sv.url;
+            s.cfg.kind = sv.kind;
+            s.cfg.user_id = sv.user_id;
+            s.cfg.user_name = sv.user_name;
+            s.cfg.token = sv.token;
+            save_config(&s.cfg);
+            s.user = None;
+            s.client = None; // the old session's token stays valid so you can switch back
+            s.nav.clear();
+            if let Some(h) = s.remote.take() {
+                h.abort();
+            }
+        }
+        self.gen.fetch_add(1, Ordering::SeqCst);
+        self.try_saved_login();
+    }
+
+    fn remove_server(&self, i: i32) {
+        let active = {
+            let mut s = self.st.lock().unwrap();
+            let Some(sv) = s.cfg.servers.get(i as usize).cloned() else { return };
+            if sv.url == s.cfg.server && sv.user_id == s.cfg.user_id {
+                true
+            } else {
+                s.cfg.servers.remove(i as usize);
+                save_config(&s.cfg);
+                false
+            }
+        };
+        if active {
+            self.sign_out();
+        } else if let Some(ui) = self.ui.upgrade() {
+            self.sync_servers(&ui);
+        }
+    }
+
+    /// Sign-in page for an extra server, keeping the current session.
+    fn add_server(&self) {
+        self.gen.fetch_add(1, Ordering::SeqCst);
+        if let Some(ui) = self.ui.upgrade() {
+            self.show_login(&ui);
+            ui.set_server_text("".into());
+            ui.set_login_cancel(true);
+        }
+    }
+
+    /// Asks the typed address what it is (after a short pause) and sets the kind dropdown.
+    fn detect_server(&self, text: String) {
+        let my = self.detect_gen.fetch_add(1, Ordering::SeqCst) + 1;
+        let Some(ui) = self.ui.upgrade() else { return };
+        if text.trim().len() < 3 {
+            ui.set_detect_note("".into());
+            return;
+        }
+        ui.set_detect_note("Detecting…".into());
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            tokio::time::sleep(Duration::from_millis(700)).await;
+            if ctx.detect_gen.load(Ordering::SeqCst) != my {
+                return;
+            }
+            let found = emby_api::detect(&text).await;
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(ui) = ctx.ui.upgrade() else { return };
+                if ctx.detect_gen.load(Ordering::SeqCst) != my {
+                    return;
+                }
+                match found {
+                    Some((base, kind)) => {
+                        ui.set_login_kind(emby_api::Kind::ALL.iter().position(|k| *k == kind).unwrap_or(0) as i32);
+                        // A bare host gets the port the server actually answered on.
+                        if !text.contains("://") && !text.trim().rsplit_once(':').is_some_and(|(_, p)| p.parse::<u16>().is_ok()) {
+                            ui.set_server_text(base.into());
+                        }
+                        ui.set_detect_note(format!("Detected {}", kind.label()).into());
+                    }
+                    None => ui.set_detect_note("Couldn't identify a server there. Pick the type yourself.".into()),
+                }
+            });
+        });
     }
 
     // ---- navigation
@@ -1590,6 +1733,7 @@ impl Ctx {
 
     fn sync_settings(&self, ui: &AppWindow) {
         self.sync_hidden(ui);
+        self.sync_servers(ui);
         let s = self.st.lock().unwrap();
         let q = Quality::from_cfg(&s.cfg.quality);
         ui.set_quality_index(match q {
@@ -1709,7 +1853,7 @@ impl Ctx {
             };
 
             let detail = [
-                Some(format!("Emby Server {}", info.version)),
+                Some(format!("{} Server {}", client.kind().label(), info.version)),
                 info.operating_system.clone(),
                 info.local_address.clone(),
             ]
@@ -2260,12 +2404,19 @@ impl Ctx {
     // ---- sign in / out
 
     fn after_login(&self, ui: &AppWindow, client: Client, user: User, server: &str) {
+        ui.set_is_plex(client.kind() == emby_api::Kind::Plex);
         {
             let mut s = self.st.lock().unwrap();
             s.cfg.server = client.base().to_string();
+            s.cfg.kind = client.kind();
             s.cfg.user_id = user.id.clone();
             s.cfg.user_name = user.name.clone();
             s.cfg.token = client.token().unwrap_or_default().to_string();
+            let entry = SavedServer { kind: s.cfg.kind, url: s.cfg.server.clone(), user_id: user.id.clone(), user_name: user.name.clone(), token: s.cfg.token.clone() };
+            match s.cfg.servers.iter_mut().find(|x| x.url == entry.url && x.user_id == entry.user_id) {
+                Some(x) => *x = entry,
+                None => s.cfg.servers.push(entry),
+            }
             save_config(&s.cfg);
             s.client = Some(client);
             s.user = Some(user.clone());
@@ -2276,13 +2427,16 @@ impl Ctx {
         ui.set_is_admin(user.is_admin());
         ui.set_user_name(user.name.into());
         ui.set_login_error("".into());
+        self.sync_servers(ui);
         self.go_home();
     }
 
-    fn login(&self, server: String, user: String, pass: String) {
-        if server.trim().is_empty() || user.trim().is_empty() {
+    fn login(&self, server: String, user: String, pass: String, kind: i32) {
+        let kind = emby_api::Kind::ALL.get(kind as usize).copied().unwrap_or_default();
+        let plex = kind == emby_api::Kind::Plex;
+        if (!plex && server.trim().is_empty()) || user.trim().is_empty() {
             if let Some(ui) = self.ui.upgrade() {
-                ui.set_login_error("Enter the server address and a user name.".into());
+                ui.set_login_error(if plex { "Enter your Plex email or user name." } else { "Enter the server address and a user name." }.into());
             }
             return;
         }
@@ -2293,28 +2447,99 @@ impl Ctx {
         let device = self.st.lock().unwrap().cfg.device_id.clone();
         let ctx = self.clone();
         self.rt.spawn(async move {
-            let mut client = Client::new(&server, device);
+            if plex {
+                // Plex signs in to plex.tv, then you pick one of the servers your account can use.
+                let mut acct = Client::new("https://plex.tv", device).with_kind(kind);
+                let res = async {
+                    let u = acct.login(user.trim(), &pass).await?;
+                    let servers = acct.plex_servers().await?;
+                    Ok::<_, emby_api::Error>((u, servers))
+                }
+                .await;
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(ui) = ctx.ui.upgrade() else { return };
+                    ui.set_busy(false);
+                    match res {
+                        Ok((u, servers)) => ctx.plex_choose(&ui, acct, u, servers, &server),
+                        Err(e) => ui.set_login_error(login_error(&e).into()),
+                    }
+                });
+                return;
+            }
+            let mut client = Client::new(&server, device).with_kind(kind);
             let res = client.login(user.trim(), &pass).await;
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(ui) = ctx.ui.upgrade() else { return };
                 ui.set_busy(false);
                 match res {
                     Ok(u) => ctx.after_login(&ui, client, u, &server),
-                    Err(e) => {
-                        let msg = match &e {
-                            emby_api::Error::Http(h) if h.status().is_some_and(|s| s.as_u16() == 401 || s.as_u16() == 400) => {
-                                "Wrong user name or password.".to_string()
-                            }
-                            emby_api::Error::Http(h) if h.is_connect() || h.is_timeout() => {
-                                "Couldn't reach the server. Check the address.".to_string()
-                            }
-                            e => format!("Sign-in failed: {e}"),
-                        };
-                        ui.set_login_error(msg.into());
-                    }
+                    Err(e) => ui.set_login_error(login_error(&e).into()),
                 }
             });
         });
+    }
+
+    /// After plex.tv sign-in: connect straight away when the typed address matches a server (or
+    /// there is only one), otherwise show the picker.
+    fn plex_choose(&self, ui: &AppWindow, acct: Client, user: User, servers: Vec<emby_api::PlexServer>, typed: &str) {
+        let pre = servers.iter().find(|s| !typed.trim().is_empty() && s.matches(typed)).or(if servers.len() == 1 { servers.first() } else { None }).cloned();
+        match pre {
+            Some(srv) => self.plex_connect_to(acct, user, srv),
+            None if servers.is_empty() => ui.set_login_error("No Plex servers are linked to that account.".into()),
+            None => {
+                let names: Vec<SharedString> = servers.iter().map(|s| format!("{}{}", s.name, if s.owned { "" } else { "  (shared with you)" }).into()).collect();
+                self.st.lock().unwrap().plex_pending = Some((acct, user, servers));
+                ui.set_plex_servers(ModelRc::new(VecModel::from(names)));
+                ui.set_plex_picking(true);
+            }
+        }
+    }
+
+    fn plex_connect_to(&self, acct: Client, mut user: User, srv: emby_api::PlexServer) {
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_busy(true);
+            ui.set_login_error("".into());
+        }
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let res = match acct.plex_connect(&srv).await {
+                Ok(c) => {
+                    let owner = c.plex_is_owner().await;
+                    Ok((c, owner))
+                }
+                Err(e) => Err(e),
+            };
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(ui) = ctx.ui.upgrade() else { return };
+                ui.set_busy(false);
+                match res {
+                    Ok((client, owner)) => {
+                        user.policy = Some(emby_api::Policy { is_administrator: owner });
+                        ui.set_plex_picking(false);
+                        ctx.st.lock().unwrap().plex_pending = None;
+                        ctx.after_login(&ui, client, user, "");
+                    }
+                    Err(e) => ui.set_login_error(login_error(&e).into()),
+                }
+            });
+        });
+    }
+
+    fn pick_plex_server(&self, i: i32) {
+        let pending = self.st.lock().unwrap().plex_pending.clone();
+        if let Some((acct, user, servers)) = pending {
+            if let Some(srv) = servers.get(i as usize).cloned() {
+                self.plex_connect_to(acct, user, srv);
+            }
+        }
+    }
+
+    fn cancel_plex_pick(&self) {
+        self.st.lock().unwrap().plex_pending = None;
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_plex_picking(false);
+            ui.set_login_error("".into());
+        }
     }
 
     fn try_saved_login(&self) {
@@ -2330,14 +2555,23 @@ impl Ctx {
         }
         let ctx = self.clone();
         self.rt.spawn(async move {
-            let client = Client::new(&cfg.server, cfg.device_id.clone()).with_token(cfg.token.clone());
+            let client = Client::new(&cfg.server, cfg.device_id.clone()).with_kind(cfg.kind).with_token(cfg.token.clone());
             let res = client.validate(&cfg.user_id).await;
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(ui) = ctx.ui.upgrade() else { return };
                 ui.set_busy(false);
                 // A network error keeps you on the login page without discarding the token.
-                if let Ok(u) = res {
-                    ctx.after_login(&ui, client, u, &cfg.server);
+                match res {
+                    Ok(mut u) => {
+                        if cfg.kind == emby_api::Kind::Plex {
+                            u.name = cfg.user_name.clone();
+                        }
+                        ctx.after_login(&ui, client, u, &cfg.server)
+                    }
+                    Err(_) => {
+                        ctx.show_login(&ui);
+                        ui.set_login_error("Couldn't sign in to that server. Check it's online, or sign in again.".into());
+                    }
                 }
             });
         });
@@ -2347,6 +2581,8 @@ impl Ctx {
         let client = {
             let mut s = self.st.lock().unwrap();
             s.cfg.token.clear();
+            let (url, uid) = (s.cfg.server.clone(), s.cfg.user_id.clone());
+            s.cfg.servers.retain(|x| !(x.url == url && x.user_id == uid));
             save_config(&s.cfg);
             s.user = None;
             s.nav.clear();
@@ -2413,6 +2649,9 @@ impl Ctx {
 
     fn start_remote(&self) {
         let Some((client, _)) = self.session() else { return };
+        if client.kind() == emby_api::Kind::Plex {
+            return; // Plex has no equivalent of Emby's dashboard remote control
+        }
         let ctx = self.clone();
         let handler: Arc<dyn Fn(emby_api::remote::RemoteEvent) + Send + Sync> = Arc::new(move |ev| ctx.handle_remote(ev));
         let handle = self.rt.spawn(emby_api::remote::run(client, handler));
@@ -2685,12 +2924,22 @@ impl Ctx {
                 applog(&format!("subtitle download failed: {e}"));
                 return fail(format!("Download failed: {e}"));
             }
-            let full = match client.item(&uid, &item).await {
-                Ok(i) => i,
-                Err(e) => return fail(format!("Downloaded, but couldn't reload the item: {e}")),
-            };
+            // The server saves the file asynchronously: poll until the new subtitle shows up.
             let mut added = 0;
-            {
+            for attempt in 0..10 {
+                if attempt > 0 {
+                    let weak = ctx.ui.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = weak.upgrade() {
+                            ui.set_sub_status(format!("Downloaded. Waiting for the server to list it… ({attempt}/10)").into());
+                        }
+                    });
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+                let full = match client.item(&uid, &item).await {
+                    Ok(i) => i,
+                    Err(e) => return fail(format!("Downloaded, but couldn't reload the item: {e}")),
+                };
                 let mut n = now.lock().unwrap();
                 let source = n.source.clone();
                 let src = full.media_sources.iter().find(|m| m.id == source).or(full.media_sources.first());
@@ -2707,6 +2956,9 @@ impl Ctx {
                             }
                         }
                     }
+                }
+                if added > 0 {
+                    break;
                 }
             }
             if added == 0 {
@@ -3427,6 +3679,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     }
     let mut intro_auto_done = false;
     let mut ext_subs: Vec<player::ExtSub> = Vec::new();
+    let mut decoupled = false;
     {
         let mut now = env.now.lock().unwrap();
         *now = NowPlaying::default();
@@ -3435,9 +3688,12 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             now.source = source_id.clone();
             let src = item.media_sources.iter().find(|m| m.id == source_id).or(item.media_sources.first());
             if let Some(src) = src {
-                for st in src.media_streams.iter().filter(|m| m.kind == "Subtitle" && m.is_external) {
+                // Embedded text subtitles are fetched from the server too, so mpv never demuxes them out of the stream.
+                for st in src.media_streams.iter().filter(|m| m.kind == "Subtitle" && (m.is_external || m.is_text_subtitle_stream)) {
                     if let Some(url) = client.subtitle_url(&item.id, &src.id, st) {
+                        decoupled |= !st.is_external;
                         ext_subs.push(player::ExtSub {
+                            select: st.is_default || st.is_forced,
                             url,
                             title: st.display_title.clone().or(st.title.clone()).unwrap_or_else(|| "External".into()),
                             lang: st.language.clone().unwrap_or_default(),
@@ -3469,7 +3725,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     let mut last_report = Instant::now();
     let outcome = player::play(
         &url,
-        &player::Options { title, start_secs: start, external_subs: ext_subs, audio_pos, hw_decode: env.hw_decode, hw_mode: env.hw_mode as u8, keep_open: !env.autoplay && next_ep.is_some(), debug_log: DEBUG.load(Ordering::Relaxed).then(|| logs_dir().join("mpv.log").to_string_lossy().into_owned()) },
+        &player::Options { title, start_secs: start, external_subs: ext_subs, decoupled, audio_pos, hw_decode: env.hw_decode, hw_mode: env.hw_mode as u8, keep_open: !env.autoplay && next_ep.is_some(), debug_log: DEBUG.load(Ordering::Relaxed).then(|| logs_dir().join("mpv.log").to_string_lossy().into_owned()) },
         &env.controls,
         &env.surface,
         &mut |t| {
@@ -3639,6 +3895,7 @@ fn main() -> Result<(), slint::PlatformError> {
             audio_streams: Vec::new(),
             player_tx: None,
             remote: None,
+            plex_pending: None,
             last_move: Instant::now(),
             last_click: None,
             click_gen: 0,
@@ -3650,6 +3907,7 @@ fn main() -> Result<(), slint::PlatformError> {
             fav_query: String::new(),
         })),
         gen: Arc::new(AtomicU64::new(0)),
+        detect_gen: Arc::new(AtomicU64::new(0)),
         sem: Arc::new(Semaphore::new(6)),
         surface,
         now: Arc::new(Mutex::new(NowPlaying::default())),
@@ -3660,7 +3918,26 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.set_rows(ModelRc::new(VecModel::<Row>::default()));
 
     let c = ctx.clone();
-    ui.on_login(move |s, u, p| c.login(s.to_string(), u.to_string(), p.to_string()));
+    ui.on_login(move |s, u, p, k| c.login(s.to_string(), u.to_string(), p.to_string(), k));
+    let c = ctx.clone();
+    ui.on_detect_server(move |t| c.detect_server(t.to_string()));
+    let c = ctx.clone();
+    ui.on_pick_plex_server(move |i| c.pick_plex_server(i));
+    let c = ctx.clone();
+    ui.on_cancel_plex_pick(move || c.cancel_plex_pick());
+    let c = ctx.clone();
+    ui.on_switch_to_server(move |i| c.switch_to(i));
+    let c = ctx.clone();
+    ui.on_remove_server(move |i| c.remove_server(i));
+    let c = ctx.clone();
+    ui.on_add_server(move || c.add_server());
+    let c = ctx.clone();
+    ui.on_set_multi_server(move |v| {
+        c.update_cfg(|cfg| cfg.multi_server = v);
+        if let Some(ui) = c.ui.upgrade() {
+            c.sync_servers(&ui);
+        }
+    });
     let c = ctx.clone();
     ui.on_discover(move || c.discover());
     let c = ctx.clone();

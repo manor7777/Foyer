@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1794599628.7402897,
-    "seen": 1794599681.1668158,
-    "ast_hash": "cfc47607b57ed594a2f36aab01546fa3",
+    "mtime": 1794607180.878309,
+    "seen": 1794607325.5534563,
+    "ast_hash": "420a15560f6c14ae8dddb1d8c2ac063e",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/main.rs": {
-    "mtime": 1794605635.53786,
-    "seen": 1794605655.7370276,
-    "ast_hash": "d0e03a04334704cc8b62c5bab24ba2e9",
+    "mtime": 1794607062.5758452,
+    "seen": 1794607160.3449247,
+    "ast_hash": "f1126dfb4bfc813a2d30085a3ce43c58",
     "semantic_hash": ""
   },
   "crates/app/src/media.rs": {
@@ -60,15 +60,15 @@
     "semantic_hash": ""
   },
   "crates/app/src/notes.rs": {
-    "mtime": 1794580708.6842372,
-    "seen": 1794598746.5451407,
-    "ast_hash": "301f9c45f8b15cfc434eee78c1858dda",
+    "mtime": 1794607062.576368,
+    "seen": 1794607160.3449285,
+    "ast_hash": "db4c7e0ea923bffc6600cb7bc98e161d",
     "semantic_hash": ""
   },
   "crates/app/src/seerr.rs": {
-    "mtime": 1794595944.2817507,
-    "seen": 1794598746.545142,
-    "ast_hash": "1e137201d7a93e4a790193aa6b26eaa4",
+    "mtime": 1794607062.5787168,
+    "seen": 1794607160.3449304,
+    "ast_hash": "2e7524364d5259f5dba0d09d9a52859f",
     "semantic_hash": ""
   },
   "crates/app/src/update.rs": {
@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "crates/emby-api/src/lib.rs": {
-    "mtime": 1794598676.9880824,
-    "seen": 1794598746.545145,
-    "ast_hash": "53479da4ed5a197f03eb1fb8ec9a6c93",
+    "mtime": 1794606975.1395333,
+    "seen": 1794607160.3449347,
+    "ast_hash": "5ceabef2728e4800b980fe155aa9346f",
     "semantic_hash": ""
   },
   "crates/emby-api/src/remote.rs": {
@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "crates/player/src/lib.rs": {
-    "mtime": 1794605425.8566768,
-    "seen": 1794605485.8133438,
-    "ast_hash": "eb2c2a09a551ad425928d609e9e7c3e4",
+    "mtime": 1794606319.00509,
+    "seen": 1794606368.8059106,
+    "ast_hash": "3e09bddc847175a0ed0e1a999e7c6127",
     "semantic_hash": ""
   },
   "crates/seerr-api/Cargo.toml": {
@@ -114,9 +114,9 @@
     "semantic_hash": ""
   },
   "crates/seerr-api/src/lib.rs": {
-    "mtime": 1794536651.3074875,
-    "seen": 1794598746.5451508,
-    "ast_hash": "fb576a10aa7506d17d59ed2f17ab7677",
+    "mtime": 1794607062.576888,
+    "seen": 1794607160.3449438,
+    "ast_hash": "8decc727d93b3348d1179e6e7e9de6fe",
     "semantic_hash": ""
   },
   "AGENTS.md": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794599628.7951984,
-    "seen": 1794599681.1668446,
-    "ast_hash": "4534a902c89951fe156c01387a9fe482",
+    "mtime": 1794607180.9361923,
+    "seen": 1794607325.5534859,
+    "ast_hash": "11209a5f1a9d8e2b3f92606b2ab8bea4",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -417,6 +417,12 @@
     "mtime": 1794605425.756559,
     "seen": 1794605485.8133852,
     "ast_hash": "9690f6be5de8280cf854b24f297401e2",
+    "semantic_hash": ""
+  },
+  "crates/emby-api/src/plex.rs": {
+    "mtime": 1794606982.8683136,
+    "seen": 1794607160.3449361,
+    "ast_hash": "08e06f2e97a8a91339a2438adca6a948",
     "semantic_hash": ""
   }
 }

@@ -2,6 +2,30 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.24.0
+
+### ✨ Highlights
+
+- **Plex support.** Pick **Plex** on the sign-in page, sign in with your Plex account, and choose any server you have access to (yours or one shared with you). Foyer finds the best connection itself, on your network first. Libraries, Continue Watching, Next Up, search, genres, cast pages, resume, watched marks, favourites, intro / credits skipping, chapters and quality presets all work. On a Plex server you own, the **Server** page shows sessions, scheduled tasks, libraries and recent activity, with Scan libraries and Stop stream.
+- **Jellyfin support.** Jellyfin servers sign in the same way as Emby.
+- **The sign-in page works out what you pasted.** Paste an address and Foyer asks the server what it is (Emby, Jellyfin or Plex) and sets a type dropdown for you. If it guesses wrong, change it by hand.
+- **Multiple servers.** Turn on **Multiple servers** in Settings, add more with **Add**, and a switcher appears above Home in the sidebar. Switching signs you in with the saved login, so there is no password to retype. Remove a server from the same Settings list.
+
+### 🎬 Player
+
+- Embedded text subtitles are now fetched from the server and shown instead of mpv's own copies, which could freeze playback on remote files. Subtitles the file marks as default or forced are selected automatically, and the subtitle key steps through the available tracks.
+- Screenshot button, with a confirmation in the top-right (also kept in the notification centre).
+- Transport controls reordered: previous, back, play, forward, next.
+- Subtitles slide up above the controls while they are showing, and right-click hides the controls.
+- A vertical volume pop-up on the mute button when the player window is narrow.
+
+### 🔧 Other
+
+- Seerr on a Plex server: use "Plex account (current sign-in)" instead of typing a user name and password (Overseerr only).
+- A server you can't sign back in to now shows a message on the sign-in page instead of doing nothing.
+- On Plex, the controls that can't work there are hidden: Restart / Shut down, and the remote-control buttons on other users' sessions (Plex only lets you stop a stream).
+- Not on Plex: Live TV and Emby's dashboard remote control for this device.
+
 ## Foyer 0.23.2
 
 - Fixed: remote Rewind / Fast-forward from the server dashboard could freeze or crash Foyer, and the next command (such as a message) with it.

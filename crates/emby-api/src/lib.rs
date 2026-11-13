@@ -3,10 +3,13 @@
 
 pub mod remote;
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::net::UdpSocket;
+
+mod plex;
+pub use plex::PlexServer;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -77,6 +80,58 @@ pub fn normalize_server(input: &str) -> String {
         return format!("{scheme}://{rest}:8096");
     }
     format!("{scheme}://{rest}")
+}
+
+/// Which media server software an address belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum Kind {
+    #[default]
+    Emby,
+    Jellyfin,
+    Plex,
+}
+
+impl Kind {
+    pub const ALL: [Kind; 3] = [Kind::Emby, Kind::Jellyfin, Kind::Plex];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Kind::Emby => "Emby",
+            Kind::Jellyfin => "Jellyfin",
+            Kind::Plex => "Plex",
+        }
+    }
+}
+
+/// Works out what runs at `input` by asking it. Returns the base URL that answered and its kind.
+/// A bare host is tried on Emby/Jellyfin's port 8096, then Plex's 32400.
+pub async fn detect(input: &str) -> Option<(String, Kind)> {
+    let http = reqwest::Client::builder().timeout(Duration::from_secs(4)).build().ok()?;
+    let mut bases = vec![normalize_server(input)];
+    if !input.contains("://") {
+        let host = input.trim().trim_end_matches('/');
+        if !host.rsplit_once(':').is_some_and(|(_, p)| p.parse::<u16>().is_ok()) {
+            bases.push(format!("http://{host}:32400"));
+        }
+    }
+    for base in bases {
+        if let Ok(r) = http.get(format!("{base}/System/Info/Public")).send().await {
+            if let Ok(v) = r.json::<serde_json::Value>().await {
+                if v.get("Id").is_some() || v.get("ServerName").is_some() {
+                    let jf = v.get("ProductName").and_then(|p| p.as_str()).is_some_and(|p| p.to_ascii_lowercase().contains("jellyfin"));
+                    return Some((base, if jf { Kind::Jellyfin } else { Kind::Emby }));
+                }
+            }
+        }
+        if let Ok(r) = http.get(format!("{base}/identity")).header("Accept", "application/json").send().await {
+            if let Ok(v) = r.json::<serde_json::Value>().await {
+                if v.pointer("/MediaContainer/machineIdentifier").is_some() {
+                    return Some((base, Kind::Plex));
+                }
+            }
+        }
+    }
+    None
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -232,6 +287,7 @@ pub struct MediaStream {
     #[serde(rename = "Type")]
     pub kind: String,
     pub is_external: bool,
+    pub is_text_subtitle_stream: bool,
     pub delivery_url: Option<String>,
     pub codec: Option<String>,
     pub language: Option<String>,
@@ -442,6 +498,11 @@ pub struct Client {
     http: reqwest::Client,
     device_id: String,
     token: Option<String>,
+    kind: Kind,
+    /// Plex only: item duration in ms by rating key (timeline reports need it).
+    plex_dur: std::sync::Arc<std::sync::Mutex<HashMap<String, i64>>>,
+    /// Plex only: file path of the item fetched last (what the bandwidth test downloads).
+    plex_part: std::sync::Arc<std::sync::Mutex<Option<String>>>,
 }
 
 impl Client {
@@ -455,7 +516,35 @@ impl Client {
                 .expect("http client"),
             device_id: device_id.into(),
             token: None,
+            kind: Kind::Emby,
+            plex_dur: Default::default(),
+            plex_part: Default::default(),
         }
+    }
+
+    pub fn with_kind(mut self, kind: Kind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    /// Emby serves its API under /emby; Jellyfin serves it at the root.
+    fn pfx(&self) -> &'static str {
+        if self.kind == Kind::Jellyfin { "" } else { "/emby" }
+    }
+
+    /// Makes a server-relative path (as delivered in media sources) absolute.
+    fn abs(&self, rel: String) -> String {
+        if rel.starts_with("http") {
+            rel
+        } else if rel.starts_with("/emby") {
+            format!("{}{}", self.base, rel)
+        } else {
+            format!("{}{}{}", self.base, self.pfx(), rel)
+        }
+    }
+
+    pub fn kind(&self) -> Kind {
+        self.kind
     }
 
     pub fn base(&self) -> &str {
@@ -486,7 +575,7 @@ impl Client {
     fn req(&self, m: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let mut r = self
             .http
-            .request(m, format!("{}/emby{}", self.base, path))
+            .request(m, format!("{}{}{}", self.base, self.pfx(), path))
             .header("X-Emby-Authorization", self.auth_header())
             .header("Accept", "application/json");
         if let Some(t) = &self.token {
@@ -514,6 +603,9 @@ impl Client {
     }
 
     pub async fn login(&mut self, user: &str, password: &str) -> Result<User> {
+        if self.kind == Kind::Plex {
+            return self.plex_login(user, password).await;
+        }
         let r: AuthResult = self
             .req(reqwest::Method::POST, "/Users/AuthenticateByName")
             .json(&serde_json::json!({ "Username": user, "Pw": password }))
@@ -528,12 +620,18 @@ impl Client {
 
     /// Checks a saved token is still accepted.
     pub async fn validate(&self, user_id: &str) -> Result<User> {
+        if self.kind == Kind::Plex {
+            return self.plex_validate(user_id).await;
+        }
         self.get(&format!("/Users/{user_id}"), &[]).await
     }
 
     /// Tells the server this client can be remote-controlled (enables Pause/Stop/Message
     /// buttons on the dashboard).
     pub async fn post_capabilities(&self) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return Ok(());
+        }
         self.req(reqwest::Method::POST, "/Sessions/Capabilities/Full")
             .json(&serde_json::json!({
                 "PlayableMediaTypes": ["Audio", "Video"],
@@ -550,30 +648,45 @@ impl Client {
     pub fn websocket_url(&self) -> Option<String> {
         let token = self.token.as_deref()?;
         let base = self.base.replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
-        Some(format!("{base}/embywebsocket?api_key={token}&deviceId={}", self.device_id))
+        Some(format!("{base}/{}?api_key={token}&deviceId={}", if self.kind == Kind::Jellyfin { "socket" } else { "embywebsocket" }, self.device_id))
     }
 
     pub async fn set_played(&self, uid: &str, item: &str, played: bool) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_set_played(item, played).await;
+        }
         let m = if played { reqwest::Method::POST } else { reqwest::Method::DELETE };
         self.req(m, &format!("/Users/{uid}/PlayedItems/{item}")).send().await?.error_for_status()?;
         Ok(())
     }
 
     pub async fn set_favorite(&self, uid: &str, item: &str, fav: bool) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_set_favorite(item, fav).await;
+        }
         let m = if fav { reqwest::Method::POST } else { reqwest::Method::DELETE };
         self.req(m, &format!("/Users/{uid}/FavoriteItems/{item}")).send().await?.error_for_status()?;
         Ok(())
     }
 
     pub async fn logout(&self) {
+        if self.kind == Kind::Plex {
+            return; // the Plex token is the user's account token: never revoke it
+        }
         let _ = self.req(reqwest::Method::POST, "/Sessions/Logout").send().await;
     }
 
     pub async fn views(&self, uid: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_views().await;
+        }
         Ok(self.get::<ItemList>(&format!("/Users/{uid}/Views"), &[]).await?.items)
     }
 
     pub async fn resume(&self, uid: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_on_deck(true).await;
+        }
         Ok(self
             .get::<ItemList>(
                 &format!("/Users/{uid}/Items/Resume"),
@@ -584,6 +697,9 @@ impl Client {
     }
 
     pub async fn next_up(&self, uid: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_on_deck(false).await;
+        }
         Ok(self
             .get::<ItemList>("/Shows/NextUp", &[("UserId", uid), ("Limit", "16"), ("Fields", LIST_FIELDS)])
             .await?
@@ -591,6 +707,9 @@ impl Client {
     }
 
     pub async fn latest(&self, uid: &str, parent: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_latest(parent).await;
+        }
         self.get(
             &format!("/Users/{uid}/Items/Latest"),
             &[("ParentId", parent), ("Limit", "20"), ("Fields", LIST_FIELDS)],
@@ -599,6 +718,9 @@ impl Client {
     }
 
     pub async fn children(&self, uid: &str, parent: &str, limit: u32) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_children(parent, limit).await;
+        }
         let limit = limit.to_string();
         Ok(self
             .get::<ItemList>(
@@ -617,6 +739,9 @@ impl Client {
 
     /// Everything the user has favourited.
     pub async fn favorites(&self, uid: &str, limit: u32) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_favorites(limit).await;
+        }
         let limit = limit.to_string();
         Ok(self
             .get::<ItemList>(
@@ -628,21 +753,33 @@ impl Client {
     }
 
     pub async fn item(&self, uid: &str, id: &str) -> Result<Item> {
+        if self.kind == Kind::Plex {
+            return self.plex_item(id).await;
+        }
         self.get(&format!("/Users/{uid}/Items/{id}"), &[("Fields", FIELDS)]).await
     }
 
     // ---- server administration (admin users)
 
     pub async fn system_info(&self) -> Result<SystemInfo> {
+        if self.kind == Kind::Plex {
+            return self.plex_system_info().await;
+        }
         self.get("/System/Info", &[]).await
     }
 
     pub async fn sessions(&self) -> Result<Vec<Session>> {
+        if self.kind == Kind::Plex {
+            return self.plex_sessions().await;
+        }
         self.get("/Sessions", &[("ActiveWithinSeconds", "960")]).await
     }
 
     /// command: Pause | Unpause | Stop
     pub async fn session_playstate(&self, session: &str, command: &str) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return if command == "Stop" { self.plex_terminate(session).await } else { Ok(()) };
+        }
         self.req(reqwest::Method::POST, &format!("/Sessions/{session}/Playing/{command}"))
             .send()
             .await?
@@ -669,29 +806,47 @@ impl Client {
     }
 
     pub async fn scheduled_tasks(&self) -> Result<Vec<Task>> {
+        if self.kind == Kind::Plex {
+            return self.plex_tasks().await;
+        }
         self.get("/ScheduledTasks", &[("IsHidden", "false")]).await
     }
 
     pub async fn start_task(&self, id: &str) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_task(id, true).await;
+        }
         self.req(reqwest::Method::POST, &format!("/ScheduledTasks/Running/{id}")).send().await?.error_for_status()?;
         Ok(())
     }
 
     pub async fn stop_task(&self, id: &str) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_task(id, false).await;
+        }
         self.req(reqwest::Method::DELETE, &format!("/ScheduledTasks/Running/{id}")).send().await?.error_for_status()?;
         Ok(())
     }
 
     pub async fn library_refresh(&self) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_refresh_all().await;
+        }
         self.req(reqwest::Method::POST, "/Library/Refresh").send().await?.error_for_status()?;
         Ok(())
     }
 
     pub async fn virtual_folders(&self) -> Result<Vec<VirtualFolder>> {
+        if self.kind == Kind::Plex {
+            return self.plex_folders().await;
+        }
         self.get("/Library/VirtualFolders", &[]).await
     }
 
     pub async fn activity(&self, limit: u32) -> Result<Vec<ActivityEntry>> {
+        if self.kind == Kind::Plex {
+            return self.plex_activity(limit).await;
+        }
         #[derive(Deserialize)]
         #[serde(rename_all = "PascalCase")]
         struct L {
@@ -712,11 +867,17 @@ impl Client {
 
     /// Searches the server's subtitle providers. `lang` is an ISO 639-2 code such as "eng".
     pub async fn search_subtitles(&self, item_id: &str, lang: &str) -> Result<Vec<RemoteSubtitle>> {
+        if self.kind == Kind::Plex {
+            return self.plex_search_subs(item_id, lang).await;
+        }
         self.get(&format!("/Items/{item_id}/RemoteSearch/Subtitles/{lang}"), &[("IsPerfectMatch", "false")]).await
     }
 
     /// Downloads a provider subtitle onto the item (stored by the server).
     pub async fn download_subtitle(&self, item_id: &str, subtitle_id: &str) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_download_sub(item_id, subtitle_id).await;
+        }
         self.req(reqwest::Method::POST, &format!("/Items/{item_id}/RemoteSearch/Subtitles/{}", encode_segment(subtitle_id)))
             .send()
             .await?
@@ -726,24 +887,22 @@ impl Client {
 
     /// URL mpv can load for an external subtitle stream of an item.
     pub fn subtitle_url(&self, item_id: &str, source_id: &str, st: &MediaStream) -> Option<String> {
+        if self.kind == Kind::Plex {
+            return self.plex_subtitle_url(st);
+        }
         let token = self.token.as_deref()?;
         let ext = match st.codec.as_deref().unwrap_or("srt") {
             "subrip" | "srt" => "srt",
             "ass" | "ssa" => "ass",
             "webvtt" | "vtt" => "vtt",
-            other => other,
+            other if st.is_external => other,
+            _ => "srt", // the server converts embedded text subtitles on request
         };
         let rel = st
             .delivery_url
             .clone()
             .unwrap_or_else(|| format!("/Videos/{item_id}/{source_id}/Subtitles/{}/Stream.{ext}", st.index));
-        let mut url = if rel.starts_with("http") {
-            rel
-        } else if rel.starts_with("/emby") {
-            format!("{}{}", self.base, rel)
-        } else {
-            format!("{}/emby{}", self.base, rel)
-        };
+        let mut url = self.abs(rel);
         if !url.contains("api_key=") {
             url.push_str(if url.contains('?') { "&" } else { "?" });
             url.push_str(&format!("api_key={token}"));
@@ -754,6 +913,9 @@ impl Client {
     // ---- Live TV
 
     pub async fn live_channels(&self, uid: &str, limit: u32) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return Ok(vec![]);
+        }
         let limit = limit.to_string();
         Ok(self
             .get::<ItemList>("/LiveTv/Channels", &[("UserId", uid), ("Limit", &limit), ("AddCurrentProgram", "false")])
@@ -763,6 +925,9 @@ impl Client {
 
     /// Programs overlapping [from, to] (RFC 3339 UTC) for the given channels.
     pub async fn live_programs(&self, uid: &str, channels: &[String], from: &str, to: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return Ok(vec![]);
+        }
         let ids = channels.join(",");
         Ok(self
             .get::<ItemList>(
@@ -783,6 +948,9 @@ impl Client {
 
     /// Opens a live channel and returns a playable URL (direct stream, else the server's HLS).
     pub async fn open_live(&self, uid: &str, channel_id: &str) -> Result<LiveStream> {
+        if self.kind == Kind::Plex {
+            return Err(Error::Other("Live TV isn't supported on Plex.".into()));
+        }
         #[derive(Deserialize)]
         #[serde(rename_all = "PascalCase")]
         struct Info {
@@ -822,13 +990,7 @@ impl Client {
             .clone()
             .or_else(|| src.transcoding_url.clone())
             .ok_or_else(|| Error::Other("server offered no stream URL".into()))?;
-        let mut url = if rel.starts_with("http") {
-            rel
-        } else if rel.starts_with("/emby") {
-            format!("{}{}", self.base, rel)
-        } else {
-            format!("{}/emby{}", self.base, rel)
-        };
+        let mut url = self.abs(rel);
         if !url.contains("api_key=") {
             url.push_str(if url.contains('?') { "&" } else { "?" });
             url.push_str(&format!("api_key={token}"));
@@ -846,6 +1008,9 @@ impl Client {
 
     /// A sorted/filtered page of a library. Returns the items and the total match count.
     pub async fn browse(&self, uid: &str, parent: &str, b: &Browse) -> Result<(Vec<Item>, usize)> {
+        if self.kind == Kind::Plex {
+            return self.plex_browse(parent, b).await;
+        }
         let (start, limit) = (b.start.to_string(), b.limit.to_string());
         let mut q: Vec<(&str, &str)> = vec![
             ("ParentId", parent),
@@ -873,6 +1038,9 @@ impl Client {
 
     /// Genre names present in a library.
     pub async fn genres(&self, uid: &str, parent: &str) -> Result<Vec<String>> {
+        if self.kind == Kind::Plex {
+            return self.plex_genres(parent).await;
+        }
         Ok(self
             .get::<ItemList>("/Genres", &[("UserId", uid), ("ParentId", parent), ("SortBy", "SortName"), ("SortOrder", "Ascending")])
             .await?
@@ -897,6 +1065,9 @@ impl Client {
 
     /// Random Movies and Series that have a poster (for the login backdrop).
     pub async fn random_items(&self, uid: &str, limit: u32) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_random(limit).await;
+        }
         let limit = limit.to_string();
         Ok(self
             .get::<ItemList>(
@@ -916,6 +1087,9 @@ impl Client {
 
     /// Movies and series a person appears in.
     pub async fn person_items(&self, uid: &str, person: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_person_items(person).await;
+        }
         Ok(self
             .get::<ItemList>(
                 &format!("/Users/{uid}/Items"),
@@ -927,6 +1101,9 @@ impl Client {
 
     /// Items similar to this one (for "More like this").
     pub async fn similar(&self, uid: &str, id: &str, limit: u32) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_similar(id, limit).await;
+        }
         let limit = limit.to_string();
         Ok(self
             .get::<ItemList>(&format!("/Items/{id}/Similar"), &[("UserId", uid), ("Limit", &limit), ("Fields", LIST_FIELDS)])
@@ -936,6 +1113,11 @@ impl Client {
 
     /// The episode that follows `episode_id` in its series (crossing into the next season).
     pub async fn episode_after(&self, uid: &str, series: &str, season: Option<&str>, episode_id: &str) -> Option<Item> {
+        if self.kind == Kind::Plex {
+            let eps = self.plex_series_episodes(series).await.ok()?;
+            let pos = eps.iter().position(|e| e.id == episode_id)?;
+            return eps.into_iter().nth(pos + 1);
+        }
         let pick = |list: Vec<Item>| -> Option<Item> {
             let pos = list.iter().position(|e| e.id == episode_id)?;
             list.into_iter().nth(pos + 1)
@@ -958,6 +1140,9 @@ impl Client {
 
     /// Finds a movie / series in the library by its TMDB id (for "open in library").
     pub async fn find_by_tmdb(&self, uid: &str, kind: &str, tmdb: i64) -> Option<String> {
+        if self.kind == Kind::Plex {
+            return self.plex_find_by_tmdb(kind, tmdb).await;
+        }
         let types = if kind == "tv" { "Series" } else { "Movie" };
         let pid = format!("tmdb.{tmdb}");
         let r = self
@@ -972,6 +1157,9 @@ impl Client {
 
     /// Every episode of a series, across all seasons.
     pub async fn series_episodes(&self, uid: &str, series: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_series_episodes(series).await;
+        }
         Ok(self
             .get::<ItemList>(&format!("/Shows/{series}/Episodes"), &[("UserId", uid), ("Fields", LIST_FIELDS)])
             .await?
@@ -979,6 +1167,9 @@ impl Client {
     }
 
     pub async fn seasons(&self, uid: &str, series: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_children_of(series).await;
+        }
         Ok(self
             .get::<ItemList>(&format!("/Shows/{series}/Seasons"), &[("UserId", uid), ("Fields", LIST_FIELDS)])
             .await?
@@ -986,6 +1177,9 @@ impl Client {
     }
 
     pub async fn episodes(&self, uid: &str, series: &str, season: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_children_of(season).await;
+        }
         Ok(self
             .get::<ItemList>(
                 &format!("/Shows/{series}/Episodes"),
@@ -997,6 +1191,9 @@ impl Client {
 
     /// Movies and series of one genre across every library.
     pub async fn by_genre(&self, uid: &str, genre: &str, kind: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_by_genre(genre, kind).await;
+        }
         Ok(self
             .get::<ItemList>(
                 &format!("/Users/{uid}/Items"),
@@ -1008,6 +1205,9 @@ impl Client {
 
     /// Newest by air / release date (not by when it reached the server). `today` is YYYY-MM-DD.
     pub async fn recently_released(&self, uid: &str, today: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_recently_released(today).await;
+        }
         Ok(self
             .get::<ItemList>(
                 &format!("/Users/{uid}/Items"),
@@ -1026,6 +1226,9 @@ impl Client {
     }
 
     pub async fn search(&self, uid: &str, term: &str) -> Result<Vec<Item>> {
+        if self.kind == Kind::Plex {
+            return self.plex_search(term).await;
+        }
         Ok(self
             .get::<ItemList>(
                 &format!("/Users/{uid}/Items"),
@@ -1044,6 +1247,9 @@ impl Client {
     /// Image URL sized server-side. Returns None if the item has no such image. A missing
     /// backdrop falls back to the parent's (an episode uses its series' backdrop).
     pub fn image_url(&self, item: &Item, kind: ImageKind, max_width: u32) -> Option<String> {
+        if self.kind == Kind::Plex {
+            return self.plex_image_url(item, kind, max_width);
+        }
         let (owner, path, tag) = match kind {
             ImageKind::Primary => (item.id.clone(), "Primary", item.image_tags.get("Primary")?.clone()),
             ImageKind::Thumb => (item.id.clone(), "Thumb", item.image_tags.get("Thumb")?.clone()),
@@ -1056,12 +1262,15 @@ impl Client {
                 None => (item.parent_backdrop_item_id.clone()?, "Backdrop/0", item.parent_backdrop_image_tags.first()?.clone()),
             },
         };
-        Some(format!("{}/emby/Items/{}/Images/{}?maxWidth={}&quality=90&tag={}", self.base, owner, path, max_width, tag))
+        Some(format!("{}{}/Items/{}/Images/{}?maxWidth={}&quality=90&tag={}", self.base, self.pfx(), owner, path, max_width, tag))
     }
 
     pub fn person_image_url(&self, p: &Person, max_width: u32) -> Option<String> {
+        if self.kind == Kind::Plex {
+            return self.plex_person_image(p, max_width);
+        }
         let tag = p.primary_image_tag.as_ref()?;
-        Some(format!("{}/emby/Items/{}/Images/Primary?maxWidth={}&quality=90&tag={}", self.base, p.id, max_width, tag))
+        Some(format!("{}{}/Items/{}/Images/Primary?maxWidth={}&quality=90&tag={}", self.base, self.pfx(), p.id, max_width, tag))
     }
 
     pub async fn fetch_bytes(&self, url: &str) -> Result<Vec<u8>> {
@@ -1071,16 +1280,19 @@ impl Client {
     /// Direct-play URL (the server sends the original file; mpv plays nearly anything) when
     /// `transcode` is None, otherwise an HLS transcode capped at (bits per second, height).
     pub fn stream_url(&self, item_id: &str, source_id: &str, play_session: &str, transcode: Option<(u32, u32)>, audio_index: Option<i32>) -> Result<String> {
+        if self.kind == Kind::Plex {
+            return self.plex_stream_url(item_id, source_id, play_session, transcode, audio_index);
+        }
         let token = self.token.as_deref().ok_or(Error::NoSession)?;
         Ok(match transcode {
             Some((bps, height)) => format!(
-                "{}/emby/Videos/{}/master.m3u8?MediaSourceId={}&PlaySessionId={}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate={}&MaxHeight={}&TranscodingMaxAudioChannels=6&SegmentContainer=ts&api_key={}&DeviceId={}{}",
-                self.base, item_id, source_id, play_session, bps, height, token, self.device_id,
+                "{}{}/Videos/{}/master.m3u8?MediaSourceId={}&PlaySessionId={}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate={}&MaxHeight={}&TranscodingMaxAudioChannels=6&SegmentContainer=ts&api_key={}&DeviceId={}{}",
+                self.base, self.pfx(), item_id, source_id, play_session, bps, height, token, self.device_id,
                 audio_index.map(|i| format!("&AudioStreamIndex={i}")).unwrap_or_default()
             ),
             None => format!(
-                "{}/emby/Videos/{}/stream?Static=true&MediaSourceId={}&PlaySessionId={}&api_key={}&DeviceId={}",
-                self.base, item_id, source_id, play_session, token, self.device_id
+                "{}{}/Videos/{}/stream?Static=true&MediaSourceId={}&PlaySessionId={}&api_key={}&DeviceId={}",
+                self.base, self.pfx(), item_id, source_id, play_session, token, self.device_id
             ),
         })
     }
@@ -1089,14 +1301,12 @@ impl Client {
     /// Skips the first fifth of the data (TCP slow start). None if the test fails.
     pub async fn measure_bandwidth(&self, bytes: usize, cap: Duration) -> Option<f64> {
         let size = bytes.to_string();
-        let mut resp = self
-            .req(reqwest::Method::GET, "/Playback/BitrateTest")
-            .query(&[("Size", size.as_str())])
-            .send()
-            .await
-            .ok()?
-            .error_for_status()
-            .ok()?;
+        let req = if self.kind == Kind::Plex {
+            self.plex_bandwidth_request(bytes)?
+        } else {
+            self.req(reqwest::Method::GET, "/Playback/BitrateTest").query(&[("Size", size.as_str())])
+        };
+        let mut resp = req.send().await.ok()?.error_for_status().ok()?;
         let start = std::time::Instant::now();
         let mut total = 0usize;
         let mut mark: Option<(std::time::Instant, usize)> = None;
@@ -1138,12 +1348,21 @@ impl Client {
 
     /// `method`: DirectPlay | DirectStream | Transcode
     pub async fn report_start(&self, item: &str, src: &str, sess: &str, ticks: i64, method: &str) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_timeline(item, sess, ticks, "playing").await;
+        }
         self.report("/Sessions/Playing", item, src, sess, ticks, false, method).await
     }
     pub async fn report_progress(&self, item: &str, src: &str, sess: &str, ticks: i64, paused: bool, method: &str) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_timeline(item, sess, ticks, if paused { "paused" } else { "playing" }).await;
+        }
         self.report("/Sessions/Playing/Progress", item, src, sess, ticks, paused, method).await
     }
     pub async fn report_stopped(&self, item: &str, src: &str, sess: &str, ticks: i64, method: &str) -> Result<()> {
+        if self.kind == Kind::Plex {
+            return self.plex_timeline(item, sess, ticks, "stopped").await;
+        }
         self.report("/Sessions/Playing/Stopped", item, src, sess, ticks, false, method).await
     }
 }

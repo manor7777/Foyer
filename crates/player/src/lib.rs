@@ -35,6 +35,8 @@ pub struct ExtSub {
     pub url: String,
     pub title: String,
     pub lang: String,
+    /// Select it on load (the server flags it default/forced).
+    pub select: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +44,9 @@ pub struct Options {
     pub title: String,
     pub start_secs: f64,
     pub external_subs: Vec<ExtSub>,
+    /// Embedded text subtitles are supplied as `external_subs` (fetched from the server), so mpv's own
+    /// copies are hidden and never selected: selecting one makes mpv demux the whole remote stream and freeze.
+    pub decoupled: bool,
     /// 1-based audio track to select once the file loads (direct play only).
     pub audio_pos: Option<i64>,
     pub hw_decode: bool,
@@ -522,6 +527,7 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
         let mut last_poll = Instant::now() - Duration::from_secs(1);
         let mut last_diag = Instant::now();
         let mut tracks_due: Option<Instant> = Some(Instant::now() + Duration::from_millis(800));
+        let mut sub_ids: Vec<i64> = Vec::new(); // selectable subtitle track ids, for cycling
         'play: loop {
             let mut forced_poll = false;
             while let Ok(ctl) = controls.try_recv() {
@@ -547,7 +553,13 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                         run(&["cycle", "mute"]);
                     }
                     Control::CycleSubtitles => {
-                        run(&["cycle", "sub"]);
+                        let cur = read_str("sid").and_then(|s| s.parse::<i64>().ok());
+                        let next = match cur.and_then(|c| sub_ids.iter().position(|i| *i == c)) {
+                            Some(p) => sub_ids.get(p + 1).copied(),
+                            None => sub_ids.first().copied(),
+                        };
+                        run(&["set", "sid", &next.map_or("no".to_string(), |i| i.to_string())]);
+                        tracks_due = Some(Instant::now() + Duration::from_millis(300));
                     }
                     Control::CycleAudio => {
                         run(&["cycle", "audio"]);
@@ -597,8 +609,11 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     if let Some(a) = opts.audio_pos {
                         run(&["set", "aid", &a.to_string()]);
                     }
+                    if opts.decoupled && read_str("current-tracks/sub/external").as_deref() != Some("yes") && read_str("current-tracks/sub/codec").is_some_and(|c| is_text_codec(&c)) {
+                        run(&["set", "sid", "no"]);
+                    }
                     for sub in &opts.external_subs {
-                        run(&["sub-add", &sub.url, "auto", &sub.title, &sub.lang]);
+                        run(&["sub-add", &sub.url, if sub.select { "select" } else { "auto" }, &sub.title, &sub.lang]);
                     }
                     tracks_due = Some(Instant::now() + Duration::from_millis(500));
                 }
@@ -621,7 +636,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                 let tracks = match tracks_due {
                     Some(t) if Instant::now() >= t => {
                         tracks_due = None;
-                        Some(read_tracks(&read_str))
+                        let t = read_tracks(&read_str, opts.decoupled);
+                        sub_ids = t.iter().filter(|t| t.kind == "sub").map(|t| t.id).collect();
+                        Some(t)
                     }
                     _ => None,
                 };
@@ -724,7 +741,11 @@ fn track_label(read: &dyn Fn(&str) -> Option<String>, kind: &str) -> String {
     }
 }
 
-fn read_tracks(read: &dyn Fn(&str) -> Option<String>) -> Vec<Track> {
+fn is_text_codec(c: &str) -> bool {
+    matches!(c, "subrip" | "srt" | "ass" | "ssa" | "mov_text" | "webvtt" | "text" | "subviewer")
+}
+
+fn read_tracks(read: &dyn Fn(&str) -> Option<String>, hide_embedded_text: bool) -> Vec<Track> {
     let n: usize = read("track-list/count").and_then(|s| s.parse().ok()).unwrap_or(0);
     let mut out = Vec::new();
     for i in 0..n {
@@ -735,6 +756,9 @@ fn read_tracks(read: &dyn Fn(&str) -> Option<String>) -> Vec<Track> {
         let Some(id) = read(&format!("track-list/{i}/id")).and_then(|s| s.parse::<i64>().ok()) else { continue };
         let field = |k: &str| read(&format!("track-list/{i}/{k}")).filter(|s| !s.is_empty());
         let yes = |k: &str| field(k).as_deref() == Some("yes");
+        if hide_embedded_text && kind == "sub" && !yes("external") && field("codec").is_some_and(|c| is_text_codec(&c)) {
+            continue;
+        }
         let mut parts: Vec<String> = Vec::new();
         if let Some(l) = field("lang") {
             parts.push(l.to_uppercase());

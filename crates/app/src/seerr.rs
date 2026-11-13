@@ -362,7 +362,12 @@ impl Ctx {
     }
 
     pub fn sr_connect(&self, url: String, kind: i32, login: String, pass: String) {
-        if url.trim().is_empty() || login.trim().is_empty() {
+        // On a Plex server the current Plex sign-in is used: no separate user name or password.
+        let plex_token = {
+            let s = self.st.lock().unwrap();
+            (kind == 0 && s.cfg.kind == emby_api::Kind::Plex).then(|| s.cfg.token.clone())
+        };
+        if url.trim().is_empty() || (login.trim().is_empty() && plex_token.is_none()) {
             if let Some(ui) = self.ui.upgrade() {
                 ui.set_sr_error("Enter the Seerr address and your sign-in.".into());
             }
@@ -375,7 +380,11 @@ impl Ctx {
         let ctx = self.clone();
         self.rt.spawn(async move {
             let mut client = Seerr::new(&url);
-            let res = if kind == 0 { client.login_media_server(login.trim(), &pass).await } else { client.login_local(login.trim(), &pass).await };
+            let res = match &plex_token {
+                Some(t) => client.login_plex(t).await,
+                None if kind == 0 => client.login_media_server(login.trim(), &pass).await,
+                None => client.login_local(login.trim(), &pass).await,
+            };
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(ui) = ctx.ui.upgrade() else { return };
                 ui.set_sr_connecting(false);

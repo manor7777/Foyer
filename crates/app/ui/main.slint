@@ -1644,7 +1644,23 @@ export component AppWindow inherits Window {
     in property <string> message-header;
     in property <string> message-text;
 
-    callback login(string, string, string);
+    callback login(string, string, string, int);
+    callback detect-server(string);
+    callback pick-plex-server(int);
+    callback cancel-plex-pick();
+    in property <bool> plex-picking;
+    in property <[string]> plex-servers;
+    in property <bool> is-plex;
+    callback switch-to-server(int);
+    callback remove-server(int);
+    callback add-server();
+    callback set-multi-server(bool);
+    in-out property <int> login-kind: 0;
+    in property <string> detect-note;
+    in property <bool> login-cancel;
+    in-out property <bool> multi-server;
+    in property <[string]> server-list;
+    in-out property <int> active-server: 0;
     callback discover();
     callback open-item(string, string);
     callback open-library(string, string);
@@ -1900,9 +1916,28 @@ export component AppWindow inherits Window {
                     horizontal-alignment: center;
                 }
                 Rectangle { height: 6px; }
+                if !root.plex-picking: VerticalLayout {
+                spacing: 12px;
                 server-edit := LineEdit {
-                    placeholder-text: "Server (e.g. 192.168.1.10:8096)";
+                    placeholder-text: root.login-kind == 2 ? "Server address (optional, you can choose after signing in)" : "Server (e.g. 192.168.1.10:8096)";
                     text <=> root.server-text;
+                    edited(t) => { root.detect-server(t); }
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    Dropdown {
+                        model: ["Emby", "Jellyfin", "Plex"];
+                        current-index <=> root.login-kind;
+                    }
+                    Text {
+                        text: root.detect-note;
+                        color: white;
+                        opacity: 0.7;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
                 }
                 if discovered.length > 0: Text {
                     text: "Found on your network";
@@ -1923,13 +1958,13 @@ export component AppWindow inherits Window {
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
-                    dta := TouchArea { clicked => { root.server-text = s; } }
+                    dta := TouchArea { clicked => { root.server-text = s; root.detect-server(s); } }
                 }
-                user-edit := LineEdit { placeholder-text: "User name"; }
+                user-edit := LineEdit { placeholder-text: root.login-kind == 2 ? "Plex email or user name" : "User name"; }
                 pass-edit := LineEdit {
                     placeholder-text: "Password";
                     input-type: password;
-                    accepted => { root.login(server-edit.text, user-edit.text, pass-edit.text); }
+                    accepted => { root.login(server-edit.text, user-edit.text, pass-edit.text, root.login-kind); }
                 }
                 if login-error != "": Text {
                     text: login-error;
@@ -1947,7 +1982,7 @@ export component AppWindow inherits Window {
                 Rectangle { height: 4px; }
                 HorizontalLayout {
                     spacing: 10px;
-                    Rectangle {
+                    if root.login-kind != 2: Rectangle {
                         min-width: 150px;
                         height: 40px;
                         border-radius: 20px;
@@ -1982,8 +2017,63 @@ export component AppWindow inherits Window {
                         primary: true;
                         enabled: !busy;
                         horizontal-stretch: 1;
-                        clicked => { root.login(server-edit.text, user-edit.text, pass-edit.text); }
+                        clicked => { root.login(server-edit.text, user-edit.text, pass-edit.text, root.login-kind); }
                     }
+                }
+                }
+                if root.plex-picking: VerticalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: "Choose a Plex server";
+                        color: white;
+                        font-size: 14px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+                    for name[i] in root.plex-servers: Rectangle {
+                        height: 38px;
+                        border-radius: 19px;
+                        background: plex-ta.has-hover ? #ffffff30 : #ffffff1c;
+                        border-width: 1px;
+                        border-color: #ffffff30;
+                        Text {
+                            text: name;
+                            color: white;
+                            font-size: 13px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        plex-ta := TouchArea { clicked => { root.pick-plex-server(i); } }
+                    }
+                    if root.busy: Text {
+                        text: "Connecting…";
+                        color: white;
+                        opacity: 0.7;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                    }
+                    if login-error != "": Text {
+                        text: login-error;
+                        color: #ff7b7b;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: "Back";
+                        color: white;
+                        opacity: 0.7;
+                        font-size: 13px;
+                        horizontal-alignment: center;
+                        TouchArea { clicked => { root.cancel-plex-pick(); } }
+                    }
+                }
+                if root.login-cancel: Text {
+                    text: "Cancel";
+                    color: white;
+                    opacity: 0.7;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                    TouchArea { clicked => { root.go-home(); } }
                 }
             }
         }
@@ -2369,14 +2459,14 @@ export component AppWindow inherits Window {
                                 text: "Scan all libraries";
                                 clicked => { root.library-scan(); }
                             }
-                            Button {
+                            if !root.is-plex: Button {
                                 text: "Restart server";
                                 clicked => {
                                     root.confirm-kind = "Restart";
                                     root.confirm-open = true;
                                 }
                             }
-                            Button {
+                            if !root.is-plex: Button {
                                 text: "Shut down";
                                 clicked => {
                                     root.confirm-kind = "Shutdown";
@@ -2486,7 +2576,12 @@ export component AppWindow inherits Window {
                                 horizontal-stretch: 1;
                                 send(text) => { root.session-message(se.id, text); }
                             }
-                            if !se.remote: Text {
+                            if !se.remote && root.is-plex: IconButton {
+                                icon: @image-url("icons/stop.svg");
+                                tint: Palette.foreground;
+                                clicked => { root.session-cmd(se.id, "Stop"); }
+                            }
+                            if !se.remote && !root.is-plex: Text {
                                 text: "This device can't be remote controlled.";
                                 color: Palette.foreground;
                                 opacity: 0.5;
@@ -3050,6 +3145,38 @@ export component AppWindow inherits Window {
                         }
                     }
                     Rectangle { height: 6px; }
+                    SectionLabel { text: "Servers"; }
+                    SettingCard {
+                        SettingRow {
+                            title: "Multiple servers";
+                            description: "Keep several servers signed in and switch between them from the sidebar.";
+                            divider: root.multi-server;
+                            ToggleSwitch {
+                                checked <=> root.multi-server;
+                                toggled(c) => { root.set-multi-server(c); }
+                            }
+                        }
+                        if root.multi-server: VerticalLayout {
+                            for name[i] in root.server-list: SettingRow {
+                                title: name;
+                                description: i == root.active-server ? "In use" : "";
+                                Button {
+                                    text: "Remove";
+                                    clicked => { root.remove-server(i); }
+                                }
+                            }
+                            SettingRow {
+                                title: "Add a server";
+                                description: "Emby, Jellyfin or Plex.";
+                                divider: false;
+                                Button {
+                                    text: "Add";
+                                    clicked => { root.add-server(); }
+                                }
+                            }
+                        }
+                    }
+                    Rectangle { height: 6px; }
                     SectionLabel { text: "Account"; }
                     SettingCard {
                         SettingRow {
@@ -3135,14 +3262,14 @@ export component AppWindow inherits Window {
                                 text <=> root.sr-url;
                             }
                             Dropdown {
-                                model: ["Media server account", "Local account (email)"];
+                                model: [root.is-plex ? "Plex account (current sign-in)" : "Media server account", "Local account (email)"];
                                 current-index <=> root.sr-login-kind;
                             }
-                            LineEdit {
+                            if !(root.is-plex && root.sr-login-kind == 0): LineEdit {
                                 placeholder-text: root.sr-login-kind == 0 ? "Media server user name" : "Email";
                                 text <=> root.sr-login;
                             }
-                            LineEdit {
+                            if !(root.is-plex && root.sr-login-kind == 0): LineEdit {
                                 placeholder-text: "Password";
                                 input-type: password;
                                 text <=> root.sr-pass;
@@ -4699,6 +4826,11 @@ export component AppWindow inherits Window {
                     height: 34px;
                     vertical-alignment: center;
                     horizontal-alignment: center;
+                }
+                if root.nav-expanded && root.multi-server && root.server-list.length > 1: Dropdown {
+                    model: root.server-list;
+                    current-index <=> root.active-server;
+                    selected(_) => { root.switch-to-server(root.active-server); }
                 }
                 NavItem {
                     compact: !root.nav-expanded;

@@ -235,7 +235,7 @@ impl Ctx {
         let Ok(info) = client.system_info().await else { return };
         if info.has_update_available && info.version != seen {
             self.update_cfg(|c| c.server_update_seen = info.version.clone());
-            self.notify_user("Emby Server update available".into(), format!("{} is on {}. A newer version is available.", info.server_name, info.version), None);
+            self.notify_user(format!("{} Server update available", client.kind().label()), format!("{} is on {}. A newer version is available.", info.server_name, info.version), None);
         }
     }
 
