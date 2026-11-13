@@ -613,8 +613,8 @@ impl Seerr {
         self.post_json("/watchlist", &serde_json::json!({ "tmdbId": tmdb_id, "mediaType": media_type, "title": title })).await
     }
 
-    pub async fn watchlist_remove(&self, tmdb_id: i64) -> Result<()> {
-        self.send(self.req(reqwest::Method::DELETE, &format!("/watchlist/{tmdb_id}"))).await?;
+    pub async fn watchlist_remove(&self, media_type: &str, tmdb_id: i64) -> Result<()> {
+        self.send(self.req(reqwest::Method::DELETE, &format!("/watchlist/{tmdb_id}?mediaType={media_type}"))).await?;
         Ok(())
     }
 

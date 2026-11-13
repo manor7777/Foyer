@@ -1319,7 +1319,7 @@ impl Ctx {
         let on = ui.get_sr_detail().watchlisted;
         let ctx = self.clone();
         self.rt.spawn(async move {
-            let res = if on { seerr.watchlist_remove(d.tmdb).await } else { seerr.watchlist_add(&d.kind, d.tmdb, &d.title).await };
+            let res = if on { seerr.watchlist_remove(&d.kind, d.tmdb).await } else { seerr.watchlist_add(&d.kind, d.tmdb, &d.title).await };
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(ui) = ctx.ui.upgrade() else { return };
                 let set = |v: bool| {
