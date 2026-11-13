@@ -86,6 +86,8 @@ pub enum Control {
     /// -1 turns subtitles off
     SelectSub(i64),
     AddSubtitle { url: String, title: String, lang: String },
+    /// Subtitle vertical position, mpv `sub-pos` (100 = bottom, lower = higher up).
+    SubPos(i64),
 }
 
 /// Live playback state, polled a few times a second.
@@ -573,6 +575,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     Control::SelectSub(id) => {
                         run(&["set", "sid", &if id < 0 { "no".to_string() } else { id.to_string() }]);
                         tracks_due = Some(Instant::now() + Duration::from_millis(300));
+                    }
+                    Control::SubPos(p) => {
+                        run(&["set", "sub-pos", &p.to_string()]);
                     }
                     Control::AddSubtitle { url, title, lang } => {
                         run(&["sub-add", &url, "select", &title, &lang]);

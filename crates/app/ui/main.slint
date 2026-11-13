@@ -1673,6 +1673,16 @@ export component AppWindow inherits Window {
         root.mouse-moved();
     }
 
+    // Move: show the controls. Right button: hide them at once.
+    function player-pointer(e: PointerEvent) {
+        if e.kind == PointerEventKind.move { root.poke-controls(); }
+        else if e.kind == PointerEventKind.down && e.button == PointerEventButton.right { controls-shown = false; }
+    }
+
+    // Lift the subtitles clear of the bottom control bar as it fades in/out (ratio of window height).
+    callback sub-lift(float);
+    changed controls-op => { root.sub-lift(root.controls-op * 170px / max(root.height, 1px)); }
+
     // quick fade between pages: drop the opacity on change, a one-shot timer then fades it back up
     property <float> page-op: 1.0;
     animate page-op { duration: 150ms; easing: ease-out; }
@@ -4836,9 +4846,7 @@ export component AppWindow inherits Window {
         }
         TouchArea {
             mouse-cursor: (root.controls-shown || root.player-paused || !root.player-started) ? MouseCursor.default : MouseCursor.none;
-            pointer-event(e) => {
-                if e.kind == PointerEventKind.move { root.poke-controls(); }
-            }
+            pointer-event(e) => { root.player-pointer(e); }
             clicked => {
                 root.video-click();
             }
@@ -4882,9 +4890,7 @@ export component AppWindow inherits Window {
             height: 96px;
             background: @linear-gradient(180deg, #000000c8 0%, #00000000 100%);
             TouchArea {
-                pointer-event(e) => {
-                    if e.kind == PointerEventKind.move { root.poke-controls(); }
-                }
+                pointer-event(e) => { root.player-pointer(e); }
             }
             HorizontalLayout {
                 padding: 14px;
@@ -4913,9 +4919,7 @@ export component AppWindow inherits Window {
             height: 150px;
             background: @linear-gradient(180deg, #00000000 0%, #000000e6 100%);
             TouchArea {
-                pointer-event(e) => {
-                    if e.kind == PointerEventKind.move { root.poke-controls(); }
-                }
+                pointer-event(e) => { root.player-pointer(e); }
             }
             Rectangle {
               x: 16px;

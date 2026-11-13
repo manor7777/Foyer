@@ -1,17 +1,17 @@
 # Graph Report - Foyer  (2026-11-13)
 
 ## Corpus Check
-- 26 files · ~43,887 words
+- 26 files · ~43,947 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .rc 1, .ico 1)
 
 ## Summary
-- 947 nodes · 2027 edges · 45 communities (38 shown, 7 thin omitted)
+- 948 nodes · 2028 edges · 45 communities (38 shown, 7 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 48 edges (avg confidence: 0.75)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9dbc2a0c`
+- Built from commit: `fcc59b15`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -124,7 +124,7 @@ Nodes (31): ADMIN, AUTO_APPROVE, CREATE_ISSUES, Download, DownloadEp, downloads_
 
 ### Community 7 - "Control"
 Cohesion: 0.06
-Nodes (20): Media, sync(), Control, AddSubtitle, AudioDelayBy, CycleAudio, CycleSubtitles, Finish (+12 more)
+Nodes (21): Media, sync(), Control, AddSubtitle, AudioDelayBy, CycleAudio, CycleSubtitles, Finish (+13 more)
 
 ### Community 8 - "emby-api/src/lib.rs"
 Cohesion: 0.07
@@ -247,8 +247,8 @@ Cohesion: 0.67
 Nodes (4): load_seen(), save_seen(), Seen, seen_path()
 
 ## Knowledge Gaps
-- **108 isolated node(s):** `Auto`, `Direct`, `Home`, `Backdrop`, `Poster` (+103 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 302 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **109 isolated node(s):** `Auto`, `Direct`, `Home`, `Backdrop`, `Poster` (+104 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 303 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **7 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
@@ -257,7 +257,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `Client` connect `Client` to `Ctx`, `ImageKind`, `Ctx`, `MediaStream`, `main.rs`, `emby-api/src/lib.rs`, `Result`, `RemoteEvent`, `play_one`, `State`, `.get`, `.show_library_page`, `Error`?**
   _High betweenness centrality (0.135) - this node is a cross-community bridge._
 - **What connects `Auto`, `Direct`, `Home` to the rest of the system?**
-  _108 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _109 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Ctx` be split into smaller, more focused modules?**
   _Cohesion score 0.05485232067510549 - nodes in this community are weakly interconnected._
 - **Why does `Seerr` connect `Seerr` to `Ctx`, `.user_quota`, `seerr-api/src/lib.rs`, `seerr.rs`, `.get`, `Media`, `Detail`?**

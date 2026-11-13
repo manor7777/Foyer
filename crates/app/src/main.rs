@@ -4353,6 +4353,16 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     ui.on_video_click(move || c.video_click());
     let c = ctx.clone();
     ui.on_mouse_moved(move || c.mouse_moved());
+    let c = ctx.clone();
+    let last_pos = std::cell::Cell::new(100i64);
+    ui.on_sub_lift(move |ratio| {
+        let pos = (100.0 - ratio * 100.0).round() as i64;
+        if pos != last_pos.replace(pos) {
+            if let Some(tx) = &c.st.lock().unwrap().player_tx {
+                let _ = tx.send(player::Control::SubPos(pos));
+            }
+        }
+    });
 
     // Hide the player controls after 3 s without mouse movement (unless paused or a menu is open).
     let hide_timer = slint::Timer::default();
