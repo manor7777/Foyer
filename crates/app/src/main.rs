@@ -17,6 +17,7 @@ mod update;
 mod seerr;
 mod notes;
 mod hide;
+mod media;
 use hide::{Hide, HideTarget};
 use notes::{Follow, NoteRec};
 use seerr::SeerrState;
@@ -2663,7 +2664,7 @@ impl Ctx {
         };
         let ctx = self.clone();
         std::thread::spawn(move || {
-            let env = PlayEnv { controls: rx, surface: ctx.surface.clone(), ui: ctx.ui.clone(), now: ctx.now.clone(), bandwidth: ctx.bandwidth.clone(), restart: ctx.restart.clone(), hw_decode, hw_mode, auto_skip_intro, tx };
+            let env = PlayEnv { controls: rx, surface: ctx.surface.clone(), ui: ctx.ui.clone(), now: ctx.now.clone(), bandwidth: ctx.bandwidth.clone(), restart: ctx.restart.clone(), hw_decode, hw_mode, auto_skip_intro, autoplay, tx };
             let mut source = source;
             let mut error: Option<(String, String)> = None; // (item id, message)
             // Episodes that rolled on by themselves since you last pressed something.
@@ -2721,6 +2722,7 @@ impl Ctx {
                 }
                 let Some(ui) = ctx2.ui.upgrade() else { return };
                 ui.set_playing(false);
+                media::close();
                 // Leave full screen with the player, otherwise the browse pages have no window controls.
                 if ui.window().is_fullscreen() {
                     ui.window().set_fullscreen(false);
@@ -3006,6 +3008,7 @@ struct PlayEnv {
     hw_decode: bool,
     hw_mode: usize,
     auto_skip_intro: bool,
+    autoplay: bool,
     tx: std::sync::mpsc::Sender<player::Control>,
 }
 
@@ -3036,7 +3039,7 @@ impl PlayEnv {
     }
 
     fn push_state(&self, t: &player::Tick) {
-        let (weak, t) = (self.ui.clone(), t.clone());
+        let (weak, t, tx) = (self.ui.clone(), t.clone(), self.tx.clone());
         let _ = slint::invoke_from_event_loop(move || {
             let Some(ui) = weak.upgrade() else { return };
             ui.set_player_started(true);
@@ -3077,6 +3080,7 @@ impl PlayEnv {
                 subs.insert(0, TrackRow { id: -1, label: "Off".into(), selected: none_selected });
                 ui.set_sub_tracks(ModelRc::new(VecModel::from(subs)));
             }
+            media::sync(&ui, &tx);
         });
     }
 }
@@ -3135,6 +3139,13 @@ struct SkipState {
 
 /// Previous / next episode button: stop this one and let the play loop open the other.
 fn goto_episode(c: &Ctx, prev: bool) {
+    let tx = c.st.lock().unwrap().player_tx.clone();
+    if let Some(tx) = tx {
+        goto_with(&tx, prev);
+    }
+}
+
+fn goto_with(tx: &std::sync::mpsc::Sender<player::Control>, prev: bool) {
     let target = {
         let mut k = SKIP.lock().unwrap();
         let t = if prev { k.prev_ep.clone() } else { k.next_ep.clone() };
@@ -3145,9 +3156,7 @@ fn goto_episode(c: &Ctx, prev: bool) {
         t
     };
     if target.is_some() {
-        if let Some(tx) = &c.st.lock().unwrap().player_tx {
-            let _ = tx.send(player::Control::Quit);
-        }
+        let _ = tx.send(player::Control::Quit);
     }
 }
 
@@ -3178,6 +3187,17 @@ enum PlayResult {
 }
 
 const MIN_REAL_PLAY_SECS: f64 = 10.0;
+
+/// Stops the monitor sleeping while a video plays. The flag belongs to the calling (player) thread.
+#[cfg(windows)]
+fn keep_display_on(on: bool) {
+    use windows_sys::Win32::System::Power::{SetThreadExecutionState, ES_CONTINUOUS, ES_DISPLAY_REQUIRED, ES_SYSTEM_REQUIRED};
+    // SAFETY: plain flag call with no pointers.
+    unsafe { SetThreadExecutionState(if on { ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED } else { ES_CONTINUOUS }) };
+}
+
+#[cfg(not(windows))]
+fn keep_display_on(_: bool) {}
 
 fn ticks(secs: f64) -> i64 {
     (secs * TICKS_PER_SEC as f64) as i64
@@ -3311,7 +3331,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     let mut last_report = Instant::now();
     let outcome = player::play(
         &url,
-        &player::Options { title, start_secs: start, external_subs: ext_subs, audio_pos, hw_decode: env.hw_decode, hw_mode: env.hw_mode as u8, debug_log: DEBUG.load(Ordering::Relaxed).then(|| logs_dir().join("mpv.log").to_string_lossy().into_owned()) },
+        &player::Options { title, start_secs: start, external_subs: ext_subs, audio_pos, hw_decode: env.hw_decode, hw_mode: env.hw_mode as u8, keep_open: !env.autoplay && next_ep.is_some(), debug_log: DEBUG.load(Ordering::Relaxed).then(|| logs_dir().join("mpv.log").to_string_lossy().into_owned()) },
         &env.controls,
         &env.surface,
         &mut |t| {
@@ -3330,6 +3350,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
                 applog(&format!("mpv {d}"));
             }
             env.push_state(&t);
+            keep_display_on(!t.paused && !t.eof);
             if !is_live {
                 let mut k = SKIP.lock().unwrap();
                 k.duration = t.duration;
@@ -3342,7 +3363,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
                 let credits_at = credits_marker.unwrap_or(if t.duration > 300.0 { t.duration - 40.0 } else { f64::MAX });
                 let kind = if in_intro.is_some() && !(env.auto_skip_intro && intro_auto_done) {
                     1
-                } else if next_ep.is_some() && !k.credits_dismissed && t.duration > 0.0 && pos >= credits_at {
+                } else if next_ep.is_some() && (t.eof || (!k.credits_dismissed && t.duration > 0.0 && pos >= credits_at)) {
                     2
                 } else {
                     0
@@ -3372,6 +3393,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
         },
     );
 
+    keep_display_on(false);
     let stop_pos = if real || is_live { last_pos } else { start };
     let mut next = None;
     match &outcome {
@@ -3585,7 +3607,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
                 ("skip", 2) => {
                     k.force_next = true;
-                    send(K::SeekTo((k.duration - 0.3).max(0.0)));
+                    send(K::Finish);
                 }
                 ("keep", 2) => {
                     k.credits_dismissed = true;

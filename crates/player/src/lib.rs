@@ -49,6 +49,8 @@ pub struct Options {
     pub hw_mode: u8,
     /// When set, mpv writes its full verbose log here (audio device, underruns, decoder...).
     pub debug_log: Option<String>,
+    /// Stay paused on the last frame at the end instead of closing (the host then sends `Finish`).
+    pub keep_open: bool,
 }
 
 /// One audio or subtitle track in the current file.
@@ -65,6 +67,8 @@ pub struct Track {
 #[derive(Debug, Clone)]
 pub enum Control {
     Quit,
+    /// End playback as if the file had reached its end.
+    Finish,
     TogglePause,
     SeekBy(i32),
     VolumeBy(i32),
@@ -90,6 +94,8 @@ pub struct Tick {
     pub position: f64,
     pub duration: f64,
     pub paused: bool,
+    /// Sitting at the end of the file (only with `keep_open`).
+    pub eof: bool,
     pub volume: f64,
     pub muted: bool,
     pub audio: String,
@@ -445,6 +451,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
             set(k, v);
         }
         set("force-media-title", &opts.title);
+        if opts.keep_open {
+            set("keep-open", "yes");
+        }
         if !opts.hw_decode {
             set("hwdec", "no");
         } else {
@@ -509,13 +518,17 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
         let mut last_poll = Instant::now() - Duration::from_secs(1);
         let mut last_diag = Instant::now();
         let mut tracks_due: Option<Instant> = Some(Instant::now() + Duration::from_millis(800));
-        loop {
+        'play: loop {
             let mut forced_poll = false;
             while let Ok(ctl) = controls.try_recv() {
                 forced_poll = true;
                 match ctl {
                     Control::Quit => {
                         run(&["quit"]);
+                    }
+                    Control::Finish => {
+                        outcome = Outcome::Finished;
+                        break 'play;
                     }
                     Control::TogglePause => {
                         run(&["cycle", "pause"]);
@@ -606,6 +619,7 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     position,
                     duration: read_str("duration").and_then(|s| s.parse().ok()).unwrap_or(0.0),
                     paused: read_str("pause").as_deref() == Some("yes"),
+                    eof: opts.keep_open && read_str("eof-reached").as_deref() == Some("yes"),
                     volume: read_str("volume").and_then(|s| s.parse().ok()).unwrap_or(100.0),
                     muted: read_str("mute").as_deref() == Some("yes"),
                     audio: track_label(&read_str, "audio"),

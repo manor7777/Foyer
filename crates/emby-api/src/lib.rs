@@ -419,7 +419,7 @@ pub struct LiveStream {
 pub const TICKS_PER_SEC: i64 = 10_000_000;
 
 /// Reported to the server in the auth header (shown on its dashboard).
-pub const CLIENT_NAME: &str = "Emby Theater";
+pub const CLIENT_NAME: &str = "Foyer";
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// How to sort/filter a library listing.
@@ -470,8 +470,6 @@ impl Client {
     }
 
     fn auth_header(&self) -> String {
-        // Identify like the legacy app ("Emby Theater 3.0.20" on the dashboard) so the
-        // server treats us with the same compatibility profile. 4.0.0 = the successor.
         let device = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows PC".into());
         let mut h = format!(
             "MediaBrowser Client=\"{CLIENT_NAME}\", Device=\"{device}\", DeviceId=\"{}\", Version=\"{CLIENT_VERSION}\"",
