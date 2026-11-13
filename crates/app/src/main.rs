@@ -2435,8 +2435,15 @@ impl Ctx {
             E::PlayPause => send(K::TogglePause),
             E::Stop => send(K::Quit),
             E::SeekTicks(t) => send(K::SeekTo(t as f64 / TICKS_PER_SEC as f64)),
-            E::Rewind => send(K::SeekBy(-self.st.lock().unwrap().cfg.rewind_secs.max(1))),
-            E::FastForward => send(K::SeekBy(self.st.lock().unwrap().cfg.forward_secs.max(1))),
+            // read the setting first: `send` locks `st` too, and the guard would still be held
+            E::Rewind => {
+                let secs = self.st.lock().unwrap().cfg.rewind_secs.max(1);
+                send(K::SeekBy(-secs))
+            }
+            E::FastForward => {
+                let secs = self.st.lock().unwrap().cfg.forward_secs.max(1);
+                send(K::SeekBy(secs))
+            }
             E::SetVolume(v) => send(K::SetVolume(v)),
             E::Mute => send(K::SetMute(true)),
             E::Unmute => send(K::SetMute(false)),
