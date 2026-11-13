@@ -498,6 +498,8 @@ struct CardData {
     /// Status tag drawn on the card ("Available", "Requested"...) and its colour kind.
     badge: String,
     badge_kind: i32,
+    /// Blurb shown when hovering a Seerr card.
+    overview: String,
 }
 
 const GUIDE_MINUTES: i64 = 240;
@@ -559,6 +561,7 @@ fn card_for(client: &Client, i: &Item, wide: bool) -> CardData {
                     next_season: false,
                     badge: String::new(),
                     badge_kind: 0,
+                    overview: String::new(),
     }
 }
 
@@ -575,6 +578,7 @@ fn to_card(c: &CardData) -> Card {
         next_season: c.next_season,
         badge: c.badge.clone().into(),
         badge_kind: c.badge_kind,
+        overview: c.overview.clone().into(),
     }
 }
 
@@ -1867,6 +1871,7 @@ impl Ctx {
                     next_season: false,
                     badge: String::new(),
                     badge_kind: 0,
+                    overview: String::new(),
                 })
                 .collect();
             jobs.extend(cast_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Cast(i), u))));
@@ -1898,6 +1903,7 @@ impl Ctx {
                                     next_season: false,
                                     badge: String::new(),
                                     badge_kind: 0,
+                                    overview: String::new(),
                                 }
                             })
                             .collect();
@@ -1924,6 +1930,7 @@ impl Ctx {
                                             next_season: true,
                                             badge: String::new(),
                                             badge_kind: 0,
+                                            overview: String::new(),
                                         });
                                     }
                                 }
@@ -2837,6 +2844,7 @@ fn episode_row(client: &Client, e: &Item) -> CardData {
                     next_season: false,
                     badge: String::new(),
                     badge_kind: 0,
+                    overview: String::new(),
     }
 }
 
@@ -3519,6 +3527,12 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.on_sr_open_target(move |kind, tmdb, available| c.sr_open_target(kind.to_string(), tmdb.to_string(), available));
     let c = ctx.clone();
     ui.on_sr_request_start(move || c.sr_request_start());
+    let c = ctx.clone();
+    ui.on_sr_request_quick(move |kind, id| {
+        if let Ok(id) = id.parse::<i64>() {
+            c.sr_request_quick(kind.to_string(), id);
+        }
+    });
     let c = ctx.clone();
     ui.on_sr_request_submit(move || c.sr_request_submit());
     let c = ctx.clone();

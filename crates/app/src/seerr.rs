@@ -199,6 +199,7 @@ fn media_card(m: &sr::Media) -> CardData {
         next_season: false,
         badge,
         badge_kind,
+        overview: m.overview.clone().unwrap_or_default(),
     }
 }
 
@@ -425,8 +426,28 @@ impl Ctx {
 
     // ---------------------------------------------------------------- discover + search
 
+    /// Shows how many requests the signed-in user has left per category on the discover page.
+    fn load_sr_quota(&self) {
+        let Some((seerr, user)) = self.sr_session() else { return };
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let Ok(q) = seerr.user_quota(user.id).await else { return };
+            let part = |name: &str, p: &sr::QuotaPart| match (p.limit, p.remaining) {
+                (Some(l), Some(r)) if l > 0 => format!("{name}: {r} of {l} left"),
+                _ => format!("{name}: unlimited"),
+            };
+            let text = format!("{}  ·  {}", part("Movies", &q.movie), part("Series", &q.tv));
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ctx.ui.upgrade() {
+                    ui.set_sr_quota(text.into());
+                }
+            });
+        });
+    }
+
     pub fn show_sr_discover(&self) {
         let Some((seerr, _)) = self.sr_session() else { return self.show_sr_connect() };
+        self.load_sr_quota();
         let Some((client, _)) = self.session() else { return };
         let my = self.begin();
         if let Some(ui) = self.ui.upgrade() {
@@ -513,6 +534,7 @@ impl Ctx {
                             next_season: false,
                             badge: String::new(),
                             badge_kind: 0,
+                            overview: String::new(),
                         }
                     })
                     .collect()
@@ -655,6 +677,7 @@ impl Ctx {
                     next_season: false,
                     badge: String::new(),
                     badge_kind: 0,
+                    overview: String::new(),
                 })
                 .collect();
 
@@ -728,6 +751,26 @@ impl Ctx {
         } else {
             self.sr_request_submit();
         }
+    }
+
+    /// Request button on a hovered card: movies are requested straight away; a series needs its seasons picked, so open it.
+    pub fn sr_request_quick(&self, kind: String, tmdb: i64) {
+        if kind == "tv" {
+            self.navigate(Page::SeerrDetail { kind, id: tmdb }, true);
+            return;
+        }
+        let Some((seerr, _)) = self.sr_session() else { return };
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let res = seerr.request(&kind, tmdb, None, false).await;
+            let _ = slint::invoke_from_event_loop(move || match res {
+                Ok(()) => {
+                    ctx.sr_notify("Requested", "Your request has been sent.");
+                    ctx.load_sr_quota();
+                }
+                Err(e) => ctx.sr_notify("Couldn't request", &e.to_string()),
+            });
+        });
     }
 
     pub fn sr_season_toggled(&self, i: i32, v: bool) {
@@ -1324,6 +1367,7 @@ impl Ctx {
                     next_season: false,
                     badge: badge.to_string(),
                     badge_kind,
+                    overview: String::new(),
                 })
             })
             .collect()

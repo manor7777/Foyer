@@ -327,6 +327,7 @@ export struct Card {
     next-season: bool,
     badge: string,
     badge-kind: int,
+    overview: string,
 }
 
 export struct HomeRowCfg {
@@ -891,7 +892,13 @@ component HScroll inherits Rectangle {
 component CardView inherits Rectangle {
     in property <Card> card;
     in property <bool> wide: false;
+    /// Seerr cards: hovering shows the blurb and (if not yet requested) a Request button.
+    in property <bool> requestable: false;
+    property <bool> asked: false;
+    property <bool> hovered: ta.has-hover || bta.has-hover;
+    property <bool> blurb: root.requestable && root.hovered && root.card.overview != "";
     callback clicked();
+    callback request();
 
     width: (wide ? 240px : 150px) * Scale.factor;
     height: (wide ? 135px : 225px) * Scale.factor + 52px;
@@ -997,6 +1004,28 @@ component CardView inherits Rectangle {
                     font-size: 12px;
                 }
             }
+            if root.blurb: Rectangle {
+                background: #000000d8;
+                VerticalLayout {
+                    padding: 10px;
+                    padding-bottom: 46px;
+                    spacing: 4px;
+                    Text {
+                        text: card.title;
+                        color: white;
+                        font-size: 13px;
+                        font-weight: 700;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: card.overview;
+                        color: #ffffffdd;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                        overflow: elide;
+                    }
+                }
+            }
             Rectangle {
                 border-radius: 8px;
                 border-width: fs.has-focus ? 3px : (card.current ? 3px : (ta.has-hover ? 1px : 0px));
@@ -1026,6 +1055,36 @@ component CardView inherits Rectangle {
         clicked => {
             fs.focus();
             root.clicked();
+        }
+    }
+
+    // Always present (an `if` would hide it from `hovered`); only live while the blurb shows.
+    property <bool> can-ask: root.blurb && root.card.badge == "" && !root.asked;
+    if root.blurb && (root.can-ask || root.asked): Rectangle {
+        x: 10px;
+        y: 225px * Scale.factor - 40px;
+        width: parent.width - 20px;
+        height: 30px;
+        border-radius: 15px;
+        background: root.asked ? Palette.control-hover : (bta.has-hover ? Palette.accent-background.brighter(0.15) : Palette.accent-background);
+        Text {
+            text: root.asked ? "Requested" : "Request";
+            color: root.asked ? Palette.foreground : Palette.accent-foreground;
+            font-size: 12px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    bta := TouchArea {
+        x: 10px;
+        y: 225px * Scale.factor - 40px;
+        width: parent.width - 20px;
+        height: 30px;
+        enabled: root.hovered && root.can-ask;
+        clicked => {
+            root.asked = true;
+            root.request();
         }
     }
 }
@@ -1346,6 +1405,8 @@ export component AppWindow inherits Window {
     callback sr-search(string);
     callback sr-open(string, string);
     callback sr-open-library(string, string);
+    callback sr-request-quick(string, string);
+    in property <string> sr-quota;
     callback sr-open-target(string, string, bool);
     callback sr-request-start();
     callback sr-request-submit();
@@ -2874,6 +2935,12 @@ export component AppWindow inherits Window {
                         Heading { text: "Requests"; }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
+                            text: root.sr-quota;
+                            color: Palette.foreground;
+                            opacity: 0.6;
+                            vertical-alignment: center;
+                        }
+                        Text {
                             text: root.sr-user;
                             color: Palette.foreground;
                             opacity: 0.6;
@@ -2910,6 +2977,8 @@ export component AppWindow inherits Window {
                                     spacing: 14px;
                                     for c in row.cards: CardView {
                                         card: c;
+                                        requestable: true;
+                                        request => { root.sr-request-quick(c.kind, c.id); }
                                         clicked => {
                                             if c.badge-kind == 4 { root.sr-open-library(c.kind, c.id); } else { root.sr-open(c.kind, c.id); }
                                         }
@@ -2932,6 +3001,8 @@ export component AppWindow inherits Window {
                                 row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
                                 col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / (150px * Scale.factor + 14px))));
                                 card: c;
+                                requestable: true;
+                                request => { root.sr-request-quick(c.kind, c.id); }
                                 clicked => {
                                     if c.badge-kind == 4 { root.sr-open-library(c.kind, c.id); } else { root.sr-open(c.kind, c.id); }
                                 }
@@ -3963,7 +4034,7 @@ export component AppWindow inherits Window {
                         spacing: 8px;
                         Heading { text: "Media info"; }
                         Rectangle {
-                            background: Palette.control-background.with-alpha(0.85);
+                            background: Palette.control-background;
                             border-radius: 10px;
                             border-width: 1px;
                             border-color: Palette.border;
