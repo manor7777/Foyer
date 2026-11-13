@@ -1710,9 +1710,11 @@ impl Ctx {
             }
         };
 
+        let mut open_all: Vec<sr::Issue> = Vec::new();
         if mgr_on && (user.has(perm::MANAGE_ISSUES) || user.has(perm::VIEW_ISSUES)) {
             if let Ok((list, _)) = seerr.issues("open", 30, 0, None).await {
                 self.sr_fill_titles(seerr, list.iter().filter_map(|i| i.media.as_ref().map(|m| (m.media_type.clone(), m.tmdb_id.unwrap_or(0)))).collect()).await;
+                open_all = list.clone();
                 let baseline = !seen.issues_init; // the first look is recorded silently
                 for i in &list {
                     if seen.issues.contains(&i.id) {
@@ -1738,23 +1740,35 @@ impl Ctx {
         }
 
         if mine_on {
-            if let Ok((list, _)) = seerr.issues("all", 30, 0, Some(user.id)).await {
+            let mut list = seerr.issues("all", 30, 0, Some(user.id)).await.map(|r| r.0).unwrap_or_default();
+            // Open issues others reported are watched too once you have replied on them.
+            let extra: Vec<sr::Issue> = open_all.into_iter().filter(|i| !list.iter().any(|m| m.id == i.id)).collect();
+            list.extend(extra);
+            {
                 self.sr_fill_titles(seerr, list.iter().filter_map(|i| i.media.as_ref().map(|m| (m.media_type.clone(), m.tmdb_id.unwrap_or(0)))).collect()).await;
                 for i in &list {
                     let key = i.id.to_string();
                     let prev = seen.my_issues.get(&key).copied();
+                    let own = i.created_by.as_ref().is_some_and(|u| u.id == user.id);
                     // The list may leave comments out, so open issues are read in full.
                     let (count, last_by_other, last_text) = if i.status != status::ISSUE_RESOLVED {
                         match seerr.issue(i.id).await {
-                            Ok(d) => (
-                                d.comments.len(),
-                                d.comments.last().and_then(|c| c.user.as_ref().map(|u| u.id != user.id)).unwrap_or(false),
-                                d.comments.last().map(|c| c.message.clone()).unwrap_or_default(),
-                            ),
+                            Ok(d) => {
+                                if !own && !d.comments.iter().any(|c| c.user.as_ref().is_some_and(|u| u.id == user.id)) {
+                                    continue;
+                                }
+                                (
+                                    d.comments.len(),
+                                    d.comments.last().and_then(|c| c.user.as_ref().map(|u| u.id != user.id)).unwrap_or(false),
+                                    d.comments.last().map(|c| c.message.clone()).unwrap_or_default(),
+                                )
+                            }
                             Err(_) => (i.comments.len(), false, String::new()),
                         }
-                    } else {
+                    } else if own {
                         (i.comments.len(), false, String::new())
+                    } else {
+                        continue;
                     };
                     if let Some((pstatus, pcount)) = prev {
                         let title = title_of(self, &i.media);

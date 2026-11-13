@@ -815,8 +815,6 @@ struct State {
     last_click: Option<Instant>,
     click_gen: u64,
     lib: LibView,
-    /// Ids of the server's "playlists" library views (they get a Mine / Server tab pair).
-    playlist_views: Vec<String>,
     sr: SeerrState,
     /// Log of every notification Foyer has shown, newest first.
     notes: Vec<NoteRec>,
@@ -1057,8 +1055,6 @@ impl Ctx {
                 Ok(v) => v,
                 Err(e) => return ctx.fail(my, e),
             };
-            ctx.st.lock().unwrap().playlist_views =
-                views.iter().filter(|v| v.collection_type.as_deref() == Some("playlists")).map(|v| v.id.clone()).collect();
             {
                 let libs: Vec<CardData> = views
                     .iter()
@@ -1184,7 +1180,6 @@ impl Ctx {
         let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Grid(i), u))).collect();
         self.post(my, move |ui| {
             ui.set_busy(false);
-            ui.set_pl_tabs(false);
             ui.set_fav_tabs(ModelRc::new(VecModel::<SharedString>::default()));
             ui.set_lib_controls(false);
             ui.set_lib_can_more(false);
@@ -1295,20 +1290,12 @@ impl Ctx {
     }
 
     fn show_children(&self, id: String, title: String) {
-        let is_playlists = self.st.lock().unwrap().playlist_views.contains(&id);
-        if let Some(ui) = self.ui.upgrade() {
-            ui.set_pl_tabs(is_playlists);
-            ui.set_pl_tab(0);
-        }
-        if is_playlists {
-            self.show_favorites(id, title);
-        } else {
-            self.show_server_library(id, title);
-        }
+        self.show_server_library(id, title);
     }
 
-    /// Playlists page, "Mine" tab: the user's favourites.
-    fn show_favorites(&self, id: String, title: String) {
+    /// Favourites page: everything the user has hearted.
+    fn show_favorites(&self) {
+        let (id, title) = (String::new(), "Favourites".to_string());
         let Some((client, uid)) = self.session() else { return };
         {
             let mut s = self.st.lock().unwrap();
@@ -1359,7 +1346,6 @@ impl Ctx {
             .collect();
         self.show_grid(my, client, title, shown, "grid");
         self.post(my, move |ui| {
-            ui.set_pl_tabs(true);
             ui.set_fav_tabs(ModelRc::new(VecModel::from(tabs.into_iter().map(SharedString::from).collect::<Vec<_>>())));
             ui.set_fav_tab(sub as i32);
         });
@@ -1377,24 +1363,6 @@ impl Ctx {
         self.st.lock().unwrap().fav_sub = i.max(0) as usize;
         let my = self.begin();
         self.favs_view(my, &client);
-    }
-
-    fn pl_tab_picked(&self, i: i32) {
-        let (id, title) = {
-            let s = self.st.lock().unwrap();
-            (s.lib.parent.clone(), s.lib.title.clone())
-        };
-        if id.is_empty() {
-            return;
-        }
-        if let Some(ui) = self.ui.upgrade() {
-            ui.set_pl_tab(i);
-        }
-        if i == 0 {
-            self.show_favorites(id, title);
-        } else {
-            self.show_server_library(id, title);
-        }
     }
 
     fn show_server_library(&self, id: String, title: String) {
@@ -1990,7 +1958,7 @@ impl Ctx {
                 item.name.clone(),
                 subtitle,
                 meta.join("  ·  "),
-                item.overview.clone().unwrap_or_default(),
+                if item.kind == "Episode" && !item.user_data.as_ref().is_some_and(|u| u.played) && ctx.st.lock().unwrap().cfg.hide_spoilers { String::new() } else { item.overview.clone().unwrap_or_default() },
                 item.is_playable(),
                 format!("Resume from {}", clock(resume_secs)),
                 resume_secs >= 5,
@@ -3430,6 +3398,16 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             }
         });
     }
+    {
+        // Scene markers: the server's chapters (not the intro / credits markers) as ticks on the seek bar.
+        let ticks: Vec<f32> = item.as_ref().map(|i| i.chapters.iter().filter(|c| c.marker_type.as_deref().is_none_or(|m| m.eq_ignore_ascii_case("chapter")) && c.start_position_ticks > 0).map(|c| (c.start_position_ticks as f64 / 10_000_000.0) as f32).collect()).unwrap_or_default();
+        let weak = env.ui.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = weak.upgrade() {
+                ui.set_player_chapters(ModelRc::new(VecModel::from(ticks)));
+            }
+        });
+    }
     let credits_marker = item.as_ref().and_then(|i| i.credits_start());
     {
         let mut k = SKIP.lock().unwrap();
@@ -3653,7 +3631,6 @@ fn main() -> Result<(), slint::PlatformError> {
             last_click: None,
             click_gen: 0,
             lib: LibView::default(),
-            playlist_views: Vec::new(),
             sr: SeerrState::default(),
             notes: notes::load_notes(),
             fav_items: Vec::new(),
@@ -4099,7 +4076,7 @@ fn main() -> Result<(), slint::PlatformError> {
         c.lib_set(|lv| lv.sort = i);
     });
     let c = ctx.clone();
-    ui.on_pl_tab_picked(move |i| c.pl_tab_picked(i));
+    ui.on_open_favorites(move || c.show_favorites());
     let c = ctx.clone();
     ui.on_lib_genre_changed(move |i| {
         c.lib_set(|lv| lv.genre = if i <= 0 { None } else { lv.genres.get(i as usize - 1).cloned() });

@@ -1300,6 +1300,7 @@ export component AppWindow inherits Window {
     in property <string> player-title;
     in property <float> player-pos;
     in property <float> player-dur;
+    in property <[float]> player-chapters;
     in property <bool> player-paused;
     in property <float> player-volume;
     in property <bool> player-muted;
@@ -1413,9 +1414,7 @@ export component AppWindow inherits Window {
     callback fav-tab-picked(int);
     in-out property <string> fav-query;
     callback fav-search(string);
-    in-out property <bool> pl-tabs: false;
-    in-out property <int> pl-tab: 0;
-    callback pl-tab-picked(int);
+    callback open-favorites();
     callback lib-sort-changed(int);
     callback lib-genre-changed(int);
     callback lib-letter-picked(string);
@@ -1984,12 +1983,12 @@ export component AppWindow inherits Window {
           VerticalLayout {
             // Back appears only where there is somewhere to go back to
             Rectangle {
-                height: root.can-go-back && root.page != "home" ? 52px : 0px;
+                height: root.can-go-back && root.page != "home" ? 54px : 0px;
                 clip: true;
                 animate height { duration: 150ms; easing: ease-out; }
                 RoundIcon {
                     x: 20px;
-                    y: 8px;
+                    y: 10px; // level with the top of the sidebar
                     icon: @image-url("icons/back.svg");
                     clicked => { root.go-back(); }
                 }
@@ -2119,32 +2118,12 @@ export component AppWindow inherits Window {
             if page == "grid": VerticalLayout {
               // title and filters stay put; only the posters scroll
               VerticalLayout {
+                    vertical-stretch: 0;
                     padding: 24px;
                     padding-bottom: 12px;
                     spacing: 12px;
                     Heading { text: root.grid-title; }
-                    if root.pl-tabs: HorizontalLayout {
-                        spacing: 8px;
-                        alignment: start;
-                        for name[i] in ["Mine", "Server"]: Rectangle {
-                            width: 112px;
-                            height: 34px;
-                            border-radius: 17px;
-                            background: i == root.pl-tab ? Palette.accent-background : (pl-ta.has-hover ? Palette.control-hover : Palette.control-background);
-                            border-width: 1px;
-                            border-color: i == root.pl-tab ? Palette.accent-background : Palette.border;
-                            Text {
-                                text: name;
-                                color: i == root.pl-tab ? Palette.accent-foreground : Palette.foreground;
-                                font-weight: 600;
-                                font-size: 13px;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                            pl-ta := TouchArea { clicked => { root.pl-tab-picked(i); } }
-                        }
-                    }
-                    if root.pl-tabs && root.fav-tabs.length > 0: HorizontalLayout {
+                    if root.fav-tabs.length > 0: HorizontalLayout {
                         spacing: 6px;
                         alignment: start;
                         for name[i] in root.fav-tabs: Rectangle {
@@ -2165,7 +2144,7 @@ export component AppWindow inherits Window {
                             fv-ta := TouchArea { clicked => { root.fav-tab-picked(i); } }
                         }
                     }
-                    if root.pl-tabs && root.fav-tabs.length > 0: LineEdit {
+                    if root.fav-tabs.length > 0: LineEdit {
                         placeholder-text: "Search your favourites";
                         text <=> root.fav-query;
                         edited => { root.fav-search(root.fav-query); }
@@ -2211,6 +2190,7 @@ export component AppWindow inherits Window {
                     }
               }
               ScrollView {
+                vertical-stretch: 1;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -4714,6 +4694,16 @@ export component AppWindow inherits Window {
                         root.open-search();
                     }
                 }
+                NavItem {
+                    compact: !root.nav-expanded;
+                    label: "Favourites";
+                    icon: @image-url("icons/heart.svg");
+                    selected: root.page == "grid" && root.fav-tabs.length > 0;
+                    clicked => {
+                        root.nav-open = false;
+                        root.open-favorites();
+                    }
+                }
                 Rectangle { height: 4px; }
                 if root.nav-expanded: Text {
                     text: "LIBRARIES";
@@ -4956,13 +4946,24 @@ export component AppWindow inherits Window {
                         border-radius: 7px;
                         background: white;
                     }
+                    for t in root.player-chapters: Rectangle {
+                        x: parent.width * min(1.0, t / max(root.player-dur, 1)) - 1px;
+                        y: (parent.height - self.height) / 2;
+                        width: 2px;
+                        height: 8px;
+                        background: #ffffffcc;
+                    }
                     seek-ta := TouchArea {
                         pointer-event(e) => {
                             if e.kind == PointerEventKind.move { root.poke-controls(); }
+                            if e.kind == PointerEventKind.down && e.button == PointerEventButton.left && root.player-dur > 0 {
+                                root.player-seek(max(0.0, min(1.0, self.mouse-x / self.width)) * root.player-dur);
+                            }
                         }
-                        clicked => {
-                            if root.player-dur > 0 {
-                                root.player-seek(self.mouse-x / self.width * root.player-dur);
+                        // dragging scrubs; the press itself already seeked
+                        moved => {
+                            if self.pressed && root.player-dur > 0 {
+                                root.player-seek(max(0.0, min(1.0, self.mouse-x / self.width)) * root.player-dur);
                             }
                         }
                     }

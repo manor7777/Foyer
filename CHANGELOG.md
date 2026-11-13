@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.23.0
+
+- **Favourites** has its own sidebar button (your hearted items, with TV / Movies / Other tabs and search). Playlists now shows only the server's playlists.
+- Seek bar: click and drag to scrub, and chapter markers show as ticks.
+- Back button lines up with the top of the sidebar; library pages no longer leave a big gap under the title.
+- Seerr: you're also notified of replies on issues you've commented on, not only ones you reported.
+- Hide spoilers now also hides the summary on an unwatched episode's own page.
+
 ## Foyer 0.22.0
 
 > **One combined changelog: everything since Foyer 0.12.0.** 0.12.0 shipped without release notes, so this covers every release from 0.12.0 up to and including 0.22.0. Later releases get their own notes.
