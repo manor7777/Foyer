@@ -579,6 +579,7 @@ fn to_card(c: &CardData) -> Card {
         badge: c.badge.clone().into(),
         badge_kind: c.badge_kind,
         overview: c.overview.clone().into(),
+        followed: c.kind == "Series" && notes::is_followed_id(&c.id),
     }
 }
 
@@ -620,6 +621,7 @@ enum Slot {
     SReq(usize),
     SIssue(usize),
     SIssuePoster,
+    SPersonPhoto,
 }
 
 fn set_card_image(m: &ModelRc<Card>, i: usize, img: Image) {
@@ -676,6 +678,11 @@ fn apply_image(ui: &AppWindow, slot: Slot, img: Image) {
                 m.set_row_data(i, r);
             }
         }
+        Slot::SPersonPhoto => {
+            let mut p = ui.get_sr_person();
+            p.photo = img;
+            ui.set_sr_person(p);
+        }
         Slot::SIssuePoster => {
             let mut d = ui.get_sr_issue();
             d.poster = img;
@@ -720,6 +727,8 @@ enum Page {
     SeerrDetail { kind: String, id: i64 },
     SeerrRequests,
     SeerrWatchlist,
+    SeerrBrowse { title: String },
+    SeerrPerson { id: i64 },
     SeerrIssues,
     SeerrIssue { id: i64 },
     SeerrUsers,
@@ -750,6 +759,8 @@ struct State {
     /// The Mine tab's favourites and which sub-tab (TV / Movies / Other) is showing.
     fav_items: Vec<Item>,
     fav_sub: usize,
+    /// Search text on the Mine tab.
+    fav_query: String,
 }
 
 /// What the library page is currently showing.
@@ -884,6 +895,8 @@ impl Ctx {
             Page::SeerrDetail { kind, id } => self.show_sr_detail(kind, id),
             Page::SeerrRequests => self.show_sr_requests(),
             Page::SeerrWatchlist => self.show_sr_watchlist(),
+            Page::SeerrBrowse { title } => self.show_sr_browse(title),
+            Page::SeerrPerson { id } => self.show_sr_person(id),
             Page::SeerrIssues => self.show_sr_issues(),
             Page::SeerrIssue { id } => self.show_sr_issue(id),
             Page::SeerrUsers => self.show_sr_users(),
@@ -1168,9 +1181,14 @@ impl Ctx {
     /// Playlists page, "Mine" tab: the user's favourites.
     fn show_favorites(&self, id: String, title: String) {
         let Some((client, uid)) = self.session() else { return };
-        self.st.lock().unwrap().lib = LibView { parent: id, title: title.clone(), ..Default::default() };
+        {
+            let mut s = self.st.lock().unwrap();
+            s.lib = LibView { parent: id, title: title.clone(), ..Default::default() };
+            s.fav_query.clear();
+        }
         let my = self.begin();
         if let Some(ui) = self.ui.upgrade() {
+            ui.set_fav_query("".into());
             ui.set_cards(ModelRc::new(VecModel::<Card>::default()));
             ui.set_grid_title(title.clone().into());
             ui.set_lib_controls(false);
@@ -1179,7 +1197,7 @@ impl Ctx {
         }
         let ctx = self.clone();
         self.rt.spawn(async move {
-            match client.favorites(&uid, 300).await {
+            match client.favorites(&uid, 20000).await {
                 Ok(items) => {
                     {
                         // Open on the first sub-tab that has something in it.
@@ -1196,22 +1214,33 @@ impl Ctx {
 
     /// Shows the Mine tab's current TV / Movies / Other sub-tab.
     fn favs_view(&self, my: u64, client: &Client) {
-        let (items, sub, title) = {
+        let (items, sub, title, query) = {
             let s = self.st.lock().unwrap();
-            (s.fav_items.clone(), s.fav_sub, s.lib.title.clone())
+            (s.fav_items.clone(), s.fav_sub, s.lib.title.clone(), s.fav_query.trim().to_lowercase())
         };
         let mut tabs = vec!["TV", "Movies"];
         if items.iter().any(|i| fav_group(i) == 2) {
             tabs.push("Other");
         }
         let sub = sub.min(tabs.len() - 1);
-        let shown: Vec<Item> = items.into_iter().filter(|i| fav_group(i) == sub).collect();
+        // A search looks through everything; otherwise just the picked sub-tab.
+        let shown: Vec<Item> = items
+            .into_iter()
+            .filter(|i| if query.is_empty() { fav_group(i) == sub } else { i.name.to_lowercase().contains(&query) })
+            .collect();
         self.show_grid(my, client, title, shown, "grid");
         self.post(my, move |ui| {
             ui.set_pl_tabs(true);
             ui.set_fav_tabs(ModelRc::new(VecModel::from(tabs.into_iter().map(SharedString::from).collect::<Vec<_>>())));
             ui.set_fav_tab(sub as i32);
         });
+    }
+
+    fn fav_search(&self, q: String) {
+        let Some((client, _)) = self.session() else { return };
+        self.st.lock().unwrap().fav_query = q;
+        let my = self.begin();
+        self.favs_view(my, &client);
     }
 
     fn fav_tab_picked(&self, i: i32) {
@@ -1530,6 +1559,7 @@ impl Ctx {
         let mut s = self.st.lock().unwrap();
         f(&mut s.cfg);
         save_config(&s.cfg);
+        notes::sync_followed(&s.cfg.followed);
     }
 
     // ---- server administration
@@ -3319,6 +3349,7 @@ fn main() -> Result<(), slint::PlatformError> {
             notes: notes::load_notes(),
             fav_items: Vec::new(),
             fav_sub: 0,
+            fav_query: String::new(),
         })),
         gen: Arc::new(AtomicU64::new(0)),
         sem: Arc::new(Semaphore::new(6)),
@@ -3512,6 +3543,22 @@ fn main() -> Result<(), slint::PlatformError> {
     let c = ctx.clone();
     ui.on_sr_search(move |q| c.sr_search(q.to_string()));
     let c = ctx.clone();
+    ui.on_sr_browse(move |title| c.navigate(Page::SeerrBrowse { title: title.to_string() }, true));
+    let c = ctx.clone();
+    ui.on_sr_browse_load_more(move || c.load_sr_browse(true));
+    let c = ctx.clone();
+    ui.on_sr_open_person(move |id| {
+        if let Ok(id) = id.parse::<i64>() {
+            c.navigate(Page::SeerrPerson { id }, true);
+        }
+    });
+    let c = ctx.clone();
+    ui.on_sr_person_refilter(move || c.sr_person_refilter());
+    let c = ctx.clone();
+    ui.on_sr_watchlist_toggle(move || c.sr_watchlist_toggle());
+    let c = ctx.clone();
+    ui.on_follow_card(move |id, name| c.follow_card(id.to_string(), name.to_string()));
+    let c = ctx.clone();
     ui.on_sr_open(move |kind, id| {
         if let Ok(id) = id.parse::<i64>() {
             c.navigate(Page::SeerrDetail { kind: kind.to_string(), id }, true);
@@ -3637,6 +3684,8 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.on_toggle_follow(move || c.toggle_follow());
     let c = ctx.clone();
     ui.on_fav_tab_picked(move |i| c.fav_tab_picked(i));
+    let c = ctx.clone();
+    ui.on_fav_search(move |q| c.fav_search(q.to_string()));
     let c = ctx.clone();
     ui.on_set_card_scale(move |i| {
         let i = (i.max(0) as usize).min(CARD_SCALES.len() - 1);

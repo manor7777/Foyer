@@ -39,6 +39,7 @@ struct DetailData {
     can_request: bool,
     can_report: bool,
     in_library: bool,
+    watchlisted: bool,
 }
 
 impl DetailData {
@@ -58,6 +59,7 @@ impl DetailData {
             can_request: self.can_request,
             can_report: self.can_report,
             in_library: self.in_library,
+            watchlisted: self.watchlisted,
         }
     }
 }
@@ -159,6 +161,10 @@ pub struct SeerrState {
     pub detail: Option<DetailCtx>,
     pub library_id: Option<String>,
     pub titles: HashMap<(String, i64), TitleInfo>,
+    /// "View all" page: which discover list, last page loaded, total pages, cards shown.
+    pub browse: Option<(Discover, u32, u32, usize)>,
+    /// A cast member's acting credits (the page filters these).
+    pub person_credits: Vec<sr::Media>,
 }
 
 pub const REQ_FILTERS: [&str; 6] = ["all", "pending", "approved", "processing", "available", "unavailable"];
@@ -510,8 +516,8 @@ impl Ctx {
         }
         let ctx = self.clone();
         self.rt.spawn(async move {
-            let list = match seerr.watchlist(user.id, 1).await {
-                Ok(p) => p.results,
+            let list = match seerr.watchlist_all(user.id).await {
+                Ok(p) => p,
                 Err(e) => return ctx.sr_error(my, e),
             };
             let list: Vec<_> = list.into_iter().filter(|w| w.tmdb_id > 0 && (w.media_type == "movie" || w.media_type == "tv")).collect();
@@ -709,6 +715,7 @@ impl Ctx {
                 can_request,
                 can_report: info.id > 0,
                 in_library: library_id.is_some() || info.status == status::MEDIA_AVAILABLE,
+                watchlisted: d.on_user_watchlist.unwrap_or(false),
             };
             ctx.post(my, move |ui| {
                 ui.set_busy(false);
@@ -942,23 +949,26 @@ impl Ctx {
             let mut seen = std::collections::HashSet::new();
             keys.into_iter().filter(|k| k.1 > 0 && !s.sr.titles.contains_key(k) && seen.insert(k.clone())).collect()
         };
-        let mut tasks = Vec::new();
-        for (kind, id) in missing {
-            let s = seerr.clone();
-            tasks.push(tokio::spawn(async move {
-                let d = if kind == "tv" { s.tv(id).await } else { s.movie(id).await };
-                (kind, id, d.ok())
-            }));
-        }
-        for t in tasks {
-            if let Ok((kind, id, Some(d))) = t.await {
-                let year: String = d.release_date.clone().or(d.first_air_date.clone()).unwrap_or_default().chars().take(4).collect();
-                let info = TitleInfo {
-                    title: d.display_title(),
-                    poster: d.poster_path.clone(),
-                    year,
-                };
-                self.st.lock().unwrap().sr.titles.insert((kind, id), info);
+        // In batches, so a long watchlist doesn't open hundreds of connections at once.
+        for batch in missing.chunks(12) {
+            let mut tasks = Vec::new();
+            for (kind, id) in batch.iter().cloned() {
+                let s = seerr.clone();
+                tasks.push(tokio::spawn(async move {
+                    let d = if kind == "tv" { s.tv(id).await } else { s.movie(id).await };
+                    (kind, id, d.ok())
+                }));
+            }
+            for t in tasks {
+                if let Ok((kind, id, Some(d))) = t.await {
+                    let year: String = d.release_date.clone().or(d.first_air_date.clone()).unwrap_or_default().chars().take(4).collect();
+                    let info = TitleInfo {
+                        title: d.display_title(),
+                        poster: d.poster_path.clone(),
+                        year,
+                    };
+                    self.st.lock().unwrap().sr.titles.insert((kind, id), info);
+                }
             }
         }
     }
@@ -1162,6 +1172,166 @@ impl Ctx {
                     ctx.show_sr_issues();
                 }
                 Err(e) => ctx.sr_notify("Couldn't delete the issue", &e.to_string()),
+            });
+        });
+    }
+
+    // ---------------------------------------------------------------- view all / people / watchlist
+
+    pub fn show_sr_browse(&self, title: String) {
+        let kind = match title.as_str() {
+            "Trending" => Discover::Trending,
+            "Popular movies" => Discover::Movies,
+            "Popular series" => Discover::Tv,
+            "Upcoming movies" => Discover::UpcomingMovies,
+            "Upcoming series" => Discover::UpcomingTv,
+            _ => return,
+        };
+        if self.sr_session().is_none() {
+            return self.show_sr_connect();
+        }
+        self.st.lock().unwrap().sr.browse = Some((kind, 0, 1, 0));
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_sr_cards(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_sr_browse_title(title.into());
+            ui.set_sr_browse_more(false);
+            ui.set_page("sr-browse".into());
+        }
+        self.load_sr_browse(false);
+    }
+
+    pub fn load_sr_browse(&self, append: bool) {
+        let Some((seerr, _)) = self.sr_session() else { return };
+        let Some((client, _)) = self.session() else { return };
+        let Some((kind, last, _, loaded)) = self.st.lock().unwrap().sr.browse else { return };
+        let page = if append { last + 1 } else { 1 };
+        let offset = if append { loaded } else { 0 };
+        let my = if append { self.gen.load(Ordering::SeqCst) } else { self.begin() };
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let p = match seerr.discover(kind, page).await {
+                Ok(p) => p,
+                Err(e) => return ctx.sr_error(my, e),
+            };
+            let cards: Vec<CardData> = p.results.iter().filter(|m| m.media_type == "movie" || m.media_type == "tv").map(media_card).collect();
+            ctx.st.lock().unwrap().sr.browse = Some((kind, page, p.total_pages.max(1) as u32, offset + cards.len()));
+            let more = (page as i64) < p.total_pages;
+            let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::SCard(offset + i), u))).collect();
+            ctx.post(my, move |ui| {
+                ui.set_busy(false);
+                ui.set_sr_browse_more(more);
+                if append {
+                    if let Some(m) = ui.get_sr_cards().as_any().downcast_ref::<VecModel<Card>>() {
+                        for c in &cards {
+                            m.push(to_card(c));
+                        }
+                    }
+                } else {
+                    ui.set_sr_cards(cards_model(&cards));
+                }
+            });
+            ctx.spawn_images(&client, my, jobs);
+        });
+    }
+
+    pub fn show_sr_person(&self, id: i64) {
+        let Some((seerr, _)) = self.sr_session() else { return self.show_sr_connect() };
+        let Some((client, _)) = self.session() else { return };
+        let my = self.begin();
+        self.st.lock().unwrap().sr.person_credits.clear();
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_sr_person(SPerson::default());
+            ui.set_sr_cards(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_sr_person_query("".into());
+            ui.set_sr_person_filter(0);
+            ui.set_page("sr-person".into());
+        }
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let (person, credits) = tokio::join!(seerr.person(id), seerr.person_credits(id));
+            let person = match person {
+                Ok(p) => p,
+                Err(e) => return ctx.sr_error(my, e),
+            };
+            let mut list: Vec<sr::Media> = credits.map(|c| c.cast).unwrap_or_default().into_iter().filter(|m| m.media_type == "movie" || m.media_type == "tv").collect();
+            list.sort_by(|a, b| b.vote_count.unwrap_or(0).cmp(&a.vote_count.unwrap_or(0)));
+            let mut seen = std::collections::HashSet::new();
+            list.retain(|m| seen.insert((m.media_type.clone(), m.id)));
+            ctx.st.lock().unwrap().sr.person_credits = list;
+
+            let mut meta: Vec<String> = Vec::new();
+            if let Some(d) = person.known_for_department.clone().filter(|d| !d.is_empty()) {
+                meta.push(d);
+            }
+            if let Some(b) = person.birthday.clone().filter(|b| !b.is_empty()) {
+                meta.push(match person.deathday.clone().filter(|d| !d.is_empty()) {
+                    Some(d) => format!("{b} – {d}"),
+                    None => format!("Born {b}"),
+                });
+            }
+            if let Some(p) = person.place_of_birth.clone().filter(|p| !p.is_empty()) {
+                meta.push(p);
+            }
+            let (name, meta, bio) = (person.name.clone(), meta.join("  ·  "), person.biography.clone().unwrap_or_default());
+            let jobs: Vec<(Slot, String)> = person.profile_path.as_ref().map(|p| vec![(Slot::SPersonPhoto, sr::image_url(p, "w300"))]).unwrap_or_default();
+            ctx.post(my, move |ui| {
+                ui.set_sr_person(SPerson { name: name.into(), meta: meta.into(), bio: bio.into(), photo: Image::default() });
+            });
+            ctx.spawn_images(&client, my, jobs);
+            // Credits grid (also starts the poster downloads).
+            let c2 = ctx.clone();
+            let _ = slint::invoke_from_event_loop(move || c2.sr_person_refilter());
+        });
+    }
+
+    /// Re-applies the search text and Movies / Series filter to the person's credits.
+    pub fn sr_person_refilter(&self) {
+        let Some(ui) = self.ui.upgrade() else { return };
+        let Some((client, _)) = self.session() else { return };
+        let q = ui.get_sr_person_query().trim().to_lowercase();
+        let want = match ui.get_sr_person_filter() {
+            1 => "movie",
+            2 => "tv",
+            _ => "",
+        };
+        let cards: Vec<CardData> = self
+            .st
+            .lock()
+            .unwrap()
+            .sr
+            .person_credits
+            .iter()
+            .filter(|m| (want.is_empty() || m.media_type == want) && (q.is_empty() || m.display_title().to_lowercase().contains(&q)))
+            .map(media_card)
+            .collect();
+        let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::SCard(i), u))).collect();
+        let my = self.begin();
+        ui.set_busy(false);
+        ui.set_sr_cards(cards_model(&cards));
+        self.spawn_images(&client, my, jobs);
+    }
+
+    /// Add / remove the open title on the signed-in user's Seerr watchlist (works even with no requests left).
+    pub fn sr_watchlist_toggle(&self) {
+        let Some((seerr, _)) = self.sr_session() else { return };
+        let Some(d) = self.st.lock().unwrap().sr.detail.clone() else { return };
+        let Some(ui) = self.ui.upgrade() else { return };
+        let on = ui.get_sr_detail().watchlisted;
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let res = if on { seerr.watchlist_remove(d.tmdb).await } else { seerr.watchlist_add(&d.kind, d.tmdb, &d.title).await };
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(ui) = ctx.ui.upgrade() else { return };
+                let set = |v: bool| {
+                    let mut det = ui.get_sr_detail();
+                    det.watchlisted = v;
+                    ui.set_sr_detail(det);
+                };
+                match res {
+                    Ok(()) => set(!on),
+                    Err(e) if !on && e.to_string().to_lowercase().contains("already") => set(true),
+                    Err(e) => ctx.sr_notify("Watchlist", &e.to_string()),
+                }
             });
         });
     }

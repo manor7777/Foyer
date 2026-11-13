@@ -169,6 +169,7 @@ pub struct Media {
     pub release_date: Option<String>,
     pub first_air_date: Option<String>,
     pub vote_average: Option<f64>,
+    pub vote_count: Option<i64>,
     pub overview: Option<String>,
     pub media_info: Option<MediaInfo>,
 }
@@ -249,6 +250,29 @@ pub struct Detail {
     pub number_of_seasons: Option<i32>,
     pub media_info: Option<MediaInfo>,
     pub credits: Option<Credits>,
+    /// Whether the signed-in user has this on their Seerr watchlist.
+    pub on_user_watchlist: Option<bool>,
+}
+
+/// A cast member's profile.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Person {
+    pub id: i64,
+    pub name: String,
+    pub biography: Option<String>,
+    pub birthday: Option<String>,
+    pub deathday: Option<String>,
+    pub place_of_birth: Option<String>,
+    pub profile_path: Option<String>,
+    pub known_for_department: Option<String>,
+}
+
+/// Everything a person has been in (acting credits only; they come back as ordinary movie / TV results).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct PersonCredits {
+    pub cast: Vec<Media>,
 }
 
 impl Detail {
@@ -568,6 +592,38 @@ impl Seerr {
     /// A user's Seerr watchlist (title + TMDB id only; posters need a detail lookup).
     pub async fn watchlist(&self, user_id: i64, page: u32) -> Result<Page<WatchItem>> {
         self.get(&format!("/user/{user_id}/watchlist?page={page}")).await
+    }
+
+    /// Every page of a user's watchlist (Seerr serves 20 at a time), up to a sane cap.
+    pub async fn watchlist_all(&self, user_id: i64) -> Result<Vec<WatchItem>> {
+        let mut out = Vec::new();
+        let mut page = 1u32;
+        loop {
+            let p = self.watchlist(user_id, page).await?;
+            let done = p.results.is_empty() || i64::from(page) >= p.total_pages || page >= 25;
+            out.extend(p.results);
+            if done {
+                return Ok(out);
+            }
+            page += 1;
+        }
+    }
+
+    pub async fn watchlist_add(&self, media_type: &str, tmdb_id: i64, title: &str) -> Result<()> {
+        self.post_json("/watchlist", &serde_json::json!({ "tmdbId": tmdb_id, "mediaType": media_type, "title": title })).await
+    }
+
+    pub async fn watchlist_remove(&self, tmdb_id: i64) -> Result<()> {
+        self.send(self.req(reqwest::Method::DELETE, &format!("/watchlist/{tmdb_id}"))).await?;
+        Ok(())
+    }
+
+    pub async fn person(&self, id: i64) -> Result<Person> {
+        self.get(&format!("/person/{id}?language=en")).await
+    }
+
+    pub async fn person_credits(&self, id: i64) -> Result<PersonCredits> {
+        self.get(&format!("/person/{id}/combined_credits?language=en")).await
     }
 
     pub async fn movie(&self, tmdb_id: i64) -> Result<Detail> {

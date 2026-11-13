@@ -27,6 +27,17 @@ pub struct Follow {
 
 const MAX_NOTES: usize = 200;
 
+/// Ids of followed series, so cards (built without access to the config) can show a filled bell.
+static FOLLOWED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+pub fn sync_followed(list: &[Follow]) {
+    *FOLLOWED.lock().unwrap() = list.iter().map(|f| f.id.clone()).collect();
+}
+
+pub fn is_followed_id(id: &str) -> bool {
+    FOLLOWED.lock().unwrap().iter().any(|x| x == id)
+}
+
 fn notes_path() -> PathBuf {
     data_dir().join("notifications.json")
 }
@@ -148,6 +159,29 @@ impl Ctx {
         self.st.lock().unwrap().cfg.followed.iter().any(|f| f.id == series_id)
     }
 
+    /// Starts or stops following a series; returns whether it is now followed.
+    fn flip_follow(&self, id: &str, name: &str) -> bool {
+        let (id, name) = (id.to_string(), name.to_string());
+        if self.is_following(&id) {
+            self.update_cfg(|c| c.followed.retain(|f| f.id != id));
+            return false;
+        }
+        // Remember what is already there so only genuinely new episodes are announced.
+        self.update_cfg(|c| c.followed.push(Follow { id: id.clone(), name, known: Vec::new() }));
+        if let Some((client, uid)) = self.session() {
+            let ctx = self.clone();
+            self.rt.spawn(async move {
+                let ids: Vec<String> = client.series_episodes(&uid, &id).await.unwrap_or_default().into_iter().map(|e| e.id).collect();
+                ctx.update_cfg(|c| {
+                    if let Some(f) = c.followed.iter_mut().find(|f| f.id == id) {
+                        f.known = ids;
+                    }
+                });
+            });
+        }
+        true
+    }
+
     /// The bell on a series page: start or stop being told about its new episodes.
     pub fn toggle_follow(&self) {
         let Some(ui) = self.ui.upgrade() else { return };
@@ -155,28 +189,27 @@ impl Ctx {
         if d.kind.as_str() != "Series" {
             return;
         }
-        let (id, name) = (d.id.to_string(), d.title.to_string());
-        if self.is_following(&id) {
-            self.update_cfg(|c| c.followed.retain(|f| f.id != id));
-            ui.set_following(false);
-            return;
-        }
-        ui.set_following(true);
-        // Remember what is already there so only genuinely new episodes are announced.
-        self.update_cfg(|c| c.followed.push(Follow { id: id.clone(), name: name.clone(), known: Vec::new() }));
-        let Some((client, uid)) = self.session() else { return };
-        let ctx = self.clone();
-        self.rt.spawn(async move {
-            let ids: Vec<String> = client.series_episodes(&uid, &id).await.unwrap_or_default().into_iter().map(|e| e.id).collect();
-            ctx.update_cfg(|c| {
-                if let Some(f) = c.followed.iter_mut().find(|f| f.id == id) {
-                    f.known = ids;
+        let on = self.flip_follow(d.id.as_str(), d.title.as_str());
+        ui.set_following(on);
+    }
+
+    /// The bell on a series card in a library or search grid.
+    pub fn follow_card(&self, id: String, name: String) {
+        let on = self.flip_follow(&id, &name);
+        let Some(ui) = self.ui.upgrade() else { return };
+        let m = ui.get_cards();
+        for i in 0..m.row_count() {
+            if let Some(mut c) = m.row_data(i) {
+                if c.id.as_str() == id {
+                    c.followed = on;
+                    m.set_row_data(i, c);
                 }
-            });
-        });
+            }
+        }
     }
 
     pub fn start_follow_checker(&self) {
+        sync_followed(&self.st.lock().unwrap().cfg.followed);
         let ctx = self.clone();
         self.rt.spawn(async move {
             tokio::time::sleep(Duration::from_secs(60)).await;
