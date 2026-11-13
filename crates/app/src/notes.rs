@@ -307,6 +307,47 @@ pub fn init_tray_events(weak: Weak<AppWindow>) {
     }));
 }
 
+const INSTANCE_ADDR: &str = "127.0.0.1:47836";
+
+/// Only one Foyer runs at a time (it owns the tray icon). Returns the lock to keep for the life
+/// of the process, or None when another copy is already running, which has been told to show
+/// its window. After an update restart (`wait`) the old copy is given time to finish closing.
+pub fn single_instance(wait: bool) -> Option<std::net::TcpListener> {
+    use std::io::Write;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(if wait { 15 } else { 0 });
+    loop {
+        match std::net::TcpListener::bind(INSTANCE_ADDR) {
+            Ok(l) => return Some(l),
+            Err(_) if wait && std::time::Instant::now() < deadline => std::thread::sleep(std::time::Duration::from_millis(200)),
+            Err(_) => {
+                return match std::net::TcpStream::connect_timeout(&INSTANCE_ADDR.parse().unwrap(), std::time::Duration::from_secs(1)) {
+                    Ok(mut s) => {
+                        let _ = s.write_all(b"show");
+                        None
+                    }
+                    // Something else holds the port: don't block startup over it.
+                    Err(_) => std::net::TcpListener::bind("127.0.0.1:0").ok(),
+                };
+            }
+        }
+    }
+}
+
+/// Raises the window whenever a second launch knocks.
+pub fn serve_instance(listener: std::net::TcpListener, weak: Weak<AppWindow>) {
+    let Ok(listener) = listener.try_clone() else { return };
+    std::thread::spawn(move || {
+        for _ in listener.incoming().flatten() {
+            let weak = weak.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = weak.upgrade() {
+                    show_window(&ui);
+                }
+            });
+        }
+    });
+}
+
 /// Shows or removes the tray icon. Must run on the UI thread.
 pub fn set_tray(on: bool) {
     TRAY.with(|t| {

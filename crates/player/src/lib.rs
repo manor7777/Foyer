@@ -42,6 +42,8 @@ pub struct Options {
     pub title: String,
     pub start_secs: f64,
     pub external_subs: Vec<ExtSub>,
+    /// 1-based audio track to select once the file loads (direct play only).
+    pub audio_pos: Option<i64>,
     pub hw_decode: bool,
     /// 0 auto (copy-back), 1 auto + convert to a plain 10-bit layout, 2 dxva2-copy, 3 nvdec, 4 zero-copy auto.
     pub hw_mode: u8,
@@ -569,6 +571,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
             match ev.event_id {
                 EV_SHUTDOWN => break,
                 EV_FILE_LOADED => {
+                    if let Some(a) = opts.audio_pos {
+                        run(&["set", "aid", &a.to_string()]);
+                    }
                     for sub in &opts.external_subs {
                         run(&["sub-add", &sub.url, "auto", &sub.title, &sub.lang]);
                     }

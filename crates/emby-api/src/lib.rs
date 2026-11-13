@@ -1017,12 +1017,13 @@ impl Client {
 
     /// Direct-play URL (the server sends the original file; mpv plays nearly anything) when
     /// `transcode` is None, otherwise an HLS transcode capped at (bits per second, height).
-    pub fn stream_url(&self, item_id: &str, source_id: &str, play_session: &str, transcode: Option<(u32, u32)>) -> Result<String> {
+    pub fn stream_url(&self, item_id: &str, source_id: &str, play_session: &str, transcode: Option<(u32, u32)>, audio_index: Option<i32>) -> Result<String> {
         let token = self.token.as_deref().ok_or(Error::NoSession)?;
         Ok(match transcode {
             Some((bps, height)) => format!(
-                "{}/emby/Videos/{}/master.m3u8?MediaSourceId={}&PlaySessionId={}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate={}&MaxHeight={}&TranscodingMaxAudioChannels=6&SegmentContainer=ts&api_key={}&DeviceId={}",
-                self.base, item_id, source_id, play_session, bps, height, token, self.device_id
+                "{}/emby/Videos/{}/master.m3u8?MediaSourceId={}&PlaySessionId={}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate={}&MaxHeight={}&TranscodingMaxAudioChannels=6&SegmentContainer=ts&api_key={}&DeviceId={}{}",
+                self.base, item_id, source_id, play_session, bps, height, token, self.device_id,
+                audio_index.map(|i| format!("&AudioStreamIndex={i}")).unwrap_or_default()
             ),
             None => format!(
                 "{}/emby/Videos/{}/stream?Static=true&MediaSourceId={}&PlaySessionId={}&api_key={}&DeviceId={}",

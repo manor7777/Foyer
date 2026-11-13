@@ -363,6 +363,8 @@ export struct Detail {
     progress: float,
     remaining: string,
     summary: string,
+    /// Episodes: the series they belong to, so the logo/title can link back to it.
+    series-id: string,
 }
 
 export struct InfoRow {
@@ -1249,6 +1251,9 @@ export component AppWindow inherits Window {
     in property <Detail> detail;
     in property <[string]> seasons;
     in-out property <int> season-index: 0;
+    in property <[string]> audio-options;
+    in-out property <int> audio-index: 0;
+    callback select-audio(int);
     in property <[Card]> episodes;
     in property <bool> can-go-back: false;
 
@@ -4121,6 +4126,12 @@ export component AppWindow inherits Window {
                                     width: 280px;
                                     height: 64px;
                                     image-fit: contain;
+                                    // Episodes: the logo goes back to the series page.
+                                    TouchArea {
+                                        enabled: detail.series-id != "";
+                                        mouse-cursor: detail.series-id != "" ? MouseCursor.pointer : MouseCursor.default;
+                                        clicked => { root.open-item(detail.series-id, "Series"); }
+                                    }
                                 }
                             }
                             Text {
@@ -4134,7 +4145,13 @@ export component AppWindow inherits Window {
                                 text: detail.subtitle;
                                 font-size: 16px;
                                 color: Palette.foreground;
-                                opacity: 0.85;
+                                opacity: detail.series-id != "" && subtitle-touch.has-hover ? 1 : 0.85;
+                                // "Series S1E2" links back to the series page too.
+                                subtitle-touch := TouchArea {
+                                    enabled: detail.series-id != "";
+                                    mouse-cursor: detail.series-id != "" ? MouseCursor.pointer : MouseCursor.default;
+                                    clicked => { root.open-item(detail.series-id, "Series"); }
+                                }
                             }
                             Text {
                                 text: detail.meta;
@@ -4156,6 +4173,22 @@ export component AppWindow inherits Window {
                                     icon: @image-url("icons/bell.svg");
                                     primary: root.following;
                                     clicked => { root.toggle-follow(); }
+                                }
+                            }
+                            if detail.playable && root.audio-options.length > 1: HorizontalLayout {
+                                alignment: start;
+                                spacing: 8px;
+                                Text {
+                                    text: "Audio";
+                                    color: Palette.foreground;
+                                    opacity: 0.75;
+                                    vertical-alignment: center;
+                                }
+                                Dropdown {
+                                    width: 280px;
+                                    model: root.audio-options;
+                                    current-index <=> root.audio-index;
+                                    selected => { root.select-audio(self.current-index); }
                                 }
                             }
                             if detail.playable: HorizontalLayout {

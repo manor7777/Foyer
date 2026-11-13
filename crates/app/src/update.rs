@@ -321,7 +321,8 @@ impl Ctx {
             return;
         }
         if let Some(exe) = exe_path() {
-            if std::process::Command::new(exe).spawn().is_ok() {
+            // The new copy waits for this one to exit (single-instance), so there's never two.
+            if std::process::Command::new(exe).arg("--restarted").spawn().is_ok() {
                 let _ = slint::quit_event_loop();
             }
         }

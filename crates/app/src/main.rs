@@ -745,6 +745,8 @@ struct State {
     block_back_until: Instant,
     series_id: Option<String>,
     season_ids: Vec<String>,
+    /// Emby stream indexes behind the detail page's audio dropdown.
+    audio_streams: Vec<i32>,
     player_tx: Option<std::sync::mpsc::Sender<player::Control>>,
     remote: Option<tokio::task::JoinHandle<()>>,
     last_move: Instant,
@@ -1978,12 +1980,24 @@ impl Ctx {
             jobs.extend(related_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Related(i), u))));
             let related_offset = related_index as f32 * 254.0 * CARD_SCALES[ctx.st.lock().unwrap().cfg.card_scale.min(CARD_SCALES.len() - 1)];
 
+            let (audio_labels, audio_default, audio_idx) = {
+                let streams = if item.is_playable() { audio_streams(&item) } else { Vec::new() };
+                let labels: Vec<SharedString> = streams
+                    .iter()
+                    .enumerate()
+                    .map(|(n, a)| a.display_title.clone().or(a.title.clone()).or(a.language.clone()).unwrap_or_else(|| format!("Track {}", n + 1)).into())
+                    .collect();
+                (labels, default_audio(&streams), streams.iter().map(|a| a.index).collect::<Vec<_>>())
+            };
+            *AUDIO_PICK.lock().unwrap() = None;
             {
                 let mut s = ctx.st.lock().unwrap();
                 s.series_id = (item.kind == "Series").then(|| item.id.clone());
                 s.season_ids = season_ids;
+                s.audio_streams = audio_idx;
             }
             let following = item.kind == "Series" && ctx.is_following(&item.id);
+            let d_series_id = if item.kind == "Episode" { item.series_id.clone().unwrap_or_default() } else { String::new() };
             ctx.post(my, move |ui| {
                 ui.set_busy(false);
                 ui.set_detail(Detail {
@@ -2005,8 +2019,11 @@ impl Ctx {
                     progress: d_progress,
                     remaining: d_remaining.into(),
                     summary: d_summary.into(),
+                    series_id: d_series_id.into(),
                 });
                 ui.set_following(following);
+                ui.set_audio_options(ModelRc::new(VecModel::from(audio_labels)));
+                ui.set_audio_index(audio_default as i32);
                 ui.set_info_rows(ModelRc::new(VecModel::from(info_rows)));
                 ui.set_seasons(ModelRc::new(VecModel::from(season_names.into_iter().map(SharedString::from).collect::<Vec<_>>())));
                 ui.set_season_index(season_index as i32);
@@ -2019,6 +2036,12 @@ impl Ctx {
             });
             ctx.spawn_images(&client, my, jobs);
         });
+    }
+
+    fn select_audio(&self, index: i32) {
+        let Some(ui) = self.ui.upgrade() else { return };
+        let idx = self.st.lock().unwrap().audio_streams.get(index.max(0) as usize).copied();
+        *AUDIO_PICK.lock().unwrap() = idx.map(|i| (ui.get_detail().id.to_string(), i));
     }
 
     fn select_season(&self, index: i32) {
@@ -3047,6 +3070,23 @@ fn goto_episode(c: &Ctx, prev: bool) {
     }
 }
 
+/// The audio track picked on the detail page: (item id, Emby stream index). Anything else
+/// plays English when the file has it.
+static AUDIO_PICK: Mutex<Option<(String, i32)>> = Mutex::new(None);
+
+fn audio_streams(item: &Item) -> Vec<&MediaStream> {
+    item.media_sources.first().map(|s| s.media_streams.iter().filter(|m| m.kind == "Audio").collect()).unwrap_or_default()
+}
+
+fn is_english(s: &MediaStream) -> bool {
+    s.language.as_deref().is_some_and(|l| matches!(l.to_ascii_lowercase().as_str(), "eng" | "en" | "english"))
+}
+
+/// Position of the English track (else the file's default, else the first).
+fn default_audio(streams: &[&MediaStream]) -> usize {
+    streams.iter().position(|s| is_english(s)).or_else(|| streams.iter().position(|s| s.is_default)).unwrap_or(0)
+}
+
 static SKIP: Mutex<SkipState> = Mutex::new(SkipState { intro: None, duration: 0.0, kind: 0, credits_dismissed: false, force_next: false, prev_ep: None, next_ep: None, goto: None });
 
 enum PlayResult {
@@ -3065,6 +3105,7 @@ fn ticks(secs: f64) -> i64 {
 fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv) -> PlayResult {
     // Resolve what to play.
     let session = uuid::Uuid::new_v4().simple().to_string();
+    let mut audio_pos: Option<i64> = None;
     let (item_id, source_id, url, title, start, live_stream, item, method) = match src {
         Source::Item { id, resume, quality, from } => {
             let item = match rt.block_on(client.item(uid, id)) {
@@ -3076,10 +3117,22 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             let src_bps = item.media_sources.iter().find(|m| m.id == source).or(item.media_sources.first()).and_then(|m| m.bitrate);
             let measured = if *quality == Quality::Auto && src_bps.is_some() { env.bandwidth(rt, client) } else { None };
             let (preset, resolved) = decide(*quality, src_bps, measured);
-            let url = match client.stream_url(&item.id, &source, &session, preset.map(|i| (PRESETS[i].bps, PRESETS[i].height))) {
+            // The dropdown's pick for this item, else English, else whatever the file defaults to.
+            let streams = audio_streams(&item);
+            let pos = match &*AUDIO_PICK.lock().unwrap() {
+                Some((pid, idx)) if *pid == item.id => streams.iter().position(|s| s.index == *idx),
+                _ => None,
+            }
+            .unwrap_or_else(|| default_audio(&streams));
+            let audio_index = streams.get(pos).map(|s| s.index);
+            audio_pos = (!streams.is_empty()).then_some(pos as i64 + 1);
+            let url = match client.stream_url(&item.id, &source, &session, preset.map(|i| (PRESETS[i].bps, PRESETS[i].height)), audio_index) {
                 Ok(u) => u,
                 Err(e) => return PlayResult::Failed(e.to_string()),
             };
+            if preset.is_some() {
+                audio_pos = None;
+            }
             env.push_quality(*quality, &resolved);
             let start = match from {
                 Some(p) => *p,
@@ -3177,7 +3230,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     let mut last_report = Instant::now();
     let outcome = player::play(
         &url,
-        &player::Options { title, start_secs: start, external_subs: ext_subs, hw_decode: env.hw_decode, hw_mode: env.hw_mode as u8, debug_log: DEBUG.load(Ordering::Relaxed).then(|| logs_dir().join("mpv.log").to_string_lossy().into_owned()) },
+        &player::Options { title, start_secs: start, external_subs: ext_subs, audio_pos, hw_decode: env.hw_decode, hw_mode: env.hw_mode as u8, debug_log: DEBUG.load(Ordering::Relaxed).then(|| logs_dir().join("mpv.log").to_string_lossy().into_owned()) },
         &env.controls,
         &env.surface,
         &mut |t| {
@@ -3295,8 +3348,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let _ = std::fs::write(data_dir().join("crash.log"), format!("{info}\n"));
     }));
 
+    let Some(instance_lock) = notes::single_instance(std::env::args().any(|a| a == "--restarted")) else { return Ok(()) };
     let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
     let ui = AppWindow::new()?;
+    notes::serve_instance(instance_lock, ui.as_weak());
 
     // Video: mpv draws into this window's OpenGL surface before Slint draws the UI over it.
     let surface = {
@@ -3338,6 +3393,7 @@ fn main() -> Result<(), slint::PlatformError> {
             block_back_until: Instant::now(),
             series_id: None,
             season_ids: Vec::new(),
+            audio_streams: Vec::new(),
             player_tx: None,
             remote: None,
             last_move: Instant::now(),
@@ -3421,6 +3477,8 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.on_play(move |id, resume, transcode| c.play(id.to_string(), resume, transcode));
     let c = ctx.clone();
     ui.on_select_season(move |i| c.select_season(i));
+    let c = ctx.clone();
+    ui.on_select_audio(move |i| c.select_audio(i));
     let c = ctx.clone();
     ui.on_sign_out(move || c.sign_out());
     let c = ctx.clone();
@@ -4096,6 +4154,8 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     load_posters(ui.as_weak());
     ctx.try_saved_login();
     let result = slint::run_event_loop_until_quit();
+    // Remove the tray icon explicitly; otherwise Windows can leave a dead one behind.
+    notes::set_tray(false);
     drop(window_timer);
     drop(hide_timer);
     drop(accent_timer);
