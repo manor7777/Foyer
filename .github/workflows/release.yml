@@ -1,12 +1,13 @@
 name: Release
 
 # Manual only: Actions > Release > Run workflow. The version comes from Cargo.toml
-# ([workspace.package] version); bump it first, then run this.
+# ([workspace.package] version); bump it and add a "## Foyer <version>" section to
+# CHANGELOG.md first, then run this.
 on:
   workflow_dispatch:
     inputs:
       notes:
-        description: "Release notes (optional; defaults to the commits since the last release)"
+        description: "Release notes (optional; defaults to the CHANGELOG.md section for this version)"
         required: false
         default: ""
 
@@ -44,13 +45,15 @@ jobs:
             echo "::error::$tag already exists. Bump the version in Cargo.toml first."
             exit 1
           fi
-          last="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          # Notes: the workflow input if given, else the "## Foyer <version>" section of CHANGELOG.md.
           if [ -n "$NOTES" ]; then
             echo "$NOTES" > notes.md
-          elif [ -n "$last" ]; then
-            { echo "## Changes since $last"; echo; git log "$last"..HEAD --no-merges --format='- %s'; } > notes.md
           else
-            echo "First release of Foyer. See the README for what it does." > notes.md
+            awk -v h="## Foyer $version" '$0 == h {on=1; next} /^## / {on=0} on' CHANGELOG.md > notes.md
+            if ! grep -q '[^[:space:]]' notes.md; then
+              echo "::error::CHANGELOG.md has no '## Foyer $version' section. Write the release notes first."
+              exit 1
+            fi
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

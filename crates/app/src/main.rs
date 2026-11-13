@@ -133,6 +133,12 @@ struct Config {
     /// Series the user wants new-episode notifications for.
     #[serde(default)]
     followed: Vec<Follow>,
+    /// Blank the episode descriptions of unwatched episodes.
+    hide_spoilers: bool,
+    /// Take a title off the Seerr watchlist once it has been watched.
+    watchlist_autoremove: bool,
+    /// Last Emby server version we announced an update for.
+    server_update_seen: String,
     /// Titles hidden from every list.
     hidden_items: Vec<Hide>,
     /// Movies, series and seasons removed from Continue Watching / Next Up.
@@ -221,6 +227,9 @@ impl Default for Config {
             win_h: 0,
             win_max: false,
             followed: Vec::new(),
+            hide_spoilers: false,
+            watchlist_autoremove: false,
+            server_update_seen: String::new(),
             hidden_items: Vec::new(),
             cw_hidden: Vec::new(),
         }
@@ -538,6 +547,35 @@ fn episode_tag(i: &Item) -> String {
     }
 }
 
+fn images_dir() -> PathBuf {
+    data_dir().join("images")
+}
+
+/// Picture bytes from the disk cache, else from the network (and stored). Only pictures are
+/// cached, never lists, so content stays fresh; Emby's URLs carry the image tag, so a changed
+/// picture is a new URL. shortcut: no size cap, files older than 30 days are pruned at start.
+async fn cached_image(client: &Client, url: &str) -> Result<Vec<u8>, emby_api::Error> {
+    let key = url.bytes().fold(0xcbf29ce484222325u64, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3));
+    let path = images_dir().join(format!("{key:016x}"));
+    if let Ok(b) = std::fs::read(&path) {
+        return Ok(b);
+    }
+    let bytes = client.fetch_bytes(url).await?;
+    let _ = std::fs::create_dir_all(images_dir());
+    let _ = std::fs::write(&path, &bytes);
+    Ok(bytes)
+}
+
+fn prune_image_cache() {
+    let Ok(rd) = std::fs::read_dir(images_dir()) else { return };
+    let cutoff = std::time::SystemTime::now() - Duration::from_secs(30 * 86400);
+    for e in rd.flatten() {
+        if e.metadata().and_then(|m| m.modified()).is_ok_and(|t| t < cutoff) {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
+}
+
 fn card_for(client: &Client, i: &Item, wide: bool) -> CardData {
     let is_ep = i.kind == "Episode";
     let (title, subtitle) = if is_ep {
@@ -589,6 +627,7 @@ fn to_card(c: &CardData) -> Card {
         badge_kind: c.badge_kind,
         overview: c.overview.clone().into(),
         followed: c.kind == "Series" && notes::is_followed_id(&c.id),
+        loading: c.image.is_some(),
     }
 }
 
@@ -632,11 +671,13 @@ enum Slot {
     SIssue(usize),
     SIssuePoster,
     SPersonPhoto,
+    Session(usize),
 }
 
 fn set_card_image(m: &ModelRc<Card>, i: usize, img: Image) {
     if let Some(mut c) = m.row_data(i) {
         c.image = img;
+        c.loading = false;
         m.set_row_data(i, c);
     }
 }
@@ -689,6 +730,13 @@ fn apply_image(ui: &AppWindow, slot: Slot, img: Image) {
                 m.set_row_data(i, r);
             }
         }
+        Slot::Session(i) => {
+            let m = ui.get_sessions();
+            if let Some(mut r) = m.row_data(i) {
+                r.image = img;
+                m.set_row_data(i, r);
+            }
+        }
         Slot::SPersonPhoto => {
             let mut p = ui.get_sr_person();
             p.photo = img;
@@ -730,6 +778,7 @@ enum Page {
     Library { id: String, title: String },
     Detail { id: String },
     Person { id: String },
+    Genre { name: String, kind: String },
     Search(String),
     LiveTv,
     Server,
@@ -786,6 +835,7 @@ struct LibView {
     sort: usize,
     genre: Option<String>,
     letter: Option<String>,
+    search: Option<String>,
     loaded: usize,
     total: usize,
     genres: Vec<String>,
@@ -847,7 +897,11 @@ impl Ctx {
                 if ctx.gen.load(Ordering::SeqCst) != my {
                     return;
                 }
-                let Ok(bytes) = client.fetch_bytes(&url).await else { return };
+                let Ok(bytes) = cached_image(&client, &url).await else {
+                    // stop the shimmer; the card falls back to its title
+                    ctx.post(my, move |ui| apply_image(ui, slot, Image::default()));
+                    return;
+                };
                 let decoded = tokio::task::spawn_blocking(move || {
                     let rgba = image::load_from_memory(&bytes).ok()?.to_rgba8();
                     let (w, h) = rgba.dimensions();
@@ -902,6 +956,7 @@ impl Ctx {
             Page::Library { id, title } => self.show_children(id, title),
             Page::Detail { id } => self.show_detail(id, None),
             Page::Person { id } => self.show_person(id),
+            Page::Genre { name, kind } => self.show_genre(name, kind),
             Page::Search(t) => self.show_search(t),
             Page::LiveTv => self.show_guide(),
             Page::Server => self.load_server(true),
@@ -1066,9 +1121,15 @@ impl Ctx {
                         for v in views.iter().take(6) {
                             if matches!(v.collection_type.as_deref(), Some("movies" | "tvshows" | "homevideos" | "boxsets" | "music")) {
                                 if let Ok(latest) = ctx.session_client().latest(&uid, &v.id).await {
-                                    add_cards(&format!("Latest in {}", v.name), false, to_cards(&latest, false), &ctx);
+                                    add_cards(&format!("Recently added to {}", v.name), false, to_cards(&latest, false), &ctx);
                                 }
                             }
+                        }
+                    }
+                    "released" => {
+                        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+                        if let Ok(list) = client.recently_released(&uid, &today).await {
+                            add_cards("Recently released", false, to_cards(&list, false), &ctx);
                         }
                     }
                     _ => {}
@@ -1094,6 +1155,23 @@ impl Ctx {
         self.rt.spawn(async move {
             let name = client.item(&uid, &id).await.map(|p| p.name).unwrap_or_default();
             match client.person_items(&uid, &id).await {
+                Ok(items) => ctx.show_grid(my, &client, name, items, "grid"),
+                Err(e) => ctx.fail(my, e),
+            }
+        });
+    }
+
+    fn show_genre(&self, name: String, kind: String) {
+        let Some((client, uid)) = self.session() else { return };
+        let my = self.begin();
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_cards(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_grid_title(name.clone().into());
+            ui.set_page("grid".into());
+        }
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            match client.by_genre(&uid, &name, &kind).await {
                 Ok(items) => ctx.show_grid(my, &client, name, items, "grid"),
                 Err(e) => ctx.fail(my, e),
             }
@@ -1336,6 +1414,7 @@ impl Ctx {
             ui.set_lib_sort_index(sort as i32);
             ui.set_lib_genre_index(0);
             ui.set_lib_letter("".into());
+            ui.set_lib_query("".into());
             ui.set_lib_genres(ModelRc::new(VecModel::from(vec![SharedString::from("All genres")])));
             ui.set_page("grid".into());
         }
@@ -1357,6 +1436,7 @@ impl Ctx {
             descending,
             genre: lv.genre.clone(),
             letter: lv.letter.clone(),
+            search: lv.search.clone(),
             start: offset,
             limit: 120,
         };
@@ -1581,6 +1661,8 @@ impl Ctx {
         ui.set_notify_interval(s.cfg.notify_interval as i32);
         ui.set_debug_logging(s.cfg.debug_logging);
         ui.set_close_to_tray(s.cfg.close_to_tray);
+        ui.set_hide_spoilers(s.cfg.hide_spoilers);
+        ui.set_watchlist_auto(s.cfg.watchlist_autoremove);
         ui.set_card_scale_index(s.cfg.card_scale.min(CARD_SCALES.len() - 1) as i32);
         ui.global::<Scale>().set_factor(CARD_SCALES[s.cfg.card_scale.min(CARD_SCALES.len() - 1)]);
         ui.set_sr_url(s.cfg.seerr_url.clone().into());
@@ -1669,37 +1751,38 @@ impl Ctx {
                 restart_pending: info.has_pending_restart,
             };
 
-            let session_rows: Vec<SessionRow> = sessions
-                .unwrap_or_default()
+            // Only people who are actually watching something.
+            let playing: Vec<_> = sessions.unwrap_or_default().into_iter().filter(|s| s.user_name.is_some() && s.now_playing_item.is_some()).collect();
+            let session_images: Vec<Option<String>> = playing
+                .iter()
+                .map(|s| s.now_playing_item.as_ref().and_then(|i| client.image_url(i, ImageKind::Backdrop, 400).or_else(|| client.image_url(i, ImageKind::Primary, 400))))
+                .collect();
+            let session_data: Vec<(String, String, String, bool, f32, bool, String, f32)> = playing
                 .into_iter()
-                .filter(|s| s.user_name.is_some())
                 .map(|s| {
                     let who = [s.user_name.clone(), s.client.clone().zip(s.device_name.clone()).map(|(c, d)| format!("{c} on {d}"))]
                         .into_iter()
                         .flatten()
                         .collect::<Vec<_>>()
                         .join(" · ");
-                    let (now, progress) = match &s.now_playing_item {
-                        Some(i) => {
-                            let name = if i.kind == "Episode" {
-                                format!("{} {} {}", i.series_name.clone().unwrap_or_default(), episode_tag(i), i.name)
-                            } else {
-                                i.name.clone()
-                            };
-                            let pos = s.play_state.as_ref().and_then(|p| p.position_ticks).unwrap_or(0) as f32;
-                            let total = i.run_time_ticks.unwrap_or(0) as f32;
-                            (name, if total > 0.0 { (pos / total).clamp(0.0, 1.0) } else { 0.0 })
-                        }
-                        None => (String::new(), 0.0),
+                    let i = s.now_playing_item.as_ref().expect("filtered");
+                    let now = if i.kind == "Episode" {
+                        format!("{} {} {}", i.series_name.clone().unwrap_or_default(), episode_tag(i), i.name)
+                    } else {
+                        i.name.clone()
                     };
-                    SessionRow {
-                        id: s.id.clone().into(),
-                        title: who.into(),
-                        now: now.into(),
-                        paused: s.play_state.as_ref().is_some_and(|p| p.is_paused),
-                        progress,
-                        remote: s.supports_remote_control,
-                    }
+                    let pos = s.play_state.as_ref().and_then(|p| p.position_ticks).unwrap_or(0);
+                    let total = i.run_time_ticks.unwrap_or(0);
+                    (
+                        s.id.clone(),
+                        who,
+                        now,
+                        s.play_state.as_ref().is_some_and(|p| p.is_paused),
+                        if total > 0 { (pos as f32 / total as f32).clamp(0.0, 1.0) } else { 0.0 },
+                        s.supports_remote_control,
+                        format!("{} / {}", clock(pos / TICKS_PER_SEC), clock(total / TICKS_PER_SEC)),
+                        (total / TICKS_PER_SEC) as f32,
+                    )
                 })
                 .collect();
 
@@ -1736,22 +1819,45 @@ impl Ctx {
                 .map(|a| ActivityRow { text: a.name.into(), date: local(&a.date).into() })
                 .collect();
 
+            let (ctx2, client2) = (ctx.clone(), client.clone());
             ctx.post(my, move |ui| {
                 ui.set_busy(false);
                 ui.set_server_info(info_row);
-                // Update sessions in place when the set is unchanged, so a message being typed survives refreshes.
-                let same = {
-                    let m = ui.get_sessions();
-                    m.row_count() == session_rows.len() && session_rows.iter().enumerate().all(|(i, r)| m.row_data(i).is_some_and(|o| o.id == r.id))
-                };
+                // Update sessions in place when the set is unchanged, so a message being typed survives
+                // refreshes; pictures are only fetched again when the title changes.
+                let session_rows: Vec<SessionRow> = session_data
+                    .into_iter()
+                    .map(|(id, title, now, paused, progress, remote, clock, total_secs)| SessionRow {
+                        id: id.into(),
+                        title: title.into(),
+                        now: now.into(),
+                        paused,
+                        progress,
+                        remote,
+                        image: Image::default(),
+                        clock: clock.into(),
+                        total_secs,
+                    })
+                    .collect();
+                let m = ui.get_sessions();
+                let mut fetch = Vec::new();
+                let same = m.row_count() == session_rows.len() && session_rows.iter().enumerate().all(|(i, r)| m.row_data(i).is_some_and(|o| o.id == r.id));
                 if same {
-                    let m = ui.get_sessions();
-                    for (i, r) in session_rows.into_iter().enumerate() {
+                    for (i, mut r) in session_rows.into_iter().enumerate() {
+                        let old = m.row_data(i).expect("same");
+                        if old.now == r.now {
+                            r.image = old.image;
+                        } else {
+                            fetch.push(i);
+                        }
                         m.set_row_data(i, r);
                     }
                 } else {
+                    fetch = (0..session_rows.len()).collect();
                     ui.set_sessions(ModelRc::new(VecModel::from(session_rows)));
                 }
+                let jobs = fetch.into_iter().filter_map(|i| session_images[i].clone().map(|u| (Slot::Session(i), u))).collect();
+                ctx2.spawn_images(&client2, my, jobs);
                 ui.set_tasks(ModelRc::new(VecModel::from(task_rows)));
                 ui.set_folders(ModelRc::new(VecModel::from(folder_rows)));
                 ui.set_activity(ModelRc::new(VecModel::from(activity_rows)));
@@ -1783,6 +1889,8 @@ impl Ctx {
             ui.set_episodes(ModelRc::new(VecModel::<Card>::default()));
             ui.set_season_cards(ModelRc::new(VecModel::<Card>::default()));
             ui.set_season_play(-1);
+            ui.set_series_play_id("".into());
+            ui.set_detail_genres(ModelRc::new(VecModel::<SharedString>::default()));
             ui.set_detail_cast(ModelRc::new(VecModel::<Card>::default()));
             ui.set_related(ModelRc::new(VecModel::<Card>::default()));
             ui.set_info_rows(ModelRc::new(VecModel::<InfoRow>::default()));
@@ -1860,7 +1968,7 @@ impl Ctx {
                     meta.push(format!("Ends at {}", end.format("%H:%M")));
                 }
             }
-            if item.kind != "Episode" && !item.genres.is_empty() {
+            if item.kind == "Season" && !item.genres.is_empty() {
                 meta.push(item.genres.join(", "));
             }
             let d_progress = match (item.run_time_ticks, resume_ticks) {
@@ -1921,10 +2029,19 @@ impl Ctx {
                         .unwrap_or(0);
                     season_names = seasons.iter().map(|s| s.name.clone()).collect();
                     season_ids = seasons.iter().map(|s| s.id.clone()).collect();
+                    // One season needs no folder: its episodes go straight on the page.
+                    if seasons.len() == 1 {
+                        episodes = client.episodes(&uid, &item.id, &seasons[0].id).await.unwrap_or_default();
+                    }
                     season_cards = seasons
                         .iter()
+                        .filter(|_| seasons.len() > 1)
                         .map(|s| {
                             let mut c = card_for(&client, s, false);
+                            // no season poster: use the series'
+                            if c.image.is_none() {
+                                c.image = client.image_url(&item, ImageKind::Primary, 300);
+                            }
                             c.subtitle = match s.user_data.as_ref().and_then(|u| u.unplayed_item_count) {
                                 Some(n) if n > 0 => format!("{n} unwatched"),
                                 _ => String::new(),
@@ -1938,7 +2055,26 @@ impl Ctx {
                     episodes = client.episodes(&uid, sid, &item.id).await.unwrap_or_default();
                 }
             }
-            let ep_cards: Vec<CardData> = episodes.iter().map(|e| episode_row(&client, e)).collect();
+            let spoil = ctx.st.lock().unwrap().cfg.hide_spoilers;
+            let ep_cards: Vec<CardData> = episodes.iter().map(|e| episode_row(&client, e, spoil)).collect();
+            // Series Play button: the episode in progress, else the first unwatched, else the first.
+            let mut series_play: (String, bool, String) = Default::default();
+            if item.kind == "Series" {
+                if let Ok(all) = client.series_episodes(&uid, &item.id).await {
+                    let main: Vec<&Item> = all.iter().filter(|e| e.parent_index_number != Some(0)).collect();
+                    let pool = if main.is_empty() { all.iter().collect() } else { main };
+                    let pick = pool
+                        .iter()
+                        .find(|e| e.resume_ticks() > 0)
+                        .or_else(|| pool.iter().find(|e| !e.user_data.as_ref().is_some_and(|u| u.played)))
+                        .or(pool.first());
+                    if let Some(e) = pick {
+                        let resume = e.resume_ticks() > 0;
+                        series_play = (e.id.clone(), resume, format!("{} {}", if resume { "Resume" } else { "Play" }, episode_tag(e)).trim().to_string());
+                    }
+                }
+            }
+            let d_genres: Vec<SharedString> = if matches!(item.kind.as_str(), "Movie" | "Series") { item.genres.iter().map(|g| g.as_str().into()).collect() } else { Vec::new() };
             // Season Play button: the episode in progress, else the first unwatched, else the first.
             let play_ep = if item.kind == "Season" {
                 episodes
@@ -2109,6 +2245,10 @@ impl Ctx {
                 ui.set_episodes(cards_model(&ep_cards));
                 ui.set_season_cards(cards_model(&season_cards));
                 ui.set_season_play(play_ep.map_or(-1, |i| i as i32));
+                ui.set_series_play_id(series_play.0.into());
+                ui.set_series_play_resume(series_play.1);
+                ui.set_series_play_label(series_play.2.into());
+                ui.set_detail_genres(ModelRc::new(VecModel::from(d_genres)));
                 ui.set_season_play_label(play_label.into());
                 ui.set_detail_cast(cards_model(&cast_cards));
                 ui.set_related(cards_model(&related_cards));
@@ -2136,7 +2276,8 @@ impl Ctx {
         let ctx = self.clone();
         self.rt.spawn(async move {
             let Ok(eps) = client.episodes(&uid, &series, &season).await else { return };
-            let cards: Vec<CardData> = eps.iter().map(|e| episode_row(&client, e)).collect();
+            let spoil = ctx.st.lock().unwrap().cfg.hide_spoilers;
+            let cards: Vec<CardData> = eps.iter().map(|e| episode_row(&client, e, spoil)).collect();
             let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Episode(i), u))).collect();
             ctx.post(my, move |ui| ui.set_episodes(cards_model(&cards)));
             ctx.spawn_images(&client, my, jobs);
@@ -2671,7 +2812,9 @@ impl Ctx {
             let mut auto_streak = 0;
             let mut still_watching = false;
             loop {
-                match play_one(&ctx.rt, &client, &uid, &source, &env) {
+                let result = play_one(&ctx.rt, &client, &uid, &source, &env);
+                ctx.watchlist_prune(source.id());
+                match result {
                     PlayResult::Next(next) => {
                         // "Play next" pressed on the prompt works even with autoplay off.
                         let forced = std::mem::take(&mut SKIP.lock().unwrap().force_next);
@@ -2965,22 +3108,27 @@ fn media_info(item: &Item) -> (String, Vec<InfoRow>) {
     (parts.join("  ·  "), rows)
 }
 
-fn episode_row(client: &Client, e: &Item) -> CardData {
-    let tag = episode_tag(e);
+fn episode_row(client: &Client, e: &Item, hide_spoilers: bool) -> CardData {
+    let played = e.user_data.as_ref().is_some_and(|u| u.played);
     let rt = e.run_time_ticks.filter(|t| *t > 0).map(duration_label).unwrap_or_default();
+    let title = match (e.parent_index_number, e.index_number) {
+        (Some(s), Some(n)) => format!("S{s:02}E{n:02} - {}", e.name),
+        (None, Some(n)) => format!("E{n:02} - {}", e.name),
+        _ => e.name.clone(),
+    };
     CardData {
         id: e.id.clone(),
         kind: e.kind.clone(),
-        title: if tag.is_empty() { e.name.clone() } else { format!("{tag}  {}", e.name) },
+        title,
         subtitle: rt,
         progress: e.progress(),
-        played: e.user_data.as_ref().is_some_and(|u| u.played),
+        played,
         image: client.image_url(e, ImageKind::Primary, 320),
         current: false,
                     next_season: false,
                     badge: String::new(),
                     badge_kind: 0,
-                    overview: String::new(),
+                    overview: if hide_spoilers && !played { String::new() } else { e.overview.clone().unwrap_or_default() },
     }
 }
 
@@ -3186,7 +3334,7 @@ enum PlayResult {
     Failed(String),
 }
 
-const MIN_REAL_PLAY_SECS: f64 = 10.0;
+const MIN_REAL_PLAY_SECS: f64 = 5.0;
 
 /// Stops the monitor sleeping while a video plays. The flag belongs to the calling (player) thread.
 #[cfg(windows)]
@@ -3323,7 +3471,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     }
 
     let mut started = false; // "now playing" has been reported
-    let mut real = false; // >= 10 s of genuine playback: only then may the saved position move
+    let mut real = false; // >= 5 s of genuine playback: only then may the saved position move
     let mut last_pos = start;
     let mut last_paused = false;
     let mut duration = 0.0;
@@ -3453,6 +3601,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let Some(instance_lock) = notes::single_instance(std::env::args().any(|a| a == "--restarted")) else { return Ok(()) };
     let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+    std::thread::spawn(prune_image_cache);
     let ui = AppWindow::new()?;
     notes::serve_instance(instance_lock, ui.as_weak());
 
@@ -3552,6 +3701,11 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.on_session_cmd(move |id, cmd| {
         let (id, cmd) = (id.to_string(), cmd.to_string());
         c.server_action(move |cl| async move { cl.session_playstate(&id, &cmd).await });
+    });
+    let c = ctx.clone();
+    ui.on_session_seek(move |id, secs| {
+        let (id, ticks) = (id.to_string(), secs.max(0.0) as i64 * TICKS_PER_SEC);
+        c.server_action(move |cl| async move { cl.session_seek(&id, ticks).await });
     });
     let c = ctx.clone();
     ui.on_session_message(move |id, text| {
@@ -3861,6 +4015,20 @@ fn main() -> Result<(), slint::PlatformError> {
         if let Some(ui) = c.ui.upgrade() {
             ui.global::<Scale>().set_factor(CARD_SCALES[i]);
         }
+    });
+    let c = ctx.clone();
+    ui.on_set_hide_spoilers(move |v| c.update_cfg(|cfg| cfg.hide_spoilers = v));
+    let c = ctx.clone();
+    ui.on_set_watchlist_auto(move |v| c.update_cfg(|cfg| cfg.watchlist_autoremove = v));
+    let c = ctx.clone();
+    ui.on_lib_search(move |t| {
+        let t = t.trim().to_string();
+        c.lib_set(|lv| lv.search = Some(t).filter(|t| !t.is_empty()));
+    });
+    let c = ctx.clone();
+    ui.on_genre_click(move |g| {
+        let kind = if c.ui.upgrade().is_some_and(|u| u.get_detail().kind == "Movie") { "Movie" } else { "Series" };
+        c.navigate(Page::Genre { name: g.to_string(), kind: kind.into() }, true);
     });
     let c = ctx.clone();
     ui.on_set_close_to_tray(move |v| {
@@ -4359,12 +4527,13 @@ mod accent_tests {
 }
 
 
-const HOME_ROWS: [(&str, &str, &str); 5] = [
+const HOME_ROWS: [(&str, &str, &str); 6] = [
     ("media", "My Media", "Shortcuts to your libraries."),
     ("continue", "Continue Watching", "Shows what you were part-way through."),
     ("nextup", "Next Up", "The episode after the one you are on."),
     ("requests", "My requests", "Your recent Seerr requests with their status. Needs Requests to be enabled."),
-    ("latest", "Latest additions", "Recently added titles in each library."),
+    ("latest", "Recently added", "Titles added to each library on the server lately, whatever their age."),
+    ("released", "Recently released", "Movies and shows with the newest release or air dates."),
 ];
 
 /// The saved row order, with any rows it doesn't mention appended in the default order.

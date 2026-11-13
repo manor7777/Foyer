@@ -1337,6 +1337,34 @@ impl Ctx {
         });
     }
 
+    /// Setting "remove from watchlist once watched": after playback, if the movie (or the whole
+    /// series an episode belongs to) is now marked watched, take it off the Seerr watchlist.
+    pub fn watchlist_prune(&self, item_id: &str) {
+        if !self.st.lock().unwrap().cfg.watchlist_autoremove {
+            return;
+        }
+        let (Some((seerr, _)), Some((client, uid))) = (self.sr_session(), self.session()) else { return };
+        let id = item_id.to_string();
+        self.rt.spawn(async move {
+            tokio::time::sleep(Duration::from_secs(3)).await; // let the server record the stop
+            let Ok(item) = client.item(&uid, &id).await else { return };
+            let (target, kind) = match (item.kind.as_str(), item.series_id.clone()) {
+                ("Movie", _) => (item, "movie"),
+                ("Episode", Some(sid)) => match client.item(&uid, &sid).await {
+                    Ok(series) => (series, "tv"),
+                    Err(_) => return,
+                },
+                _ => return,
+            };
+            if !target.user_data.as_ref().is_some_and(|u| u.played) {
+                return;
+            }
+            let Some(tmdb) = target.provider_ids.iter().find(|(k, _)| k.eq_ignore_ascii_case("tmdb")).and_then(|(_, v)| v.parse::<i64>().ok()) else { return };
+            // Not on the list is an error we don't care about.
+            let _ = seerr.watchlist_remove(kind, tmdb).await;
+        });
+    }
+
     // ---------------------------------------------------------------- reporting a problem
 
     /// From a Seerr title page.
@@ -1375,6 +1403,13 @@ impl Ctx {
             let (kind, tmdb, season, episode) = match item.kind.as_str() {
                 "Movie" => ("movie", tmdb_of(&item), 0, 0),
                 "Series" => ("tv", tmdb_of(&item), 0, 0),
+                "Season" => {
+                    let series = match &item.series_id {
+                        Some(s) => client.item(&uid, s).await.ok(),
+                        None => None,
+                    };
+                    ("tv", series.as_ref().and_then(tmdb_of), item.index_number.unwrap_or(0), 0)
+                }
                 "Episode" => {
                     let series = match &item.series_id {
                         Some(s) => client.item(&uid, s).await.ok(),
@@ -1382,7 +1417,7 @@ impl Ctx {
                     };
                     ("tv", series.as_ref().and_then(tmdb_of), item.parent_index_number.unwrap_or(0), item.index_number.unwrap_or(0))
                 }
-                _ => return fail(&ctx, "Only movies, series and episodes can be reported."),
+                _ => return fail(&ctx, "Only movies, series, seasons and episodes can be reported."),
             };
             let Some(tmdb) = tmdb else { return fail(&ctx, "This item has no TMDB id, so Seerr can't match it.") };
             let d = if kind == "tv" { seerr.tv(tmdb).await } else { seerr.movie(tmdb).await };

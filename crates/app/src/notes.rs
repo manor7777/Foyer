@@ -216,10 +216,27 @@ impl Ctx {
             loop {
                 if let Some((client, uid)) = ctx.session() {
                     ctx.check_followed(&client, &uid).await;
+                    ctx.check_server_update(&client).await;
                 }
                 tokio::time::sleep(Duration::from_secs(15 * 60)).await;
             }
         });
+    }
+
+    /// Tell an admin once per server version when Emby reports a newer release.
+    async fn check_server_update(&self, client: &Client) {
+        let (admin, on, seen) = {
+            let s = self.st.lock().unwrap();
+            (s.user.as_ref().is_some_and(|u| u.is_admin()), s.cfg.notify_enabled, s.cfg.server_update_seen.clone())
+        };
+        if !admin || !on {
+            return;
+        }
+        let Ok(info) = client.system_info().await else { return };
+        if info.has_update_available && info.version != seen {
+            self.update_cfg(|c| c.server_update_seen = info.version.clone());
+            self.notify_user("Emby Server update available".into(), format!("{} is on {}. A newer version is available.", info.server_name, info.version), None);
+        }
     }
 
     async fn check_followed(&self, client: &Client, uid: &str) {

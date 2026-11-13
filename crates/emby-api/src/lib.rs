@@ -430,6 +430,8 @@ pub struct Browse {
     pub genre: Option<String>,
     /// "A".."Z", or "#" for titles starting with a non-letter.
     pub letter: Option<String>,
+    /// Free-text search within the library.
+    pub search: Option<String>,
     pub start: usize,
     pub limit: usize,
 }
@@ -648,6 +650,15 @@ impl Client {
         Ok(())
     }
 
+    /// Seek a remote session to a position.
+    pub async fn session_seek(&self, session: &str, ticks: i64) -> Result<()> {
+        self.req(reqwest::Method::POST, &format!("/Sessions/{session}/Playing/Seek?SeekPositionTicks={ticks}"))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
     pub async fn session_message(&self, session: &str, header: &str, text: &str) -> Result<()> {
         self.req(reqwest::Method::POST, &format!("/Sessions/{session}/Message"))
             .json(&serde_json::json!({ "Header": header, "Text": text, "TimeoutMs": 15000 }))
@@ -847,6 +858,9 @@ impl Client {
         if let Some(g) = &b.genre {
             q.push(("Genres", g));
         }
+        if let Some(t) = b.search.as_deref().filter(|t| !t.is_empty()) {
+            q.push(("SearchTerm", t));
+        }
         match b.letter.as_deref() {
             Some("#") => q.push(("NameLessThan", "A")),
             Some(l) => q.push(("NameStartsWith", l)),
@@ -975,7 +989,37 @@ impl Client {
         Ok(self
             .get::<ItemList>(
                 &format!("/Shows/{series}/Episodes"),
-                &[("UserId", uid), ("SeasonId", season), ("Fields", LIST_FIELDS)],
+                &[("UserId", uid), ("SeasonId", season), ("Fields", &format!("{LIST_FIELDS},Overview"))],
+            )
+            .await?
+            .items)
+    }
+
+    /// Movies and series of one genre across every library.
+    pub async fn by_genre(&self, uid: &str, genre: &str, kind: &str) -> Result<Vec<Item>> {
+        Ok(self
+            .get::<ItemList>(
+                &format!("/Users/{uid}/Items"),
+                &[("Recursive", "true"), ("IncludeItemTypes", kind), ("Genres", genre), ("SortBy", "SortName"), ("Fields", LIST_FIELDS)],
+            )
+            .await?
+            .items)
+    }
+
+    /// Newest by air / release date (not by when it reached the server). `today` is YYYY-MM-DD.
+    pub async fn recently_released(&self, uid: &str, today: &str) -> Result<Vec<Item>> {
+        Ok(self
+            .get::<ItemList>(
+                &format!("/Users/{uid}/Items"),
+                &[
+                    ("Recursive", "true"),
+                    ("IncludeItemTypes", "Movie,Series"),
+                    ("SortBy", "PremiereDate"),
+                    ("SortOrder", "Descending"),
+                    ("MaxPremiereDate", today),
+                    ("Limit", "24"),
+                    ("Fields", LIST_FIELDS),
+                ],
             )
             .await?
             .items)

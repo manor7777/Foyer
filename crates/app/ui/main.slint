@@ -329,6 +329,8 @@ export struct Card {
     badge-kind: int,
     overview: string,
     followed: bool,
+    /// An image is on its way: show the shimmer and fade the picture in.
+    loading: bool,
 }
 
 export struct HomeRowCfg {
@@ -497,6 +499,10 @@ export struct SessionRow {
     paused: bool,
     progress: float,
     remote: bool,
+    image: image,
+    /// "12:30 / 45:00"
+    clock: string,
+    total-secs: float,
 }
 
 export struct TaskRow {
@@ -906,6 +912,15 @@ component HScroll inherits Rectangle {
     }
 }
 
+/// Placeholder block that pulses until the real picture arrives.
+component Skeleton inherits Rectangle {
+    property <float> p: 0.0;
+    background: Palette.control-hover;
+    opacity: 0.3 + 0.5 * root.p;
+    animate p { duration: 900ms; easing: ease-in-out; iteration-count: -1; direction: alternate; }
+    init => { root.p = 1.0; }
+}
+
 component CardView inherits Rectangle {
     in property <Card> card;
     in property <bool> wide: false;
@@ -942,11 +957,14 @@ component CardView inherits Rectangle {
             border-radius: 8px;
             background: Palette.control-background;
             clip: true;
-            if card.image.width > 0: Image {
+            if card.loading && card.image.width == 0: Skeleton { }
+            Image {
                 source: card.image;
                 width: 100%;
                 height: 100%;
                 image-fit: cover;
+                opacity: card.image.width > 0 ? 1 : 0;
+                animate opacity { duration: 300ms; easing: ease-out; }
             }
             if card.badge != "": Rectangle {
                 x: 8px;
@@ -992,7 +1010,7 @@ component CardView inherits Rectangle {
                     }
                 }
             }
-            if card.image.width == 0 && !card.next-season: Text {
+            if card.image.width == 0 && !card.loading && !card.next-season: Text {
                 text: card.title;
                 color: Palette.foreground;
                 opacity: 0.6;
@@ -1317,6 +1335,7 @@ export component AppWindow inherits Window {
     callback refresh-server();
     callback session-cmd(string, string);
     callback session-message(string, string);
+    callback session-seek(string, float);
     callback task-run(string);
     callback task-stop(string);
     callback library-scan();
@@ -1372,6 +1391,17 @@ export component AppWindow inherits Window {
     callback note-mark-read(string);
     callback notes-mark-all-read();
     callback notes-clear();
+    in-out property <bool> hide-spoilers: false;
+    callback set-hide-spoilers(bool);
+    in-out property <bool> watchlist-auto: false;
+    callback set-watchlist-auto(bool);
+    in-out property <string> lib-query;
+    callback lib-search(string);
+    in property <[string]> detail-genres;
+    callback genre-click(string);
+    in property <string> series-play-id;
+    in property <bool> series-play-resume;
+    in property <string> series-play-label;
     in-out property <bool> close-to-tray: false;
     callback set-close-to-tray(bool);
     in-out property <int> card-scale-index: 2;
@@ -1951,6 +1981,22 @@ export component AppWindow inherits Window {
             horizontal-stretch: 1;
             opacity: root.page-op;
 
+          VerticalLayout {
+            // Back appears only where there is somewhere to go back to
+            Rectangle {
+                height: root.can-go-back && root.page != "home" ? 52px : 0px;
+                clip: true;
+                animate height { duration: 150ms; easing: ease-out; }
+                RoundIcon {
+                    x: 20px;
+                    y: 8px;
+                    icon: @image-url("icons/back.svg");
+                    clicked => { root.go-back(); }
+                }
+            }
+            Rectangle {
+              vertical-stretch: 1;
+
             if busy: Spinner {
                 indeterminate: true;
                 width: 40px;
@@ -2070,11 +2116,11 @@ export component AppWindow inherits Window {
             }
 
             // ---- library / search grid ----
-            if page == "grid": ScrollView {
-                mouse-drag-pan-enabled: true;
-                VerticalLayout {
-                    alignment: start;
+            if page == "grid": VerticalLayout {
+              // title and filters stay put; only the posters scroll
+              VerticalLayout {
                     padding: 24px;
+                    padding-bottom: 12px;
                     spacing: 12px;
                     Heading { text: root.grid-title; }
                     if root.pl-tabs: HorizontalLayout {
@@ -2124,6 +2170,12 @@ export component AppWindow inherits Window {
                         text <=> root.fav-query;
                         edited => { root.fav-search(root.fav-query); }
                     }
+                    if root.lib-controls: LineEdit {
+                        placeholder-text: "Search this library";
+                        text <=> root.lib-query;
+                        accepted => { root.lib-search(self.text); }
+                        edited => { root.lib-search(self.text); }
+                    }
                     if root.lib-controls: HorizontalLayout {
                         spacing: 10px;
                         Dropdown {
@@ -2157,6 +2209,14 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
+              }
+              ScrollView {
+                mouse-drag-pan-enabled: true;
+                VerticalLayout {
+                    alignment: start;
+                    padding: 24px;
+                    padding-top: 4px;
+                    spacing: 12px;
                     if cards.length == 0 && !busy: Text {
                         text: "Nothing here.";
                         color: Palette.foreground;
@@ -2184,6 +2244,7 @@ export component AppWindow inherits Window {
                         }
                     }
 }
+              }
             }
 
             // ---- search ----
@@ -2327,33 +2388,98 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    Heading { text: "Active sessions"; }
+                    Heading { text: "Now playing"; }
                     if sessions.length == 0: Text {
-                        text: "No active sessions.";
+                        text: "Nobody is watching right now.";
                         color: Palette.foreground;
                         opacity: 0.6;
                     }
                     for se in sessions: Panel {
-                        Text {
-                            text: se.title;
-                            font-weight: 600;
-                            color: Palette.foreground;
-                        }
-                        if se.now != "": Text {
-                            text: (se.paused ? "Paused: " : "Playing: ") + se.now;
-                            color: Palette.foreground;
-                            opacity: 0.8;
-                            overflow: elide;
-                        }
-                        if se.now != "": Bar { progress: se.progress; }
                         HorizontalLayout {
-                            spacing: 8px;
-                            if se.now != "" && se.remote: IconButton {
+                            spacing: 14px;
+                            Rectangle {
+                                width: 176px;
+                                height: 99px;
+                                border-radius: 6px;
+                                clip: true;
+                                background: Palette.control-hover;
+                                Image {
+                                    source: se.image;
+                                    width: 100%;
+                                    height: 100%;
+                                    image-fit: cover;
+                                }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                spacing: 6px;
+                                Text {
+                                    text: se.now;
+                                    font-weight: 700;
+                                    color: Palette.foreground;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: se.title;
+                                    color: Palette.foreground;
+                                    opacity: 0.7;
+                                    font-size: 12px;
+                                    overflow: elide;
+                                }
+                                HorizontalLayout {
+                                    spacing: 10px;
+                                    Rectangle {
+                                        horizontal-stretch: 1;
+                                        height: 18px;
+                                        Bar {
+                                            y: (parent.height - self.height) / 2;
+                                            progress: se.progress;
+                                        }
+                                        // click the bar to seek
+                                        TouchArea {
+                                            enabled: se.remote;
+                                            mouse-cursor: se.remote ? MouseCursor.pointer : MouseCursor.default;
+                                            clicked => { root.session-seek(se.id, se.total-secs * self.mouse-x / self.width); }
+                                        }
+                                    }
+                                    Text {
+                                        text: (se.paused ? "Paused  " : "") + se.clock;
+                                        color: Palette.foreground;
+                                        opacity: 0.7;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 4px;
+                            if se.remote: IconButton {
+                                icon: @image-url("icons/skip-previous.svg");
+                                tint: Palette.foreground;
+                                clicked => { root.session-cmd(se.id, "PreviousTrack"); }
+                            }
+                            if se.remote: IconButton {
+                                icon: @image-url("icons/replay.svg");
+                                tint: Palette.foreground;
+                                clicked => { root.session-cmd(se.id, "Rewind"); }
+                            }
+                            if se.remote: IconButton {
                                 icon: se.paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
                                 tint: Palette.foreground;
                                 clicked => { root.session-cmd(se.id, se.paused ? "Unpause" : "Pause"); }
                             }
-                            if se.now != "" && se.remote: IconButton {
+                            if se.remote: IconButton {
+                                icon: @image-url("icons/forward.svg");
+                                tint: Palette.foreground;
+                                clicked => { root.session-cmd(se.id, "FastForward"); }
+                            }
+                            if se.remote: IconButton {
+                                icon: @image-url("icons/skip-next.svg");
+                                tint: Palette.foreground;
+                                clicked => { root.session-cmd(se.id, "NextTrack"); }
+                            }
+                            if se.remote: IconButton {
                                 icon: @image-url("icons/stop.svg");
                                 tint: Palette.foreground;
                                 clicked => { root.session-cmd(se.id, "Stop"); }
@@ -2562,6 +2688,27 @@ export component AppWindow inherits Window {
                                 model: ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Dutch", "Russian", "Japanese", "Chinese", "Korean", "Arabic", "Polish", "Swedish", "Turkish"];
                                 current-index <=> root.sub-lang-index;
                                 selected => { root.set-sub-lang(self.current-index); }
+                            }
+                        }
+                    }
+                    Rectangle { height: 6px; }
+                    SectionLabel { text: "Library"; }
+                    SettingCard {
+                        SettingRow {
+                            title: "Hide spoilers";
+                            description: "Hides the description of episodes you haven't watched yet.";
+                            ToggleSwitch {
+                                checked <=> root.hide-spoilers;
+                                toggled(c) => { root.set-hide-spoilers(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Remove from watchlist once watched";
+                            description: "Takes a movie or series off your Seerr watchlist after you finish it.";
+                            divider: false;
+                            ToggleSwitch {
+                                checked <=> root.watchlist-auto;
+                                toggled(c) => { root.set-watchlist-auto(c); }
                             }
                         }
                     }
@@ -4189,6 +4336,30 @@ export component AppWindow inherits Window {
                                 opacity: 0.75;
                                 wrap: word-wrap;
                             }
+                            if root.detail-genres.length > 0: HorizontalLayout {
+                                alignment: start;
+                                spacing: 6px;
+                                for g in root.detail-genres: Rectangle {
+                                    height: 26px;
+                                    width: gt.preferred-width + 22px;
+                                    border-radius: 13px;
+                                    background: gta.has-hover ? Palette.control-hover : Palette.control-background;
+                                    border-width: 1px;
+                                    border-color: Palette.border;
+                                    gt := Text {
+                                        x: 11px;
+                                        height: parent.height;
+                                        text: g;
+                                        color: Palette.foreground;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                    }
+                                    gta := TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => { root.genre-click(g); }
+                                    }
+                                }
+                            }
                             if detail.summary != "": Text {
                                 text: detail.summary;
                                 font-size: 12px;
@@ -4220,6 +4391,21 @@ export component AppWindow inherits Window {
                                 if detail.kind == "Season" || detail.kind == "Episode": PillButton {
                                     text: "Remove season from Continue Watching";
                                     clicked => { root.cw-hide(true); }
+                                }
+                                if root.sr-connected && root.sr-can-report: PillButton {
+                                    text: "Report a problem";
+                                    icon: @image-url("icons/warning.svg");
+                                    clicked => { root.lib-report-issue(); }
+                                }
+                            }
+                            if detail.kind == "Series" && root.series-play-id != "": HorizontalLayout {
+                                alignment: start;
+                                PillButton {
+                                    text: root.series-play-label;
+                                    icon: @image-url("icons/play.svg");
+                                    primary: true;
+                                    enabled: !root.playing;
+                                    clicked => { root.play(root.series-play-id, root.series-play-resume, false); }
                                 }
                             }
                             if detail.kind == "Season" && root.season-play >= 0: HorizontalLayout {
@@ -4277,10 +4463,6 @@ export component AppWindow inherits Window {
                                     icon: @image-url("icons/info.svg");
                                     active: root.info-open;
                                     clicked => { root.info-open = !root.info-open; }
-                                }
-                                if root.sr-connected && root.sr-can-report: RoundIcon {
-                                    icon: @image-url("icons/flag.svg");
-                                    clicked => { root.lib-report-issue(); }
                                 }
                             }
                             if detail.can-resume: HorizontalLayout {
@@ -4346,6 +4528,22 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
+                    if season-cards.length > 0: VerticalLayout {
+                        padding-left: 24px;
+                        padding-right: 24px;
+                        spacing: 8px;
+                        Heading { text: "Seasons"; }
+                        HScroll {
+                            height: 225px * Scale.factor + 64px;
+                            HorizontalLayout {
+                                spacing: 14px;
+                                for c in season-cards: CardView {
+                                    card: c;
+                                    clicked => { root.open-item(c.id, c.kind); }
+                                }
+                            }
+                        }
+                    }
                     if detail-cast.length > 0: VerticalLayout {
                         padding-left: 24px;
                         padding-right: 24px;
@@ -4381,28 +4579,12 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if season-cards.length > 0: VerticalLayout {
-                        padding-left: 24px;
-                        padding-right: 24px;
-                        spacing: 8px;
-                        Heading { text: "Seasons"; }
-                        HScroll {
-                            height: 225px * Scale.factor + 64px;
-                            HorizontalLayout {
-                                spacing: 14px;
-                                for c in season-cards: CardView {
-                                    card: c;
-                                    clicked => { root.open-item(c.id, c.kind); }
-                                }
-                            }
-                        }
-                    }
                     if episodes.length > 0: VerticalLayout {
                         padding: 24px;
                         spacing: 10px;
                         Heading { text: "Episodes"; }
                         for ep in episodes: Rectangle {
-                            height: 64px;
+                            height: ep.overview != "" ? 104px : 64px;
                             border-radius: 6px;
                             background: ep-ta.has-hover ? Palette.control-background : transparent;
                             HorizontalLayout {
@@ -4442,6 +4624,15 @@ export component AppWindow inherits Window {
                                         font-size: 12px;
                                         overflow: elide;
                                     }
+                                    if ep.overview != "": Text {
+                                        text: ep.overview;
+                                        color: Palette.foreground;
+                                        opacity: 0.75;
+                                        font-size: 12px;
+                                        wrap: word-wrap;
+                                        overflow: elide;
+                                        height: 32px;
+                                    }
                                 }
                                 if ep.played: Text {
                                     text: "✓";
@@ -4464,6 +4655,8 @@ export component AppWindow inherits Window {
                     }
                 }
             }
+          }
+          }
         }
       }
 
@@ -4509,16 +4702,6 @@ export component AppWindow inherits Window {
                     clicked => {
                         root.nav-open = false;
                         root.go-home();
-                    }
-                }
-                NavItem {
-                    compact: !root.nav-expanded;
-                    label: "Back";
-                    icon: @image-url("icons/back.svg");
-                    enabled: root.can-go-back;
-                    clicked => {
-                        root.nav-open = false;
-                        root.go-back();
                     }
                 }
                 NavItem {
