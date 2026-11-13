@@ -678,6 +678,7 @@ enum Page {
     SeerrDiscover,
     SeerrDetail { kind: String, id: i64 },
     SeerrRequests,
+    SeerrWatchlist,
     SeerrIssues,
     SeerrIssue { id: i64 },
     SeerrUsers,
@@ -699,6 +700,8 @@ struct State {
     last_click: Option<Instant>,
     click_gen: u64,
     lib: LibView,
+    /// Ids of the server's "playlists" library views (they get a Mine / Server tab pair).
+    playlist_views: Vec<String>,
     sr: SeerrState,
 }
 
@@ -833,6 +836,7 @@ impl Ctx {
             Page::SeerrDiscover => self.show_sr_discover(),
             Page::SeerrDetail { kind, id } => self.show_sr_detail(kind, id),
             Page::SeerrRequests => self.show_sr_requests(),
+            Page::SeerrWatchlist => self.show_sr_watchlist(),
             Page::SeerrIssues => self.show_sr_issues(),
             Page::SeerrIssue { id } => self.show_sr_issue(id),
             Page::SeerrUsers => self.show_sr_users(),
@@ -907,6 +911,8 @@ impl Ctx {
                 Ok(v) => v,
                 Err(e) => return ctx.fail(my, e),
             };
+            ctx.st.lock().unwrap().playlist_views =
+                views.iter().filter(|v| v.collection_type.as_deref() == Some("playlists")).map(|v| v.id.clone()).collect();
             {
                 let libs: Vec<CardData> = views
                     .iter()
@@ -988,6 +994,7 @@ impl Ctx {
         let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Grid(i), u))).collect();
         self.post(my, move |ui| {
             ui.set_busy(false);
+            ui.set_pl_tabs(false);
             ui.set_lib_controls(false);
             ui.set_lib_can_more(false);
             ui.set_grid_title(title.into());
@@ -1097,6 +1104,61 @@ impl Ctx {
     }
 
     fn show_children(&self, id: String, title: String) {
+        let is_playlists = self.st.lock().unwrap().playlist_views.contains(&id);
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_pl_tabs(is_playlists);
+            ui.set_pl_tab(0);
+        }
+        if is_playlists {
+            self.show_favorites(id, title);
+        } else {
+            self.show_server_library(id, title);
+        }
+    }
+
+    /// Playlists page, "Mine" tab: the user's favourites.
+    fn show_favorites(&self, id: String, title: String) {
+        let Some((client, uid)) = self.session() else { return };
+        self.st.lock().unwrap().lib = LibView { parent: id, title: title.clone(), ..Default::default() };
+        let my = self.begin();
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_cards(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_grid_title(title.clone().into());
+            ui.set_lib_controls(false);
+            ui.set_lib_can_more(false);
+            ui.set_page("grid".into());
+        }
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            match client.favorites(&uid, 300).await {
+                Ok(items) => {
+                    ctx.show_grid(my, &client, title, items, "grid");
+                    ctx.post(my, |ui| ui.set_pl_tabs(true));
+                }
+                Err(e) => ctx.fail(my, e),
+            }
+        });
+    }
+
+    fn pl_tab_picked(&self, i: i32) {
+        let (id, title) = {
+            let s = self.st.lock().unwrap();
+            (s.lib.parent.clone(), s.lib.title.clone())
+        };
+        if id.is_empty() {
+            return;
+        }
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_pl_tab(i);
+        }
+        if i == 0 {
+            self.show_favorites(id, title);
+        } else {
+            self.show_server_library(id, title);
+        }
+    }
+
+    fn show_server_library(&self, id: String, title: String) {
         let sort = {
             let mut st = self.st.lock().unwrap();
             let sort = st.cfg.library_sort.min(SORTS.len() - 1);
@@ -3106,6 +3168,7 @@ fn main() -> Result<(), slint::PlatformError> {
             last_click: None,
             click_gen: 0,
             lib: LibView::default(),
+            playlist_views: Vec::new(),
             sr: SeerrState::default(),
         })),
         gen: Arc::new(AtomicU64::new(0)),
@@ -3291,7 +3354,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let page = match i {
             0 => Page::SeerrDiscover,
             1 => Page::SeerrRequests,
-            2 => Page::SeerrIssues,
+            2 => Page::SeerrWatchlist,
+            3 => Page::SeerrIssues,
             _ => Page::SeerrUsers,
         };
         c.navigate(page, true);
@@ -3470,6 +3534,8 @@ fn main() -> Result<(), slint::PlatformError> {
         c.update_cfg(|cfg| cfg.library_sort = i);
         c.lib_set(|lv| lv.sort = i);
     });
+    let c = ctx.clone();
+    ui.on_pl_tab_picked(move |i| c.pl_tab_picked(i));
     let c = ctx.clone();
     ui.on_lib_genre_changed(move |i| {
         c.lib_set(|lv| lv.genre = if i <= 0 { None } else { lv.genres.get(i as usize - 1).cloned() });

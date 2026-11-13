@@ -479,6 +479,53 @@ impl Ctx {
         });
     }
 
+    pub fn show_sr_watchlist(&self) {
+        let Some((seerr, user)) = self.sr_session() else { return self.show_sr_connect() };
+        let Some((client, _)) = self.session() else { return };
+        let my = self.begin();
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_sr_cards(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_page("sr-watchlist".into());
+        }
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            let list = match seerr.watchlist(user.id, 1).await {
+                Ok(p) => p.results,
+                Err(e) => return ctx.sr_error(my, e),
+            };
+            let list: Vec<_> = list.into_iter().filter(|w| w.tmdb_id > 0 && (w.media_type == "movie" || w.media_type == "tv")).collect();
+            ctx.sr_fill_titles(&seerr, list.iter().map(|w| (w.media_type.clone(), w.tmdb_id)).collect()).await;
+            let cards: Vec<CardData> = {
+                let s = ctx.st.lock().unwrap();
+                list.iter()
+                    .map(|w| {
+                        let t = s.sr.titles.get(&(w.media_type.clone(), w.tmdb_id)).cloned().unwrap_or_default();
+                        let what = if w.media_type == "tv" { "Series" } else { "Movie" };
+                        CardData {
+                            id: w.tmdb_id.to_string(),
+                            kind: w.media_type.clone(),
+                            title: if t.title.is_empty() { w.title.clone() } else { t.title.clone() },
+                            subtitle: if t.year.is_empty() { what.to_string() } else { format!("{} · {what}", t.year) },
+                            progress: 0.0,
+                            played: false,
+                            image: t.poster.as_ref().map(|p| sr::image_url(p, "w342")),
+                            current: false,
+                            next_season: false,
+                            badge: String::new(),
+                            badge_kind: 0,
+                        }
+                    })
+                    .collect()
+            };
+            let jobs = cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::SCard(i), u))).collect();
+            ctx.post(my, move |ui| {
+                ui.set_busy(false);
+                ui.set_sr_cards(cards_model(&cards));
+            });
+            ctx.spawn_images(&client, my, jobs);
+        });
+    }
+
     pub fn sr_search(&self, q: String) {
         let q = q.trim().to_string();
         let Some(ui) = self.ui.upgrade() else { return };
@@ -653,8 +700,12 @@ impl Ctx {
     /// Opens a title that is in the library on the connected media server, to play it.
     pub fn open_in_library(&self, kind: String, tmdb: i64) {
         let Some((client, uid)) = self.session() else { return };
-        let known = self.st.lock().unwrap().sr.library_id.clone();
-        if let (Some(id), true) = (known, self.st.lock().unwrap().sr.detail.as_ref().is_some_and(|d| d.tmdb == tmdb)) {
+        // Take the lock in its own statement: `navigate` locks state again, so holding it across the call deadlocks.
+        let known = {
+            let s = self.st.lock().unwrap();
+            s.sr.library_id.clone().filter(|_| s.sr.detail.as_ref().is_some_and(|d| d.tmdb == tmdb))
+        };
+        if let Some(id) = known {
             self.navigate(Page::Detail { id }, true);
             return;
         }

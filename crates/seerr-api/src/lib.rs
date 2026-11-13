@@ -184,6 +184,15 @@ impl Media {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+pub struct WatchItem {
+    pub tmdb_id: i64,
+    /// movie | tv
+    pub media_type: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct Page<T> {
     pub page: i64,
     pub total_pages: i64,
@@ -553,6 +562,11 @@ impl Seerr {
             Discover::UpcomingTv => "/discover/tv/upcoming",
         };
         self.get(&format!("{p}?page={page}&language=en")).await
+    }
+
+    /// A user's Seerr watchlist (title + TMDB id only; posters need a detail lookup).
+    pub async fn watchlist(&self, user_id: i64, page: u32) -> Result<Page<WatchItem>> {
+        self.get(&format!("/user/{user_id}/watchlist?page={page}")).await
     }
 
     pub async fn movie(&self, tmdb_id: i64) -> Result<Detail> {

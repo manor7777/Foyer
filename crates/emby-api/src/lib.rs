@@ -615,6 +615,18 @@ impl Client {
             .items)
     }
 
+    /// Everything the user has favourited.
+    pub async fn favorites(&self, uid: &str, limit: u32) -> Result<Vec<Item>> {
+        let limit = limit.to_string();
+        Ok(self
+            .get::<ItemList>(
+                &format!("/Users/{uid}/Items"),
+                &[("Filters", "IsFavorite"), ("Recursive", "true"), ("SortBy", "SortName"), ("SortOrder", "Ascending"), ("Limit", &limit), ("Fields", LIST_FIELDS)],
+            )
+            .await?
+            .items)
+    }
+
     pub async fn item(&self, uid: &str, id: &str) -> Result<Item> {
         self.get(&format!("/Users/{uid}/Items/{id}"), &[("Fields", FIELDS)]).await
     }

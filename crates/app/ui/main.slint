@@ -786,7 +786,7 @@ component SeerrTabs inherits HorizontalLayout {
     callback picked(int);
     spacing: 8px;
     alignment: start;
-    for name[i] in (root.users ? ["Discover", "Requests", "Issues", "Users"] : ["Discover", "Requests", "Issues"]): Rectangle {
+    for name[i] in (root.users ? ["Discover", "Requests", "Watchlist", "Issues", "Users"] : ["Discover", "Requests", "Watchlist", "Issues"]): Rectangle {
         width: 112px;
         height: 34px;
         border-radius: 17px;
@@ -1202,6 +1202,9 @@ export component AppWindow inherits Window {
     in-out property <string> lib-letter: "";
     in property <int> lib-total: 0;
     in property <bool> lib-can-more: false;
+    in-out property <bool> pl-tabs: false;
+    in-out property <int> pl-tab: 0;
+    callback pl-tab-picked(int);
     callback lib-sort-changed(int);
     callback lib-genre-changed(int);
     callback lib-letter-picked(string);
@@ -1272,7 +1275,7 @@ export component AppWindow inherits Window {
     in-out property <string> sr-report-episode;
     in property <bool> sr-report-tv: false;
     in property <string> sr-report-title;
-    property <bool> in-seerr: root.page == "sr-discover" || root.page == "sr-detail" || root.page == "sr-requests" || root.page == "sr-issues" || root.page == "sr-issue" || root.page == "sr-connect";
+    property <bool> in-seerr: root.page == "sr-discover" || root.page == "sr-detail" || root.page == "sr-requests" || root.page == "sr-watchlist" || root.page == "sr-issues" || root.page == "sr-issue" || root.page == "sr-connect";
     callback open-seerr();
     callback sr-connect(string, int, string, string);
     callback sr-disconnect();
@@ -1774,6 +1777,27 @@ export component AppWindow inherits Window {
                     padding: 24px;
                     spacing: 12px;
                     Heading { text: root.grid-title; }
+                    if root.pl-tabs: HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        for name[i] in ["Mine", "Server"]: Rectangle {
+                            width: 112px;
+                            height: 34px;
+                            border-radius: 17px;
+                            background: i == root.pl-tab ? Palette.accent-background : (pl-ta.has-hover ? Palette.control-hover : Palette.control-background);
+                            border-width: 1px;
+                            border-color: i == root.pl-tab ? Palette.accent-background : Palette.border;
+                            Text {
+                                text: name;
+                                color: i == root.pl-tab ? Palette.accent-foreground : Palette.foreground;
+                                font-weight: 600;
+                                font-size: 13px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                            pl-ta := TouchArea { clicked => { root.pl-tab-picked(i); } }
+                        }
+                    }
                     if root.lib-controls: HorizontalLayout {
                         spacing: 10px;
                         Dropdown {
@@ -2950,6 +2974,47 @@ export component AppWindow inherits Window {
                 }
             }
 
+            // ---- requests: watchlist ----
+            if page == "sr-watchlist": ScrollView {
+                mouse-drag-pan-enabled: true;
+                VerticalLayout {
+                    alignment: start;
+                    padding: 24px;
+                    spacing: 14px;
+                    HorizontalLayout {
+                        Heading { text: "Requests"; }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: root.sr-user;
+                            color: Palette.foreground;
+                            opacity: 0.6;
+                            vertical-alignment: center;
+                        }
+                    }
+                    SeerrTabs {
+                        current: 2;
+                        users: root.sr-manage-users;
+                        picked(i) => { root.sr-tab(i); }
+                    }
+                    if root.sr-cards.length == 0 && !busy: Text {
+                        text: "Your Seerr watchlist is empty.";
+                        color: Palette.foreground;
+                        opacity: 0.6;
+                    }
+                    GridLayout {
+                        spacing: 14px;
+                        for c[i] in root.sr-cards: CardView {
+                            row: floor(i / max(1, floor((root.width - root.pane-width - 48px) / 164px)));
+                            col: mod(i, max(1, floor((root.width - root.pane-width - 48px) / 164px)));
+                            card: c;
+                            clicked => {
+                                if c.badge-kind == 4 { root.sr-open-library(c.kind, c.id); } else { root.sr-open(c.kind, c.id); }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ---- requests: issues ----
             if page == "sr-issues": ScrollView {
                 mouse-drag-pan-enabled: true;
@@ -2968,7 +3033,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     SeerrTabs {
-                        current: 2;
+                        current: 3;
                         users: root.sr-manage-users;
                         picked(i) => { root.sr-tab(i); }
                     }
@@ -3188,7 +3253,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     SeerrTabs {
-                        current: 3;
+                        current: 4;
                         users: root.sr-manage-users;
                         picked(i) => { root.sr-tab(i); }
                     }
