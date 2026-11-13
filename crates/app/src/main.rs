@@ -3775,8 +3775,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 let path = dir.join(format!("Foyer-{t}.png")).to_string_lossy().into_owned();
                 dlog(&format!("screenshot {path}"));
                 if let Some(tx) = &c.st.lock().unwrap().player_tx {
-                    let _ = tx.send(K::Screenshot(path));
+                    let _ = tx.send(K::Screenshot(path.clone()));
                 }
+                // mpv writes the file asynchronously; confirm once it has landed.
+                let c = c.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(800));
+                    if std::path::Path::new(&path).exists() {
+                        c.notify_user("Screenshot saved".into(), path, None);
+                    } else {
+                        c.notify_user("Screenshot failed".into(), "mpv didn't write the file.".into(), None);
+                    }
+                });
             }
             return;
         }

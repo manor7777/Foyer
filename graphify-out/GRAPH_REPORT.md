@@ -1,7 +1,7 @@
 # Graph Report - Foyer  (2026-11-13)
 
 ## Corpus Check
-- 26 files · ~44,045 words
+- 26 files · ~44,084 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .rc 1, .ico 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7aa4df69`
+- Built from commit: `af22ed2f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
