@@ -3,6 +3,14 @@ import { ScrollView, Spinner, Palette as SysPalette } from "std-widgets.slint";
 
 // ---------------------------------------------------------------- WinUI 3 style theme
 // Same names as the std widgets, so every screen picks up the look without changes.
+/// Hovering a poster fades the window background to that title's banner art (Settings > Appearance).
+export global Hover {
+    in-out property <image> image;
+    in-out property <bool> active: false;
+    callback entered(string, string);
+    callback left();
+}
+
 export global Palette {
     /// 0 solid, 1 Mica, 2 Acrylic (set from Rust)
     in-out property <int> material: 0;
@@ -997,6 +1005,9 @@ component CardView inherits Rectangle {
     }
 
     ta := TouchArea {
+        changed has-hover => {
+            if (self.has-hover) { Hover.entered(root.card.id, root.card.kind); } else { Hover.left(); }
+        }
         clicked => {
             fs.focus();
             root.clicked();
@@ -1190,6 +1201,8 @@ export component AppWindow inherits Window {
     in-out property <bool> nav-open: false;
     in-out property <bool> nav-pinned: false;
     callback set-nav-pinned(bool);
+    in-out property <bool> hover-backdrop: false;
+    callback set-hover-backdrop(bool);
     in property <[Card]> detail-cast;
     /// Login backdrop: posters cached from the user's own library.
     in property <[image]> posters;
@@ -1501,6 +1514,25 @@ export component AppWindow inherits Window {
 
     if !root.playing: Rectangle {
         background: Palette.window-bg;
+    }
+
+    // Hovered poster's banner art, faded in behind the page.
+    if !root.playing && root.hover-backdrop: Image {
+        source: Hover.image;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+        opacity: Hover.active && Hover.image.width > 0 ? 1.0 : 0.0;
+        animate opacity { duration: 220ms; easing: ease-out; }
+    }
+    if !root.playing && root.hover-backdrop: Rectangle {
+        background: Palette.dark
+            ? @linear-gradient(180deg, #0b0f1a99 0%, #0b0f1ad0 70%, #0b0f1aeb 100%)
+            : @linear-gradient(180deg, #f3f5f9aa 0%, #f3f5f9e0 70%, #f3f5f9f0 100%);
+        opacity: Hover.active && Hover.image.width > 0 ? 1.0 : 0.0;
+        animate opacity { duration: 220ms; easing: ease-out; }
     }
 
     // Detail pages: the backdrop fills the whole window, dimmed so text stays readable.
@@ -2236,6 +2268,14 @@ export component AppWindow inherits Window {
                             ToggleSwitch {
                                 checked <=> root.nav-pinned;
                                 toggled(c) => { root.set-nav-pinned(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Banner on hover";
+                            description: "Hovering a poster fades the background to that film or series' banner art (episodes use their series' banner).";
+                            ToggleSwitch {
+                                checked <=> root.hover-backdrop;
+                                toggled(c) => { root.set-hover-backdrop(c); }
                             }
                         }
                         SettingRow {

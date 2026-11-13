@@ -68,6 +68,9 @@ struct Config {
     /// Keep the sidebar expanded at any window size.
     #[serde(default)]
     nav_pinned: bool,
+    /// Fade the background to a hovered poster's banner art.
+    #[serde(default)]
+    hover_backdrop: bool,
     /// Library sort order (index into SORTS).
     #[serde(default)]
     library_sort: usize,
@@ -163,6 +166,7 @@ impl Default for Config {
             accent_mode: default_accent_mode(),
             accent_rgb: default_accent_rgb(),
             nav_pinned: false,
+            hover_backdrop: false,
             library_sort: 0,
             seerr_enabled: false,
             seerr_url: String::new(),
@@ -662,6 +666,9 @@ fn apply_image(ui: &AppWindow, slot: Slot, img: Image) {
         }
     }
 }
+
+/// Bumped on every poster enter / leave so a slow banner fetch can't land after the pointer moved on.
+static HOVER_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 // ---------------------------------------------------------------- app context
 
@@ -1394,6 +1401,7 @@ impl Ctx {
         ui.set_sub_lang_index(s.cfg.sub_lang as i32);
         ui.set_material_index(s.cfg.material as i32);
         ui.set_nav_pinned(s.cfg.nav_pinned);
+        ui.set_hover_backdrop(s.cfg.hover_backdrop);
         let shown = |n: &str| !s.cfg.hidden_rows.iter().any(|h| h == n);
         let _ = shown;
         ui.set_home_rows(home_rows_model(&s.cfg));
@@ -2168,6 +2176,55 @@ impl Ctx {
         }
     }
 
+    /// Poster hover: after a short pause, fetch the title's banner art and fade it in behind the page.
+    fn hover_entered(&self, id: String, kind: String) {
+        let my = HOVER_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+        if !self.st.lock().unwrap().cfg.hover_backdrop
+            || !matches!(kind.as_str(), "Movie" | "Series" | "Season" | "Episode" | "BoxSet" | "Video" | "MusicVideo")
+        {
+            return;
+        }
+        let Some((client, uid)) = self.session() else { return };
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            if HOVER_GEN.load(Ordering::SeqCst) != my {
+                return;
+            }
+            // Series / movie banner, never the episode's own thumbnail.
+            let Ok(item) = client.item(&uid, &id).await else { return };
+            let Some(url) = client.image_url(&item, ImageKind::Backdrop, 1280) else { return };
+            let Ok(bytes) = client.fetch_bytes(&url).await else { return };
+            let decoded = tokio::task::spawn_blocking(move || {
+                let rgba = image::load_from_memory(&bytes).ok()?.to_rgba8();
+                let (w, h) = rgba.dimensions();
+                Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(rgba.as_raw(), w, h))
+            })
+            .await
+            .ok()
+            .flatten();
+            let Some(buf) = decoded else { return };
+            let weak = ctx.ui.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if HOVER_GEN.load(Ordering::SeqCst) != my {
+                    return;
+                }
+                if let Some(ui) = weak.upgrade() {
+                    let h = ui.global::<Hover>();
+                    h.set_image(Image::from_rgba8(buf));
+                    h.set_active(true);
+                }
+            });
+        });
+    }
+
+    fn hover_left(&self) {
+        HOVER_GEN.fetch_add(1, Ordering::SeqCst);
+        if let Some(ui) = self.ui.upgrade() {
+            ui.global::<Hover>().set_active(false);
+        }
+    }
+
     fn mouse_moved(&self) {
         self.st.lock().unwrap().last_move = Instant::now();
     }
@@ -2446,6 +2503,10 @@ impl Ctx {
                 }
                 let Some(ui) = ctx2.ui.upgrade() else { return };
                 ui.set_playing(false);
+                // Leave full screen with the player, otherwise the browse pages have no window controls.
+                if ui.window().is_fullscreen() {
+                    ui.window().set_fullscreen(false);
+                }
                 if let Some((id, m)) = error {
                     ui.set_failed_id(id.into());
                     ui.set_play_error(m.into());
@@ -3623,6 +3684,26 @@ fn main() -> Result<(), slint::PlatformError> {
         c.refresh_accent(true);
     });
     let c = ctx.clone();
+    ui.on_set_hover_backdrop(move |v| {
+        c.update_cfg(|cfg| cfg.hover_backdrop = v);
+        if let Some(ui) = c.ui.upgrade() {
+            ui.set_hover_backdrop(v);
+            if !v {
+                ui.global::<Hover>().set_active(false);
+            }
+        }
+    });
+    let c = ctx.clone();
+    {
+        let c = c.clone();
+        ui.global::<Hover>().on_entered(move |id, kind| c.hover_entered(id.to_string(), kind.to_string()));
+    }
+    {
+        let c = c.clone();
+        ui.global::<Hover>().on_left(move || c.hover_left());
+    }
+    ui.set_hover_backdrop(ctx.st.lock().unwrap().cfg.hover_backdrop);
+    let c = ctx.clone();
     ui.on_set_nav_pinned(move |v| {
         c.update_cfg(|cfg| cfg.nav_pinned = v);
         if let Some(ui) = c.ui.upgrade() {
@@ -3763,6 +3844,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     let hide_timer = slint::Timer::default();
     {
         let c = ctx.clone();
+        let cursor_hidden = std::cell::Cell::new(false);
         hide_timer.start(slint::TimerMode::Repeated, Duration::from_millis(400), move || {
             let Some(ui) = c.ui.upgrade() else { return };
             if ui.get_playing()
@@ -3774,6 +3856,13 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
                 && c.st.lock().unwrap().last_move.elapsed() > Duration::from_secs(3)
             {
                 ui.set_controls_shown(false);
+            }
+            // Slint only re-applies its cursor rule on the next mouse event, so a still cursor would
+            // stay visible after the controls fade. Drive the OS cursor directly as well.
+            use slint::winit_030::WinitWindowAccessor;
+            let hidden = ui.get_playing() && ui.get_player_started() && !ui.get_controls_shown() && !ui.get_player_paused();
+            if hidden != cursor_hidden.replace(hidden) {
+                ui.window().with_winit_window(|w| w.set_cursor_visible(!hidden));
             }
         });
     }
