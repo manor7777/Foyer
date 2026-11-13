@@ -2043,7 +2043,7 @@ impl Ctx {
                 related_title = "More like this".to_string();
                 related_wide = false;
                 if let Ok(list) = client.similar(&uid, &item.id, 20).await {
-                    related_cards = list.iter().map(|i| card_for(&client, i, false)).collect();
+                    related_cards = ctx.visible(list).iter().map(|i| card_for(&client, i, false)).collect();
                 }
             }
             jobs.extend(related_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Related(i), u))));
