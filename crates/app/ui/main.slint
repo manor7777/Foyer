@@ -1717,6 +1717,8 @@ export component AppWindow inherits Window {
     }
 
     forward-focus: root-focus;
+    // Whatever had focus on the page underneath is gone once the player opens; take it back so keys work.
+    changed playing => { if root.playing { root-focus.focus(); } }
     root-focus := FocusScope {
         key-pressed(e) => {
             if root.message-open {

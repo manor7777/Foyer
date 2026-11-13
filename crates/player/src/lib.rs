@@ -172,6 +172,7 @@ struct Api {
     set_opt: unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char) -> c_int,
     init: unsafe extern "C" fn(*mut c_void) -> c_int,
     command: unsafe extern "C" fn(*mut c_void, *const *const c_char) -> c_int,
+    command_async: unsafe extern "C" fn(*mut c_void, u64, *const *const c_char) -> c_int,
     get_prop: unsafe extern "C" fn(*mut c_void, *const c_char) -> *mut c_char,
     free: unsafe extern "C" fn(*mut c_void),
     wait: unsafe extern "C" fn(*mut c_void, c_double) -> *mut MpvEvent,
@@ -236,6 +237,7 @@ fn load_api() -> Result<Api, String> {
             set_opt: sym!(b"mpv_set_option_string"),
             init: sym!(b"mpv_initialize"),
             command: sym!(b"mpv_command"),
+            command_async: sym!(b"mpv_command_async"),
             get_prop: sym!(b"mpv_get_property_string"),
             free: sym!(b"mpv_free"),
             wait: sym!(b"mpv_wait_event"),
@@ -503,7 +505,8 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
             let owned: Vec<CString> = args.iter().map(|a| c(a)).collect();
             let mut argv: Vec<*const c_char> = owned.iter().map(|a| a.as_ptr()).collect();
             argv.push(std::ptr::null());
-            (api.command)(ctx, argv.as_ptr())
+            // sub-add downloads the file before returning; a slow server must not freeze this loop.
+            if args[0] == "sub-add" { (api.command_async)(ctx, 0, argv.as_ptr()) } else { (api.command)(ctx, argv.as_ptr()) }
         };
         let read_str = |name: &str| -> Option<String> {
             let n = c(name);
