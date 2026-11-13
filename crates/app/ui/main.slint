@@ -5106,6 +5106,14 @@ export component AppWindow inherits Window {
                         background: #ffffffcc;
                     }
                     seek-ta := TouchArea {
+                        // wheel scrubs ~5s per notch (delta is 120 per notch; up = forward)
+                        scroll-event(e) => {
+                            if root.player-dur > 0 {
+                                root.player-seek(max(0.0, min(root.player-dur, root.player-pos + e.delta-y / 24px)));
+                                root.poke-controls();
+                            }
+                            accept
+                        }
                         pointer-event(e) => {
                             if e.kind == PointerEventKind.move { root.poke-controls(); }
                             if e.kind == PointerEventKind.down && e.button == PointerEventButton.left && root.player-dur > 0 {
