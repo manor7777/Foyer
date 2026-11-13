@@ -1,0 +1,416 @@
+{
+  ".claude/settings.json": {
+    "mtime": 1794580594.4051137,
+    "seen": 1794598746.5451221,
+    "ast_hash": "1f8cf8187295491630d0105d3600c424",
+    "semantic_hash": ""
+  },
+  ".codex/hooks.json": {
+    "mtime": 1794580594.1861947,
+    "seen": 1794598746.5451279,
+    "ast_hash": "c2e87b91fe9c75042a63ef007fd77749",
+    "semantic_hash": ""
+  },
+  ".github/workflows/release.yml": {
+    "mtime": 1794581587.5923731,
+    "seen": 1794598746.5451307,
+    "ast_hash": "b4c1dacf433c0ff96cef4a7f5557cab6",
+    "semantic_hash": ""
+  },
+  "Cargo.toml": {
+    "mtime": 1794598677.0374382,
+    "seen": 1794598746.5451326,
+    "ast_hash": "114a5be17678d7e49ed28b9bef5da2d2",
+    "semantic_hash": ""
+  },
+  "crates/app/Cargo.toml": {
+    "mtime": 1794575781.0171626,
+    "seen": 1794598746.5451338,
+    "ast_hash": "09f9586f9d8376160011d828b5609c2c",
+    "semantic_hash": ""
+  },
+  "crates/app/build.rs": {
+    "mtime": 1794520917.6615975,
+    "seen": 1794598746.545135,
+    "ast_hash": "806a77e68c7d4d799b29bca88d4918e4",
+    "semantic_hash": ""
+  },
+  "crates/app/src/engine.rs": {
+    "mtime": 1794520917.6615975,
+    "seen": 1794598746.5451367,
+    "ast_hash": "00e22113ae5b7b9e4cd340a45a068d68",
+    "semantic_hash": ""
+  },
+  "crates/app/src/hide.rs": {
+    "mtime": 1794537821.7897859,
+    "seen": 1794598746.5451376,
+    "ast_hash": "ed395dc00d5991527a788fde7c0a9552",
+    "semantic_hash": ""
+  },
+  "crates/app/src/main.rs": {
+    "mtime": 1794597967.186906,
+    "seen": 1794598746.5451386,
+    "ast_hash": "93ed9b7a4e22efe9e01cff18932ca60b",
+    "semantic_hash": ""
+  },
+  "crates/app/src/media.rs": {
+    "mtime": 1794575859.9059045,
+    "seen": 1794598746.5451398,
+    "ast_hash": "0c8e8b56661570145a5364767bd3bb38",
+    "semantic_hash": ""
+  },
+  "crates/app/src/notes.rs": {
+    "mtime": 1794580708.6842372,
+    "seen": 1794598746.5451407,
+    "ast_hash": "301f9c45f8b15cfc434eee78c1858dda",
+    "semantic_hash": ""
+  },
+  "crates/app/src/seerr.rs": {
+    "mtime": 1794595944.2817507,
+    "seen": 1794598746.545142,
+    "ast_hash": "1e137201d7a93e4a790193aa6b26eaa4",
+    "semantic_hash": ""
+  },
+  "crates/app/src/update.rs": {
+    "mtime": 1794536081.1592815,
+    "seen": 1794598746.5451431,
+    "ast_hash": "163576963bc24107107c6f3dde105c66",
+    "semantic_hash": ""
+  },
+  "crates/emby-api/Cargo.toml": {
+    "mtime": 1794520917.6826193,
+    "seen": 1794598746.545144,
+    "ast_hash": "8d71076a53db74820f7e2d964fd77b04",
+    "semantic_hash": ""
+  },
+  "crates/emby-api/src/lib.rs": {
+    "mtime": 1794598676.9880824,
+    "seen": 1794598746.545145,
+    "ast_hash": "53479da4ed5a197f03eb1fb8ec9a6c93",
+    "semantic_hash": ""
+  },
+  "crates/emby-api/src/remote.rs": {
+    "mtime": 1794520917.6836882,
+    "seen": 1794598746.5451462,
+    "ast_hash": "c23feaec61e8ac58911d3e6a0b862e88",
+    "semantic_hash": ""
+  },
+  "crates/player/Cargo.toml": {
+    "mtime": 1794520917.6842144,
+    "seen": 1794598746.5451474,
+    "ast_hash": "0347bf17ffc746d3f3c420afbf1de885",
+    "semantic_hash": ""
+  },
+  "crates/player/src/lib.rs": {
+    "mtime": 1794575431.501084,
+    "seen": 1794598746.5451486,
+    "ast_hash": "d94af661d49cdc45c6959fc6a6b18653",
+    "semantic_hash": ""
+  },
+  "crates/seerr-api/Cargo.toml": {
+    "mtime": 1794520917.6857562,
+    "seen": 1794598746.5451498,
+    "ast_hash": "fde0d19db2598cc1396dcc1f064433fa",
+    "semantic_hash": ""
+  },
+  "crates/seerr-api/src/lib.rs": {
+    "mtime": 1794536651.3074875,
+    "seen": 1794598746.5451508,
+    "ast_hash": "fb576a10aa7506d17d59ed2f17ab7677",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1794598142.0997381,
+    "seen": 1794598746.5451517,
+    "ast_hash": "69432f91caec3647eeeb3e578348be6a",
+    "semantic_hash": ""
+  },
+  "CHANGELOG.md": {
+    "mtime": 1794598677.0937731,
+    "seen": 1794598746.5451531,
+    "ast_hash": "5c5d45a8d670db75e602b6c725f15ba6",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1794581781.8598228,
+    "seen": 1794598746.5451543,
+    "ast_hash": "5c27369b226fcf2be8a6cfe52224e767",
+    "semantic_hash": ""
+  },
+  "PLAN.md": {
+    "mtime": 1794520917.657578,
+    "seen": 1794598746.5451555,
+    "ast_hash": "f72b83231fe93b6d77e6bf124becc1b8",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1794520917.6585777,
+    "seen": 1794598746.5451567,
+    "ast_hash": "0779b81394cfb450a456779fc309aa7b",
+    "semantic_hash": ""
+  },
+  "docs/ANDROID-PLAN.md": {
+    "mtime": 1794520917.6867745,
+    "seen": 1794598746.5451577,
+    "ast_hash": "f2e813a9c35506fa30d481258f59e9fa",
+    "semantic_hash": ""
+  },
+  "crates/app/assets/app-1024.png": {
+    "mtime": 1794520917.6595774,
+    "seen": 1794598746.5451589,
+    "ast_hash": "21646bf967aeb680d61163193a7a4e05",
+    "semantic_hash": ""
+  },
+  "crates/app/assets/app.png": {
+    "mtime": 1794520917.6615975,
+    "seen": 1794598746.54516,
+    "ast_hash": "8c2a43f05487448342ae838ec58ce226",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/app.png": {
+    "mtime": 1794520917.6659563,
+    "seen": 1794598746.5451612,
+    "ast_hash": "8c2a43f05487448342ae838ec58ce226",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/audio.svg": {
+    "mtime": 1794520917.6659563,
+    "seen": 1794598746.545162,
+    "ast_hash": "68440e5cfb83be57d03d69ac81e4ff41",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/back.svg": {
+    "mtime": 1794520917.6659563,
+    "seen": 1794598746.5451632,
+    "ast_hash": "492262b7d6fb5897734f7c4aabade3a1",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/bell.svg": {
+    "mtime": 1794531010.1778224,
+    "seen": 1794598746.545164,
+    "ast_hash": "e7d8a2a654f455c5c128ce919ff116fc",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/captions.svg": {
+    "mtime": 1794520917.6669614,
+    "seen": 1794598746.545165,
+    "ast_hash": "855b813146dc10f262067e71c79d081e",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/check.svg": {
+    "mtime": 1794520917.6669614,
+    "seen": 1794598746.545166,
+    "ast_hash": "cc3dfef64a2a94476d740e7a7957620c",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/chevron-down.svg": {
+    "mtime": 1794520917.6679637,
+    "seen": 1794598746.5451674,
+    "ast_hash": "de68f4c3abfcc2929496a9000d9c5e32",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/close.svg": {
+    "mtime": 1794520917.6679637,
+    "seen": 1794598746.5451682,
+    "ast_hash": "459d1e1f97bcb8bb45a986e548aacdd3",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/delete.svg": {
+    "mtime": 1794520917.6679637,
+    "seen": 1794598746.5451694,
+    "ast_hash": "1b31c7409f092caa72884bb956e28e8b",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/flag.svg": {
+    "mtime": 1794520917.6679637,
+    "seen": 1794598746.54517,
+    "ast_hash": "5d225a0bc3c810a45b20f80871d4d73b",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/forward.svg": {
+    "mtime": 1794520917.6694708,
+    "seen": 1794598746.5451715,
+    "ast_hash": "a6607d9429c8e535d377f0a2a92ade0d",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/fullscreen-exit.svg": {
+    "mtime": 1794520917.6694708,
+    "seen": 1794598746.5451725,
+    "ast_hash": "9fbf1a9e8804dc0baa0cf60021e0cb84",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/fullscreen.svg": {
+    "mtime": 1794520917.6694708,
+    "seen": 1794598746.5451734,
+    "ast_hash": "d3797e9ba72cbf0daa08c3aea9b72da1",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/heart-filled.svg": {
+    "mtime": 1794520917.6704762,
+    "seen": 1794598746.5451746,
+    "ast_hash": "c0a24876c1bf61ec222634e6ba1c0200",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/heart.svg": {
+    "mtime": 1794520917.6704762,
+    "seen": 1794598746.5451758,
+    "ast_hash": "1832823659f8d3fc9e74890fc3e8a4e4",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/history.svg": {
+    "mtime": 1794520917.6704762,
+    "seen": 1794598746.5451775,
+    "ast_hash": "2a0607252782ea6bbc6fc31ae4803c39",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/home.svg": {
+    "mtime": 1794520917.6714764,
+    "seen": 1794598746.5451784,
+    "ast_hash": "709b7bbd4910812d85ec98260ba9fc1e",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/info.svg": {
+    "mtime": 1794520917.6719804,
+    "seen": 1794598746.5451794,
+    "ast_hash": "8b8f5ccb7675a0c419005533f10a3753",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/library.svg": {
+    "mtime": 1794520917.6719804,
+    "seen": 1794598746.5451806,
+    "ast_hash": "573fed8a7af6eaab4f952d148fae90bc",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/live-tv.svg": {
+    "mtime": 1794520917.6725497,
+    "seen": 1794598746.5451818,
+    "ast_hash": "c48b9a63a0bff26c2d9082cd15cc40e0",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/logout.svg": {
+    "mtime": 1794520917.6730754,
+    "seen": 1794598746.5451827,
+    "ast_hash": "9bb9900b324475cb8b9e24694f4268d3",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/menu.svg": {
+    "mtime": 1794520917.6730754,
+    "seen": 1794598746.545184,
+    "ast_hash": "11b522022b799e1fc0bf476a43e74472",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/pause.svg": {
+    "mtime": 1794520917.6736014,
+    "seen": 1794598746.545185,
+    "ast_hash": "b062fc23de36757c969cce3d5fa638d4",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/pin.svg": {
+    "mtime": 1794520917.6741145,
+    "seen": 1794598746.5451863,
+    "ast_hash": "ff9438b58903870ed2f4aaa8afac21c4",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/play.svg": {
+    "mtime": 1794520917.6746361,
+    "seen": 1794598746.5451872,
+    "ast_hash": "7aee324042ca9c8c3fa989bc087ee6f5",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/power.svg": {
+    "mtime": 1794520917.675164,
+    "seen": 1794598746.5451887,
+    "ast_hash": "83fe703988db10ad3edce9b3619a65a8",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/refresh.svg": {
+    "mtime": 1794520917.675164,
+    "seen": 1794598746.5451894,
+    "ast_hash": "8f0f646be084b71184b4aa3a239bbf93",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/replay.svg": {
+    "mtime": 1794520917.675689,
+    "seen": 1794598746.5451906,
+    "ast_hash": "31ce0e4e9b9bab9d78e64d49be833434",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/requests.svg": {
+    "mtime": 1794520917.676211,
+    "seen": 1794598746.5451918,
+    "ast_hash": "c48ea369d36fb1379ba2585da4307ace",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/schedule.svg": {
+    "mtime": 1794520917.6767294,
+    "seen": 1794598746.545193,
+    "ast_hash": "d728543d641bfbc6a3460d16b8101b01",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/search.svg": {
+    "mtime": 1794520917.6772597,
+    "seen": 1794598746.545194,
+    "ast_hash": "b3023f5b8711fcfc6a688b5aff971f2b",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/send.svg": {
+    "mtime": 1794520917.6777823,
+    "seen": 1794598746.5451953,
+    "ast_hash": "eaa71aacee155529a5b7b9b09c2c25e8",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/server.svg": {
+    "mtime": 1794520917.6783001,
+    "seen": 1794598746.5451963,
+    "ast_hash": "a4e3ce8d540c471f47eb05115d6dc459",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/settings.svg": {
+    "mtime": 1794520917.678903,
+    "seen": 1794598746.5451972,
+    "ast_hash": "02d41d6ce3997fd9e427a29db7477e5f",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/skip-next.svg": {
+    "mtime": 1794528040.869674,
+    "seen": 1794598746.5451984,
+    "ast_hash": "1b66594cd795aa9371fba2b4572afdf3",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/skip-previous.svg": {
+    "mtime": 1794528040.8707905,
+    "seen": 1794598746.5451994,
+    "ast_hash": "b32ad5189f5b261c1538e50d699fb71e",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/stop.svg": {
+    "mtime": 1794520917.6794446,
+    "seen": 1794598746.5452003,
+    "ast_hash": "e77ac2ef87c44e28f70f439b51b4baf3",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/swap.svg": {
+    "mtime": 1794520917.6805081,
+    "seen": 1794598746.5452018,
+    "ast_hash": "5ec046160efbb72ee153cfec93ccbf3a",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/volume-off.svg": {
+    "mtime": 1794520917.6805081,
+    "seen": 1794598746.5452027,
+    "ast_hash": "aaaba3abcf42da7ed9f593b8fbb017f4",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/volume-up.svg": {
+    "mtime": 1794520917.681061,
+    "seen": 1794598746.5452037,
+    "ast_hash": "9481ab8a15d2bd240777e18f9e236f0e",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/warning.svg": {
+    "mtime": 1794580743.0939658,
+    "seen": 1794598746.5452049,
+    "ast_hash": "e6910d233416f676828ccced287e94c7",
+    "semantic_hash": ""
+  }
+}

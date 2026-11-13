@@ -4,7 +4,7 @@ members = ["crates/emby-api", "crates/seerr-api", "crates/player", "crates/app"]
 
 [workspace.package]
 edition = "2021"
-version = "0.23.0"
+version = "0.23.1"
 
 [profile.release]
 opt-level = 3

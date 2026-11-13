@@ -419,7 +419,7 @@ pub struct LiveStream {
 pub const TICKS_PER_SEC: i64 = 10_000_000;
 
 /// Reported to the server in the auth header (shown on its dashboard).
-pub const CLIENT_NAME: &str = "Foyer";
+pub const CLIENT_NAME: &str = "Emby Theater"; // the server only offers remote control to clients it recognises; "Foyer" broke it (0.21.0)
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// How to sort/filter a library listing.
