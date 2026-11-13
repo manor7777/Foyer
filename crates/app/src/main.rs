@@ -1781,6 +1781,7 @@ impl Ctx {
             ui.set_seasons(ModelRc::new(VecModel::<SharedString>::default()));
             ui.set_episodes(ModelRc::new(VecModel::<Card>::default()));
             ui.set_season_cards(ModelRc::new(VecModel::<Card>::default()));
+            ui.set_season_play(-1);
             ui.set_detail_cast(ModelRc::new(VecModel::<Card>::default()));
             ui.set_related(ModelRc::new(VecModel::<Card>::default()));
             ui.set_info_rows(ModelRc::new(VecModel::<InfoRow>::default()));
@@ -1937,6 +1938,19 @@ impl Ctx {
                 }
             }
             let ep_cards: Vec<CardData> = episodes.iter().map(|e| episode_row(&client, e)).collect();
+            // Season Play button: the episode in progress, else the first unwatched, else the first.
+            let play_ep = if item.kind == "Season" {
+                episodes
+                    .iter()
+                    .position(|e| e.resume_ticks() > 0)
+                    .or_else(|| episodes.iter().position(|e| !e.user_data.as_ref().is_some_and(|u| u.played)))
+                    .or(if episodes.is_empty() { None } else { Some(0) })
+            } else {
+                None
+            };
+            let play_label = play_ep
+                .map(|i| format!("{} {}", if episodes[i].resume_ticks() > 0 { "Resume" } else { "Play" }, episode_tag(&episodes[i])).trim().to_string())
+                .unwrap_or_default();
             jobs.extend(season_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Season(i), u))));
             jobs.extend(ep_cards.iter().enumerate().filter_map(|(i, c)| c.image.clone().map(|u| (Slot::Episode(i), u))));
 
@@ -2093,6 +2107,8 @@ impl Ctx {
                 ui.set_season_index(season_index as i32);
                 ui.set_episodes(cards_model(&ep_cards));
                 ui.set_season_cards(cards_model(&season_cards));
+                ui.set_season_play(play_ep.map_or(-1, |i| i as i32));
+                ui.set_season_play_label(play_label.into());
                 ui.set_detail_cast(cards_model(&cast_cards));
                 ui.set_related(cards_model(&related_cards));
                 ui.set_related_offset(related_offset);

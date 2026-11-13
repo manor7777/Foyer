@@ -1262,6 +1262,9 @@ export component AppWindow inherits Window {
     callback select-audio(int);
     in property <[Card]> episodes;
     in property <[Card]> season-cards;
+    /// Season pages: index into `episodes` that Play starts (-1 = none) and its label.
+    in property <int> season-play: -1;
+    in property <string> season-play-label;
     in property <[HideRow]> hidden-rows;
     callback hide-item();
     callback cw-hide(bool);
@@ -4217,6 +4220,15 @@ export component AppWindow inherits Window {
                                 if detail.kind == "Season" || detail.kind == "Episode": PillButton {
                                     text: "Remove season from Continue Watching";
                                     clicked => { root.cw-hide(true); }
+                                }
+                            }
+                            if detail.kind == "Season" && root.season-play >= 0: HorizontalLayout {
+                                alignment: start;
+                                PillButton {
+                                    text: root.season-play-label;
+                                    icon: @image-url("icons/play.svg");
+                                    primary: true;
+                                    clicked => { root.play(root.episodes[root.season-play].id, root.episodes[root.season-play].progress > 0, false); }
                                 }
                             }
                             if detail.playable && root.audio-options.length > 1: HorizontalLayout {
