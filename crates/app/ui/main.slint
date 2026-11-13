@@ -13,7 +13,11 @@ export global Hover {
 
 /// Home-screen / grid card size multiplier (Settings > Appearance).
 export global Scale {
-    in-out property <float> factor: 1.0;
+    in-out property <float> base: 1.0;
+    in-out property <bool> auto: false;
+    in-out property <length> window-w: 1400px;
+    // Auto size shrinks cards (down to 70%) once the window is narrower than 1400px.
+    out property <float> factor: base * (auto ? clamp(window-w / 1400px, 0.7, 1.0) : 1.0);
 }
 
 export global Palette {
@@ -1407,6 +1411,9 @@ export component AppWindow inherits Window {
     callback set-close-to-tray(bool);
     in-out property <int> card-scale-index: 2;
     callback set-card-scale(int);
+    in-out property <bool> card-auto: false;
+    callback set-card-auto(bool);
+    changed width => { Scale.window-w = self.width; }
     in property <bool> following: false;
     callback toggle-follow();
     in property <[string]> fav-tabs;
@@ -2719,6 +2726,14 @@ export component AppWindow inherits Window {
                                 model: ["Smallest", "Small", "Default", "Large", "Largest"];
                                 current-index <=> root.card-scale-index;
                                 selected => { root.set-card-scale(self.current-index); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Auto-size posters";
+                            description: "Shrink posters a little when the window is small.";
+                            ToggleSwitch {
+                                checked <=> root.card-auto;
+                                toggled(c) => { root.set-card-auto(c); }
                             }
                         }
                         SettingRow {

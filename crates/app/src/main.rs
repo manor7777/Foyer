@@ -123,6 +123,8 @@ struct Config {
     /// Index into CARD_SCALES; 2 = default size.
     #[serde(default = "default_card_scale")]
     card_scale: usize,
+    #[serde(default)]
+    card_auto: bool,
     /// Last window size (physical pixels) and whether it was maximised.
     #[serde(default)]
     win_w: u32,
@@ -145,7 +147,7 @@ struct Config {
     cw_hidden: Vec<Hide>,
 }
 
-const CARD_SCALES: [f32; 5] = [0.8, 0.9, 1.0, 1.15, 1.3];
+const CARD_SCALES: [f32; 5] = [0.6, 0.8, 1.0, 1.15, 1.3];
 
 fn default_card_scale() -> usize {
     2
@@ -223,6 +225,7 @@ impl Default for Config {
             debug_logging: false,
             close_to_tray: false,
             card_scale: default_card_scale(),
+            card_auto: false,
             win_w: 0,
             win_h: 0,
             win_max: false,
@@ -1632,7 +1635,9 @@ impl Ctx {
         ui.set_hide_spoilers(s.cfg.hide_spoilers);
         ui.set_watchlist_auto(s.cfg.watchlist_autoremove);
         ui.set_card_scale_index(s.cfg.card_scale.min(CARD_SCALES.len() - 1) as i32);
-        ui.global::<Scale>().set_factor(CARD_SCALES[s.cfg.card_scale.min(CARD_SCALES.len() - 1)]);
+        ui.global::<Scale>().set_base(CARD_SCALES[s.cfg.card_scale.min(CARD_SCALES.len() - 1)]);
+        ui.global::<Scale>().set_auto(s.cfg.card_auto);
+        ui.set_card_auto(s.cfg.card_auto);
         ui.set_sr_url(s.cfg.seerr_url.clone().into());
     }
 
@@ -3990,7 +3995,14 @@ fn main() -> Result<(), slint::PlatformError> {
         let i = (i.max(0) as usize).min(CARD_SCALES.len() - 1);
         c.update_cfg(|cfg| cfg.card_scale = i);
         if let Some(ui) = c.ui.upgrade() {
-            ui.global::<Scale>().set_factor(CARD_SCALES[i]);
+            ui.global::<Scale>().set_base(CARD_SCALES[i]);
+        }
+    });
+    let c = ctx.clone();
+    ui.on_set_card_auto(move |v| {
+        c.update_cfg(|cfg| cfg.card_auto = v);
+        if let Some(ui) = c.ui.upgrade() {
+            ui.global::<Scale>().set_auto(v);
         }
     });
     let c = ctx.clone();
