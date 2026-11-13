@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "emby-api"
-version = "0.24.0"
+version = "0.24.1"
 dependencies = [
  "futures-util",
  "reqwest",
@@ -1617,7 +1617,7 @@ dependencies = [
 
 [[package]]
 name = "foyer"
-version = "0.24.0"
+version = "0.24.1"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -4310,7 +4310,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "player"
-version = "0.24.0"
+version = "0.24.1"
 dependencies = [
  "libloading 0.8.9",
 ]
@@ -5075,7 +5075,7 @@ dependencies = [
 
 [[package]]
 name = "seerr-api"
-version = "0.24.0"
+version = "0.24.1"
 dependencies = [
  "reqwest",
  "serde",

@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.24.1
+
+### 🐞 Fixes
+
+- Fixed the player freezing (stuck on "Loading…", no controls, audio only) when the server was slow to serve a subtitle. Subtitles now load in the background.
+- Space and the arrow keys work again: the player takes keyboard focus when playback starts.
+- Scroll the mouse wheel over the seek bar to scrub (about 5 seconds per notch).
+
 ## Foyer 0.24.0
 
 ### ✨ Highlights
