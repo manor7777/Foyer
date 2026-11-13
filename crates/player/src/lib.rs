@@ -88,6 +88,8 @@ pub enum Control {
     AddSubtitle { url: String, title: String, lang: String },
     /// Subtitle vertical position, mpv `sub-pos` (100 = bottom, lower = higher up).
     SubPos(i64),
+    /// Save the current frame (with subtitles) to this PNG path.
+    Screenshot(String),
 }
 
 /// Live playback state, polled a few times a second.
@@ -575,6 +577,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     Control::SelectSub(id) => {
                         run(&["set", "sid", &if id < 0 { "no".to_string() } else { id.to_string() }]);
                         tracks_due = Some(Instant::now() + Duration::from_millis(300));
+                    }
+                    Control::Screenshot(path) => {
+                        run(&["screenshot-to-file", &path, "subtitles"]);
                     }
                     Control::SubPos(p) => {
                         run(&["set", "sub-pos", &p.to_string()]);

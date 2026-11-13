@@ -3767,6 +3767,19 @@ fn main() -> Result<(), slint::PlatformError> {
             goto_episode(&c, name.as_str() == "prev");
             return;
         }
+        if name.as_str() == "screenshot" {
+            // Pictures\Foyer\Foyer-<unix secs>.png
+            let dir = std::path::PathBuf::from(std::env::var("USERPROFILE").unwrap_or_default()).join("Pictures").join("Foyer");
+            if std::fs::create_dir_all(&dir).is_ok() {
+                let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+                let path = dir.join(format!("Foyer-{t}.png")).to_string_lossy().into_owned();
+                dlog(&format!("screenshot {path}"));
+                if let Some(tx) = &c.st.lock().unwrap().player_tx {
+                    let _ = tx.send(K::Screenshot(path));
+                }
+            }
+            return;
+        }
         let (rewind, forward) = {
             let s = c.st.lock().unwrap();
             (s.cfg.rewind_secs.max(1), s.cfg.forward_secs.max(1))

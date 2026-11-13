@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/main.rs": {
-    "mtime": 1794604967.4263124,
-    "seen": 1794605030.766316,
-    "ast_hash": "a0099158ed7807f7e7edbdebe786da7b",
+    "mtime": 1794605425.8593695,
+    "seen": 1794605485.813319,
+    "ast_hash": "dfb69f4955a228fcf68b233c667cc405",
     "semantic_hash": ""
   },
   "crates/app/src/media.rs": {
@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "crates/player/src/lib.rs": {
-    "mtime": 1794604967.4251163,
-    "seen": 1794605030.76633,
-    "ast_hash": "f24036fc682f58dacdc16c4cbe640398",
+    "mtime": 1794605425.8566768,
+    "seen": 1794605485.8133438,
+    "ast_hash": "eb2c2a09a551ad425928d609e9e7c3e4",
     "semantic_hash": ""
   },
   "crates/seerr-api/Cargo.toml": {
@@ -411,6 +411,12 @@
     "mtime": 1794580743.0939658,
     "seen": 1794598746.5452049,
     "ast_hash": "e6910d233416f676828ccced287e94c7",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/camera.svg": {
+    "mtime": 1794605425.756559,
+    "seen": 1794605485.8133852,
+    "ast_hash": "9690f6be5de8280cf854b24f297401e2",
     "semantic_hash": ""
   }
 }

@@ -4990,10 +4990,6 @@ export component AppWindow inherits Window {
                 HorizontalLayout {
                     height: 40px;
                     spacing: 4px;
-                    IconButton {
-                        icon: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
-                        clicked => { root.player-key("pause"); }
-                    }
                     if root.player-has-prev: IconButton {
                         icon: @image-url("icons/skip-previous.svg");
                         clicked => { root.player-key("prev"); }
@@ -5002,6 +4998,10 @@ export component AppWindow inherits Window {
                         icon: @image-url("icons/replay.svg");
                         badge: "\{root.rewind-secs}";
                         clicked => { root.player-key("back10"); }
+                    }
+                    IconButton {
+                        icon: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                        clicked => { root.player-key("pause"); }
                     }
                     if !root.player-live: IconButton {
                         icon: @image-url("icons/forward.svg");
@@ -5079,6 +5079,10 @@ export component AppWindow inherits Window {
                             root.menu-hold = true;
                             sub-menu.show();
                         }
+                    }
+                    IconButton {
+                        icon: @image-url("icons/camera.svg");
+                        clicked => { root.player-key("screenshot"); }
                     }
                     IconButton {
                         icon: @image-url("icons/pin.svg");
