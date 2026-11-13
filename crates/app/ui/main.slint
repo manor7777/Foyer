@@ -2723,14 +2723,14 @@ export component AppWindow inherits Window {
                             description: "Scales the posters on the home screen and in lists.";
                             Dropdown {
                                 width: 230px;
-                                model: ["Smallest", "Small", "Default", "Large", "Largest"];
+                                model: root.card-auto ? ["Maximum smallest size", "Maximum small size", "Maximum default size", "Maximum large size", "Maximum largest size"] : ["Smallest", "Small", "Default", "Large", "Largest"];
                                 current-index <=> root.card-scale-index;
                                 selected => { root.set-card-scale(self.current-index); }
                             }
                         }
                         SettingRow {
                             title: "Auto-size posters";
-                            description: "Shrink posters a little when the window is small.";
+                            description: "Shrink posters when the window is small. The size above becomes the maximum; posters never grow past it.";
                             ToggleSwitch {
                                 checked <=> root.card-auto;
                                 toggled(c) => { root.set-card-auto(c); }
