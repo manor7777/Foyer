@@ -1083,12 +1083,6 @@ component Overview inherits Rectangle {
     }
 }
 
-/// Keeps a button at its natural width inside a VerticalLayout (which would stretch it across).
-component StartRow inherits HorizontalLayout {
-    alignment: start;
-    @children
-}
-
 component PillButton inherits Rectangle {
     in property <string> text;
     in property <image> icon;
