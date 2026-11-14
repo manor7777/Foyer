@@ -7,7 +7,7 @@
 **A fast, native media client for your Emby server. Glassy WinUI-style interface, mpv playback, no web view.**
 
 [![Release](https://img.shields.io/github/v/release/manor7777/Foyer?style=flat-square&color=2bb3ff)](https://github.com/manor7777/Foyer/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0a84ff?style=flat-square)](#install)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android%20%7C%20Android%20TV-0a84ff?style=flat-square)](#install)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-b7410e?style=flat-square)](https://www.rust-lang.org/)
 [![UI: Slint](https://img.shields.io/badge/UI-Slint-35a7ff?style=flat-square)](https://slint.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -33,12 +33,23 @@ Foyer is a from-scratch replacement for the old Windows desktop theatre apps: on
 
 ## Install
 
+### Windows
+
 1. Download **`Foyer.exe`** from the [latest release](https://github.com/manor7777/Foyer/releases/latest).
 2. Put it anywhere you can write to (not Program Files) and run it.
 3. First launch downloads the mpv video engine once (about 30 MB, from the LGPL builds at [zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild)). If you'd rather bring your own, drop `libmpv-2.dll` (or `mpv-1.dll`) next to `Foyer.exe`.
 4. Enter your Emby server address, sign in, and you're in. Use **Find servers** to discover one on your network. Needs an Emby server.
 
 Requires Windows 10 or 11 and a working GPU driver.
+
+### Android phone, tablet and Android TV
+
+1. Download **`Foyer.apk`** from the [latest release](https://github.com/manor7777/Foyer/releases/latest) on the device (or sideload it to a TV with a tool such as Downloader or `adb install`).
+2. Allow your browser or file manager to install apps when Android asks.
+3. One APK covers phones, tablets, and Android TV / Google TV / Chromecast with Google TV (64-bit ARM). The video engine is bundled, with hardware decoding through MediaCodec. On a TV, use the remote's arrows to move, **Select** to activate and **Back** to go back.
+4. Updates: *Settings → About → Check for updates* downloads the new APK, checks its signature and opens Android's installer. Updates only install over a copy signed with the same key, so use the APK from this project's releases.
+
+Android support is new and has had limited testing on real devices. Please report problems with the device model and Android version.
 
 ## Keys
 
@@ -78,8 +89,12 @@ You need a recent stable Rust toolchain on Windows. The binary is `target/releas
 
 ## Releasing (maintainers)
 
-Releases are cut by hand: bump `version` in `Cargo.toml`, push, then run **Actions → Release → Run workflow**. The job tests, builds, signs the checksum with the repository secret `UPDATE_SIGNING_KEY` (an ECDSA P-256 private key in PEM form) and publishes `Foyer.exe`, `Foyer.exe.sha256` and `Foyer.exe.sha256.sig`. The matching public key is built into the app.
+Releases are cut by hand: bump `version` in `Cargo.toml`, add a `## Foyer X.Y.Z` section to `CHANGELOG.md`, push, then run **Actions → Release → Run workflow**. One run builds **both** `Foyer.exe` (Windows) and `Foyer.apk` (Android and Android TV); if either build fails, nothing is published. It tests, signs each checksum with the repository secret `UPDATE_SIGNING_KEY` (an ECDSA P-256 private key in PEM form) and publishes `Foyer.exe`, `Foyer.apk` and their `.sha256` / `.sha256.sig` files. The matching public key is built into the app.
+
+The APK is signed with an Android keystore kept in the repository secrets `ANDROID_KEYSTORE_BASE64` (the `.jks` file, base64-encoded) and `ANDROID_KEYSTORE_PASSWORD`. **Back that keystore up**: Android refuses to update an app signed with a different key.
+
+The Android video engine (an LGPL build of libmpv and FFmpeg for arm64) comes from the **libmpv for Android** workflow, which runs on its own and keeps the result as a build artifact. Re-run it to pick up newer engine versions; `SOURCES.txt` inside its output lists the exact source revisions.
 
 ## Licence
 
-[MIT](LICENSE). Playback is by [mpv](https://mpv.io/) (LGPL build, downloaded at runtime and not redistributed here).
+[MIT](LICENSE). Playback is by [mpv](https://mpv.io/) (LGPL build). On Windows it is downloaded at runtime and not redistributed here. The Android APK bundles LGPL builds of libmpv and FFmpeg as separate shared libraries; the exact source revisions are listed in `SOURCES.txt` in the *libmpv for Android* workflow output, and the build recipe is `.github/workflows/libmpv-android.yml`.

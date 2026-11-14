@@ -2,6 +2,20 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.0
+
+### ✨ Highlights
+
+- **Foyer for Android and Android TV.** Every release now also publishes `Foyer.apk`: one app for phones, tablets, and Android TV / Google TV / Chromecast with Google TV. It has the same library, search, Seerr, notification centre and player as Windows, with hardware decoding through MediaCodec and a bundled LGPL libmpv.
+- **Made for touch and for a remote.** On phones and tablets controls are bigger and easier to tap. On a TV the remote's arrows move around the screen with a visible focus ring, **Select** activates, and **Back** goes back. Every control in the Windows app can now be reached and used from the keyboard too (Tab, Enter or Space), with a focus outline.
+- **Updates on Android.** *Settings → About* checks for a new version, verifies the signed checksum and opens Android's installer. Android notifications are used for new episodes, issues and replies.
+- **One build, two apps.** The release builds Windows and Android together; if either fails, nothing is published.
+
+### 🔧 Under the hood
+
+- The code is split into a shared core (`foyer-core`: settings, playback quality rules, formatting) and a platform layer for everything that differs per system. Windows behaves as before.
+- Fixed the project not building on non-Windows systems (a misplaced platform attribute).
+
 ## Foyer 0.25.1
 
 ### ✨ Highlights

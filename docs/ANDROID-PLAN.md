@@ -42,8 +42,15 @@ Status: in progress. Goal: one codebase, one release run that publishes `Foyer.e
 None of this can be tested on a device from the development machine used so far. Each step needs a real phone or TV (or an emulator) to try it.
 ## Progress
 
-- Done: OS-specific code sits behind `crates/app/src/platform` (Windows, desktop and Android backends). The app builds and tests pass on Linux.
-- Done: the app crate is a lib (`run()`, plus `android_main` on Android) and a thin desktop bin. The engine download and the exe updater are skipped on Android; the player loads a bundled `libmpv.so` and asks for MediaCodec.
-- Done: `.github/workflows/android.yml` builds a signed APK on every push and pull request; `release.yml` calls it so one run publishes `Foyer.exe` and `Foyer.apk`. It needs the secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` (back the keystore up: losing it means installs cannot update) and, for video, the repository variable `ANDROID_LIBMPV_URL`.
-- Not run on a device yet.
-- Next: a libmpv.so build for arm64, then the first APK on a device; touch layouts; Android TV focus handling; Android updater, notifications and Material You accent; splitting `lib.rs` into a core crate.
+Everything below is built by CI on every push; none of it has been run on a real device yet.
+
+- Done: OS-specific code sits behind `crates/app/src/platform` (Windows, desktop and Android backends); settings, quality rules and formatting live in `crates/core` (`foyer-core`). The app crate is a lib (`run()`, plus `android_main`) and a thin desktop bin.
+- Done: LGPL libmpv + FFmpeg (MediaCodec) for arm64 built in CI by `libmpv-android.yml` and bundled into the APK.
+- Done: Android JNI: system notifications (with the Android 13 permission), the in-app updater (signed checksum, then the system installer), the JavaVM for FFmpeg MediaCodec.
+- Done: touch tap targets, no desktop minimum window size, focus rings and Enter/Space on every control, TV remote (arrows -> Tab / Shift+Tab, Select activates, Back goes back), 25% larger cards on TV.
+- Done: `android.yml` builds a signed APK on every push and PR; `release.yml` publishes `Foyer.exe` and `Foyer.apk` together and fails as a whole if either build fails.
+- Known gaps / next:
+  - First run on a real phone and TV (expect fixes: safe-area insets, layouts below ~400 px wide, popup menus on a remote, the player controls overlay by remote).
+  - Directional (up/down) focus movement is linear (Tab order); a row-aware grid navigation would feel better on TV.
+  - Material You accent, Android Picture-in-Picture, background notifications, 32-bit ARM and x86 builds.
+  - Much of `lib.rs` (about 4,500 lines) is still UI glue that could move into the core crate.
