@@ -2933,7 +2933,7 @@ export component AppWindow inherits Window {
             if page == "settings": ScrollView {
                 mouse-drag-pan-enabled: true;
                 // never wider than the screen: rows wrap instead of pushing the page off the edge
-                viewport-width: self.visible-width;
+                content-width: self.visible-width;
                 VerticalLayout {
                     padding: Device.touch ? 14px : 28px;
                     padding-top: 20px;
