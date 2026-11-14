@@ -396,4 +396,24 @@ mod tests {
     fn embedded_key_is_a_valid_point() {
         assert!(VerifyingKey::from_sec1_bytes(&SIGNING_KEY).is_ok());
     }
+
+    /// Checks a real published release against the embedded key, the way the updater does. Skipped unless
+    /// FOYER_TEST_RELEASE_DIR points at a folder holding `<name>`, `<name>.sha256` and `<name>.sha256.sig`
+    /// downloaded from a GitHub release (for example Foyer.apk from v0.26.0).
+    #[test]
+    fn real_release_verifies() {
+        let Some(dir) = std::env::var_os("FOYER_TEST_RELEASE_DIR") else { return };
+        let dir = std::path::PathBuf::from(dir);
+        let name = std::env::var("FOYER_TEST_RELEASE_FILE").unwrap_or_else(|_| "Foyer.apk".into());
+        let sha = std::fs::read(dir.join(format!("{name}.sha256"))).unwrap();
+        let sig = std::fs::read(dir.join(format!("{name}.sha256.sig"))).unwrap();
+        check_signature(&SIGNING_KEY, &sha, &sig).expect("the published signature must verify against the embedded key");
+        let (wanted, version) = parse_checksum(&String::from_utf8_lossy(&sha)).unwrap();
+        assert!(!version.is_empty(), "the signed checksum names its version");
+        let file = dir.join(&name);
+        if file.exists() {
+            let data = std::fs::read(file).unwrap();
+            assert_eq!(hex(&Sha256::digest(&data)), wanted, "the file matches its signed checksum");
+        }
+    }
 }

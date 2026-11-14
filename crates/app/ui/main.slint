@@ -3156,7 +3156,7 @@ export component AppWindow inherits Window {
                             property <bool> stack: Scale.window-w < 700px;
                             property <length> sw: self.stack ? 26px : 30px;
                             property <length> sw-h: 24px + ceil(root.swatches.length / 8) * (self.sw + 6px);
-                            min-height: self.stack ? 16px + self.sw-h + 20px + 244px + 16px : 232px;
+                            min-height: self.stack ? 16px + self.sw-h + 20px + 244px + 16px : 16px + max(self.sw-h, 244px) + 16px;
                             Rectangle {
                                 VerticalLayout {
                                     x: 16px;
@@ -3525,7 +3525,7 @@ export component AppWindow inherits Window {
                                 toggled(c) => { root.set-update-check-on(c); }
                             }
                         }
-                        SettingRow {
+                        if Device.desktop: SettingRow {
                             title: "Install updates automatically";
                             description: "Downloads a new version in the background. It takes effect the next time you start Foyer.";
                             divider: false;

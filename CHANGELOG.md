@@ -2,7 +2,7 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
-## Foyer 0.26.1
+## Foyer 0.26.2
 
 ### ✨ Highlights
 
@@ -10,10 +10,13 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 - **Settings fit small screens.** Each setting's control now sits under its text on a phone instead of running off the edge, and the descriptions no longer overlap. Options that only make sense on Windows (tray, F11, keep on top, window material, decoding method) are hidden on Android, and notifications are labelled as system notifications.
 - **Title pages fit a phone.** On narrow screens (movie, episode and series pages, and request pages) the picture sits on top with the text and buttons underneath, and the buttons stack instead of running off the edge. The library's sort and filter menus and pop-up messages also shrink to fit.
 - **Readable menus.** The navigation bar and menu are solid on Android instead of see-through, so text over busy artwork stays legible.
+- **Material You colours on Android.** Settings → Appearance → Accent colour can follow your phone's wallpaper colour (Android 12 and newer), and does by default on a new install. The colour picker fits a phone screen.
 - **App icon on Android.**
 
 ### 🐞 Fixes
 
+- **Scrolling rows no longer fight the page.** Dragging a row of posters sideways used to scroll the whole page down if your finger drifted even slightly, which made rows hard to swipe on a phone and unreliable to drag with a mouse on Windows. A drag now goes to whichever way you are mostly moving, and rows follow your finger instead of lagging behind it. The Requests page no longer pans sideways as a whole.
+- **Requests on a phone.** The Seerr sign-in box is centred, and the Requests header, tabs and search box fit the screen (the tabs scroll sideways on their own).
 - Android player: the transport controls no longer flash black boxes as they fade in, they appear instantly, and tapping the video shows or hides them instead of pausing (use the play button to pause).
 
 ## Foyer 0.26.0
