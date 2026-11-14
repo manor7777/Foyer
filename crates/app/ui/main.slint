@@ -417,6 +417,17 @@ export global CardMenu {
     callback play(string, bool);
 }
 
+/// The signed-in Seerr user's remaining requests, shown under the tabs of every Requests page.
+export global SrQuota {
+    in-out property <bool> shown: false;
+    in-out property <string> movie-text;
+    in-out property <float> movie-frac: 1;
+    in-out property <bool> movie-limited: false;
+    in-out property <string> tv-text;
+    in-out property <float> tv-frac: 1;
+    in-out property <bool> tv-limited: false;
+}
+
 export struct HomeRowCfg {
     key: string,
     title: string,
@@ -876,6 +887,12 @@ component Panel inherits Rectangle {
     }
 }
 
+/// Keeps a button at its natural width inside a VerticalLayout (which would stretch it across).
+component StartRow inherits HorizontalLayout {
+    alignment: start;
+    @children
+}
+
 component PillButton inherits Rectangle {
     in property <string> text;
     in property <image> icon;
@@ -1001,35 +1018,106 @@ component StatusChip inherits Rectangle {
     }
 }
 
+/// One slim "requests left" pill: a status dot, the text and a thin bar that drains as requests are used.
+component QuotaChip inherits Rectangle {
+    in property <string> text;
+    in property <float> frac: 1;
+    in property <bool> limited: false;
+    property <bool> out: root.limited && root.frac <= 0;
+    property <color> tone: root.out ? #e5484d : (root.limited && root.frac <= 0.34 ? #f5a524 : Palette.accent-background);
+    height: 34px;
+    border-radius: 17px;
+    clip: true;
+    background: Palette.control-background;
+    border-width: 1px;
+    border-color: root.out ? #e5484d : Palette.border;
+    Rectangle {
+        x: 12px;
+        y: (parent.height - self.height) / 2 - 1px;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background: root.tone;
+    }
+    Text {
+        x: 30px;
+        y: 0px;
+        width: parent.width - 40px;
+        height: parent.height - 3px;
+        text: root.text;
+        color: root.out ? #e5484d : Palette.foreground;
+        font-size: 12px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    if root.limited: Rectangle {
+        y: parent.height - 4px;
+        height: 3px;
+        width: parent.width;
+        background: Palette.foreground.with-alpha(0.12);
+        Rectangle {
+            width: parent.width * clamp(root.frac, 0, 1);
+            background: root.tone;
+        }
+    }
+}
+
 component SeerrTabs inherits Rectangle {
     in property <int> current;
     in property <bool> users: false;
     callback picked(int);
-    height: 38px;
-    // The row of tabs is wider than a phone: it scrolls sideways by itself.
-    ScrollView {
-        horizontal-scrollbar-policy: always-off;
-        vertical-scrollbar-policy: always-off;
-        mouse-drag-pan-enabled: true;
-        HorizontalLayout {
-            spacing: 8px;
-            alignment: start;
-            for name[i] in (root.users ? ["Discover", "Requests", "Watchlist", "Issues", "Users"] : ["Discover", "Requests", "Watchlist", "Issues"]): Rectangle {
-                width: 112px;
-                height: 34px;
-                border-radius: 17px;
-                background: i == root.current ? Palette.accent-background : (ta.has-hover ? Palette.control-hover : Palette.control-background);
-                border-width: 1px;
-                border-color: i == root.current ? Palette.accent-background : Palette.border;
-                Text {
-                    text: name;
-                    color: i == root.current ? Palette.accent-foreground : Palette.foreground;
-                    font-weight: 600;
-                    font-size: 13px;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+    height: 38px + (SrQuota.shown ? 42px : 0px);
+    VerticalLayout {
+        spacing: 8px;
+        alignment: start;
+        Rectangle {
+            height: 34px;
+            // The row of tabs is wider than a phone: it scrolls sideways by itself.
+            ScrollView {
+                horizontal-scrollbar-policy: always-off;
+                vertical-scrollbar-policy: always-off;
+                mouse-drag-pan-enabled: true;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    for name[i] in (root.users ? ["Discover", "Requests", "Watchlist", "Issues", "Users"] : ["Discover", "Requests", "Watchlist", "Issues"]): Rectangle {
+                        width: 112px;
+                        height: 34px;
+                        border-radius: 17px;
+                        background: i == root.current ? Palette.accent-background : (ta.has-hover ? Palette.control-hover : Palette.control-background);
+                        border-width: 1px;
+                        border-color: i == root.current ? Palette.accent-background : Palette.border;
+                        Text {
+                            text: name;
+                            color: i == root.current ? Palette.accent-foreground : Palette.foreground;
+                            font-weight: 600;
+                            font-size: 13px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        ta := TouchArea { clicked => { root.picked(i); } }
+                    }
                 }
-                ta := TouchArea { clicked => { root.picked(i); } }
+            }
+        }
+        if SrQuota.shown: HorizontalLayout {
+            spacing: 8px;
+            QuotaChip {
+                text: SrQuota.movie-text;
+                frac: SrQuota.movie-frac;
+                limited: SrQuota.movie-limited;
+                horizontal-stretch: 1;
+                max-width: 280px;
+                min-width: 140px;
+            }
+            QuotaChip {
+                text: SrQuota.tv-text;
+                frac: SrQuota.tv-frac;
+                limited: SrQuota.tv-limited;
+                horizontal-stretch: 1;
+                max-width: 280px;
+                min-width: 140px;
             }
         }
     }
@@ -1657,8 +1745,9 @@ export component AppWindow inherits Window {
     property <float> nav-t: max(root.width-t, root.open-t);
     property <bool> wide-nav: root.width-t > 0.99;
     property <bool> nav-expanded: root.nav-t > 0.55;
-    /// Phones held upright: the navigation moves to a bar along the bottom (the sidebar becomes the "More" drawer).
-    property <bool> bottom-nav: Device.touch && root.height > root.width;
+    /// Phones and tablets (upright or sideways, folded or open): the navigation is a bar along the bottom
+    /// (the sidebar becomes the "More" drawer). Only desktops and TVs get the sidebar.
+    property <bool> bottom-nav: Device.touch;
     /// Height of the on-screen keyboard while it is up (0 otherwise): content is lifted above it.
     property <length> kb: root.virtual-keyboard-size.height;
     /// Space the system (navigation bar, taskbar) takes at the bottom of the window.
@@ -3854,15 +3943,7 @@ export component AppWindow inherits Window {
                     HorizontalLayout {
                         spacing: 12px;
                         Heading { text: "Requests"; }
-                        Text {
-                            text: root.sr-quota;
-                            color: Palette.foreground;
-                            opacity: 0.6;
-                            vertical-alignment: center;
-                            horizontal-alignment: right;
-                            overflow: elide;
-                            horizontal-stretch: 1;
-                        }
+                        Rectangle { horizontal-stretch: 1; }
                         Text {
                             text: root.sr-user;
                             color: Palette.foreground;
@@ -5097,23 +5178,31 @@ export component AppWindow inherits Window {
                             if root.stack-actions && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): VerticalLayout {
                                 alignment: start;
                                 spacing: 8px;
-                                if detail.kind == "Series" || detail.kind == "Movie": PillButton {
+                                if detail.kind == "Series" || detail.kind == "Movie": StartRow {
+                                    PillButton {
                                     text: "Hide";
                                     icon: @image-url("icons/close.svg");
                                     clicked => { root.hide-item(); }
+                                    }
                                 }
-                                if detail.kind != "Season": PillButton {
+                                if detail.kind != "Season": StartRow {
+                                    PillButton {
                                     text: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
                                     clicked => { root.cw-hide(false); }
+                                    }
                                 }
-                                if detail.kind == "Season" || detail.kind == "Episode": PillButton {
+                                if detail.kind == "Season" || detail.kind == "Episode": StartRow {
+                                    PillButton {
                                     text: "Remove season from Continue Watching";
                                     clicked => { root.cw-hide(true); }
+                                    }
                                 }
-                                if root.sr-connected && root.sr-can-report: PillButton {
+                                if root.sr-connected && root.sr-can-report: StartRow {
+                                    PillButton {
                                     text: "Report a problem";
                                     icon: @image-url("icons/warning.svg");
                                     clicked => { root.lib-report-issue(); }
+                                    }
                                 }
                             }
                             if detail.kind == "Series" && root.series-play-id != "": HorizontalLayout {
@@ -5600,10 +5689,10 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Phone in portrait: tabs along the bottom, like a music app.
+        // Phones and tablets: tabs along the bottom, like a music app (not wider than a comfortable bar).
         if root.bottom-nav && root.kb < 1px: Rectangle {
-            x: 12px;
-            width: parent.width - 24px;
+            width: min(parent.width - 24px, 640px);
+            x: (parent.width - self.width) / 2;
             height: 66px;
             y: parent.height - self.height - 18px - root.inset-bottom;
             border-radius: 26px;

@@ -442,20 +442,34 @@ impl Ctx {
 
     // ---------------------------------------------------------------- discover + search
 
-    /// Shows how many requests the signed-in user has left per category on the discover page.
-    fn load_sr_quota(&self) {
+    /// How many requests the signed-in user has left per category: the slim pills under the tabs
+    /// of every Requests page.
+    pub(crate) fn load_sr_quota(&self) {
         let Some((seerr, user)) = self.sr_session() else { return };
         let ctx = self.clone();
         self.rt.spawn(async move {
             let Ok(q) = seerr.user_quota(user.id).await else { return };
+            // (text, fraction left, has a limit)
             let part = |name: &str, p: &sr::QuotaPart| match (p.limit, p.remaining) {
-                (Some(l), Some(r)) if l > 0 => format!("{name}: {r} of {l} left"),
-                _ => format!("{name}: unlimited"),
+                (Some(l), Some(r)) if l > 0 => {
+                    let r = r.clamp(0, l);
+                    let text = format!("{name}: {r} of {l} left");
+                    (text, r as f32 / l as f32, true)
+                }
+                _ => (format!("{name}: unlimited"), 1.0, false),
             };
-            let text = format!("{}  ·  {}", part("Movies", &q.movie), part("Series", &q.tv));
+            let (m, t) = (part("Movie", &q.movie), part("Series", &q.tv));
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ctx.ui.upgrade() {
-                    ui.set_sr_quota(text.into());
+                    ui.set_sr_quota(format!("{}  ·  {}", m.0, t.0).into());
+                    let g = ui.global::<SrQuota>();
+                    g.set_movie_text(m.0.into());
+                    g.set_movie_frac(m.1);
+                    g.set_movie_limited(m.2);
+                    g.set_tv_text(t.0.into());
+                    g.set_tv_frac(t.1);
+                    g.set_tv_limited(t.2);
+                    g.set_shown(true);
                 }
             });
         });

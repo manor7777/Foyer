@@ -75,6 +75,17 @@ fn main() {
     }
     if page == "sr-discover" {
         ui.set_sr_quota("Movies: unlimited  ·  Series: unlimited".into());
+        {
+            use foyer::SrQuota;
+            let g = ui.global::<SrQuota>();
+            g.set_shown(true);
+            g.set_movie_text("Movie: 3 of 5 left".into());
+            g.set_movie_frac(0.6);
+            g.set_movie_limited(true);
+            g.set_tv_text("Series: 0 of 3 left".into());
+            g.set_tv_frac(0.0);
+            g.set_tv_limited(true);
+        }
         ui.set_sr_user("Norman".into());
         ui.set_sr_manage_users(true);
     }

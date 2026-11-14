@@ -2,6 +2,12 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.8
+
+- Requests: the number of requests you have left (movies and series) now shows as two slim pills under the tabs on every Requests page, not just Discover. Each has a bar that drains as you use requests, and turns amber when low and red at zero.
+- Android: phones and tablets use the bottom navigation bar in landscape too (including a foldable's inner screen), instead of the sidebar. It still sits above the system bar / taskbar.
+- Android: the "Hide", "Remove from Continue Watching" and "Report a problem" buttons stack at their natural width instead of stretching across the whole page.
+
 ## Foyer 0.26.7
 
 - Episode and movie pages get a Subtitles drop-down beside Audio. It always shows (Off at minimum), and the language you pick is remembered: it is chosen first on every other title that has it, ahead of English and the file's own default. Picking Off is remembered too. Picture-based subtitles (e.g. PGS) aren't listed here; use the player's subtitle menu for those.

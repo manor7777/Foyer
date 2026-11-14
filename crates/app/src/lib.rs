@@ -750,13 +750,25 @@ impl Ctx {
             Page::SeerrConnect => self.show_sr_connect(),
             Page::SeerrDiscover => self.show_sr_discover(),
             Page::SeerrDetail { kind, id } => self.show_sr_detail(kind, id),
-            Page::SeerrRequests => self.show_sr_requests(),
-            Page::SeerrWatchlist => self.show_sr_watchlist(),
+            Page::SeerrRequests => {
+                self.load_sr_quota();
+                self.show_sr_requests()
+            }
+            Page::SeerrWatchlist => {
+                self.load_sr_quota();
+                self.show_sr_watchlist()
+            }
             Page::SeerrBrowse { title } => self.show_sr_browse(title),
             Page::SeerrPerson { id } => self.show_sr_person(id),
-            Page::SeerrIssues => self.show_sr_issues(),
+            Page::SeerrIssues => {
+                self.load_sr_quota();
+                self.show_sr_issues()
+            }
             Page::SeerrIssue { id } => self.show_sr_issue(id),
-            Page::SeerrUsers => self.show_sr_users(),
+            Page::SeerrUsers => {
+                self.load_sr_quota();
+                self.show_sr_users()
+            }
             Page::SeerrUser { id } => self.show_sr_user(id),
             Page::Notifications => self.show_notifications(),
         }
