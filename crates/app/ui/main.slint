@@ -2203,6 +2203,7 @@ export component AppWindow inherits Window {
     in-out property <bool> hide-spoilers: false;
     callback set-hide-spoilers(bool);
     in-out property <bool> desc-icon: false;
+    in-out property <bool> desc-open: false;
     callback set-desc-icon(bool);
     in-out property <bool> watchlist-auto: false;
     callback set-watchlist-auto(bool);
@@ -5478,15 +5479,20 @@ export component AppWindow inherits Window {
                                     active: detail.favorite;
                                     clicked => { root.toggle-favorite(); }
                                 }
-                                if !root.stack-actions && (detail.playable || root.desc-icon): RoundIcon {
-                                    icon: @image-url("icons/info.svg");
+                                if !root.stack-actions && detail.playable: RoundIcon {
+                                    icon: @image-url("icons/tech.svg");
                                     active: root.info-open;
                                     clicked => { root.info-open = !root.info-open; }
+                                }
+                                if !root.stack-actions && root.desc-icon && detail.overview != "": RoundIcon {
+                                    icon: @image-url("icons/info.svg");
+                                    active: root.desc-open;
+                                    clicked => { root.desc-open = !root.desc-open; }
                                 }
                             }
                             // Narrow: the same icons and Options on a second row.
                             if root.stack-actions && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): HorizontalLayout {
-                                spacing: 10px;
+                                spacing: 6px;
                                 alignment: start;
                                 DetailMenu {
                                     can-follow: detail.kind == "Series";
@@ -5511,10 +5517,15 @@ export component AppWindow inherits Window {
                                     active: detail.favorite;
                                     clicked => { root.toggle-favorite(); }
                                 }
-                                if detail.playable || root.desc-icon: RoundIcon {
-                                    icon: @image-url("icons/info.svg");
+                                if detail.playable: RoundIcon {
+                                    icon: @image-url("icons/tech.svg");
                                     active: root.info-open;
                                     clicked => { root.info-open = !root.info-open; }
+                                }
+                                if root.desc-icon && detail.overview != "": RoundIcon {
+                                    icon: @image-url("icons/info.svg");
+                                    active: root.desc-open;
+                                    clicked => { root.desc-open = !root.desc-open; }
                                 }
                             }
                             // Audio and subtitles: two slim boxes side by side.
@@ -5562,17 +5573,23 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if root.info-open && (root.info-rows.length > 0 || (root.desc-icon && detail.overview != "")): VerticalLayout {
+                    if root.desc-open && root.desc-icon && detail.overview != "": VerticalLayout {
                         padding-left: 24px;
                         padding-right: 24px;
                         padding-bottom: 8px;
                         spacing: 8px;
-                        if root.desc-icon && detail.overview != "": Heading { text: "Overview"; }
-                        if root.desc-icon && detail.overview != "": WrapText {
+                        Heading { text: "Overview"; }
+                        WrapText {
                             text: detail.overview;
                         }
-                        if root.info-rows.length > 0: Heading { text: "Media info"; }
-                        if root.info-rows.length > 0: Rectangle {
+                    }
+                    if root.info-open && root.info-rows.length > 0: VerticalLayout {
+                        padding-left: 24px;
+                        padding-right: 24px;
+                        padding-bottom: 8px;
+                        spacing: 8px;
+                        Heading { text: "Media info"; }
+                        Rectangle {
                             background: Palette.control-background;
                             border-radius: 10px;
                             border-width: 1px;

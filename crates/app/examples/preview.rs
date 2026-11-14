@@ -91,7 +91,7 @@ fn main() {
     }
     if std::env::var("PREVIEW_DESC_ICON").is_ok() {
         ui.set_desc_icon(true);
-        ui.set_info_open(true);
+        ui.set_desc_open(true);
     }
     if std::env::var("PREVIEW_CAST").is_ok() {
         let card = |n: &str| foyer::Card { id: "x".into(), kind: "Person".into(), title: n.into(), subtitle: "Actor".into(), ..Default::default() };

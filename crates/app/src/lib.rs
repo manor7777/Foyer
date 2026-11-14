@@ -1669,6 +1669,7 @@ impl Ctx {
             ui.set_related(ModelRc::new(VecModel::<Card>::default()));
             ui.set_info_rows(ModelRc::new(VecModel::<InfoRow>::default()));
             ui.set_info_open(false);
+            ui.set_desc_open(false);
             ui.set_page("detail".into());
         }
         let ctx = self.clone();
