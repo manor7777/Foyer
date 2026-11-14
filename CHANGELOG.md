@@ -2,6 +2,17 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.5
+
+- Android: the Back button/gesture now goes to the previous page instead of closing the app (and closes the side menu first).
+- Android: the bottom tab bar clears the system navigation bar and gesture area (foldable inner screens, three-button navigation).
+- Android: the centre pause/play button is drawn as shapes, so it no longer changes appearance.
+- Android: detail pages on foldable/medium-width screens stack the picture above the text so no buttons are cut off.
+- Player: a live clock (12 or 24 hour) in the top right that slides into the corner when the controls fade; toggle in Settings. Works on both platforms.
+- Windows: resizing the picture-in-picture window keeps the opposite corner fixed.
+- Requests moved up to sit under Favourites in the navigation.
+- Android: mini player/PiP buttons stay hidden (real Android PiP needs a packaging change).
+
 ## Foyer 0.26.4
 
 ### 🐞 Fixes

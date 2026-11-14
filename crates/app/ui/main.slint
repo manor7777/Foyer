@@ -1515,7 +1515,7 @@ export component AppWindow inherits Window {
     /// Space the system (navigation bar, taskbar) takes at the bottom of the window.
     property <length> inset-bottom: root.safe-area-insets.bottom;
     /// Not enough room for a picture beside the text (phone in portrait, or a very narrow window).
-    property <bool> narrow: root.width - root.pane-width < 640px;
+    property <bool> narrow: root.width - root.pane-width < 760px;
     /// The detail page's text column is too narrow for its rows of buttons side by side: stack them.
     /// (The picture takes 320 px beside an episode's text, 180 px beside a film's; plus margins.)
     property <bool> stack-actions: root.narrow || (root.width - root.pane-width - 72px - (detail.kind == "Episode" ? 320px : 180px)) < 680px;
