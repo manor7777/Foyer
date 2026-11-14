@@ -41,6 +41,9 @@ tray-icon = "0.19"
 windows-sys = { version = "0.59", features = ["Win32_System_Registry", "Win32_Foundation", "Win32_System_Power"] }
 windows = { version = "0.62", features = ["Foundation", "Media", "Win32_Foundation", "Win32_System_WinRT"] }
 
+[target.'cfg(not(target_os = "android"))'.dev-dependencies]
+slint = { version = "1.18", features = ["software-renderer-systemfonts"] }
+
 [build-dependencies]
 slint-build = "1.18"
 embed-resource = "3"

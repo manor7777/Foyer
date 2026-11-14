@@ -8,6 +8,8 @@ import { ScrollView, Spinner, Palette as SysPalette } from "std-widgets.slint";
 export global Device {
     in property <bool> touch: false;
     in property <bool> tv: false;
+    /// Mouse and keyboard (Windows): hover effects, tray, window options.
+    out property <bool> desktop: !touch && !tv;
 }
 
 /// Hovering a poster fades the window background to that title's banner art (Settings > Appearance).
@@ -329,38 +331,42 @@ component SettingRow inherits Rectangle {
     in property <string> title;
     in property <string> description;
     in property <bool> divider: true;
-    min-height: 60px;
-    HorizontalLayout {
-        padding-left: 16px;
-        padding-right: 16px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        spacing: 16px;
-        VerticalLayout {
-            alignment: center;
-            spacing: 2px;
-            horizontal-stretch: 1;
-            Text {
-                text: root.title;
-                font-size: 14px;
-                color: Palette.foreground;
-                overflow: elide;
-            }
-            if root.description != "": Text {
-                text: root.description;
-                font-size: 12px;
-                color: Palette.foreground;
-                opacity: 0.6;
-                wrap: word-wrap;
-            }
-        }
-        VerticalLayout {
-            alignment: center;
-            HorizontalLayout {
-                spacing: 8px;
-                @children
-            }
-        }
+    /// Narrow screens (phones in portrait): the control goes under the text instead of beside it.
+    property <bool> stacked: Scale.window-w < 600px;
+    property <length> pad: 16px;
+    // Laid out by hand: a layout can't size a row from wrapped text, so the row's height is computed
+    // from the wrapped text's own height at the width it is given.
+    property <length> text-w: root.stacked ? root.width - 2 * root.pad : root.width - 2 * root.pad - ctl.preferred-width - 16px;
+    property <length> text-h: ttl.preferred-height + (root.description != "" ? 2px + dsc.preferred-height : 0px);
+    min-height: max(60px, 20px + root.text-h + (root.stacked ? 8px + ctl.preferred-height : 0px));
+    ttl := Text {
+        x: root.pad;
+        y: root.stacked ? 10px : (root.height - root.text-h) / 2;
+        width: root.text-w;
+        text: root.title;
+        font-size: 14px;
+        color: Palette.foreground;
+        overflow: elide;
+    }
+    dsc := Text {
+        x: root.pad;
+        y: ttl.y + ttl.preferred-height + 2px;
+        width: root.text-w;
+        visible: root.description != "";
+        text: root.description;
+        font-size: 12px;
+        color: Palette.foreground;
+        opacity: 0.6;
+        wrap: word-wrap;
+    }
+    ctl := HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        x: root.stacked ? root.pad : root.width - root.pad - self.preferred-width;
+        y: root.stacked ? root.height - 10px - self.preferred-height : (root.height - self.preferred-height) / 2;
+        width: self.preferred-width;
+        height: self.preferred-height;
+        @children
     }
     if root.divider: Rectangle {
         x: 16px;
@@ -1317,6 +1323,58 @@ component CardView inherits Rectangle {
     }
 }
 
+/// One tab of the bottom bar (icon over a short label).
+component TabItem inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> selected: false;
+    in property <int> badge: 0;
+    callback clicked();
+    horizontal-stretch: 1;
+    border-radius: 20px;
+    background: root.selected ? Palette.control-hover : transparent;
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px;
+        HorizontalLayout {
+            alignment: center;
+            Image {
+                source: root.icon;
+                colorize: root.selected ? Palette.accent-background : Palette.foreground;
+                width: 24px;
+                height: 24px;
+            }
+        }
+        Text {
+            text: root.label;
+            font-size: 11px;
+            color: root.selected ? Palette.accent-background : Palette.foreground;
+            opacity: root.selected ? 1.0 : 0.75;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+    }
+    if root.badge > 0: Rectangle {
+        x: parent.width / 2 + 6px;
+        y: 5px;
+        width: max(16px, bd.preferred-width + 8px);
+        height: 16px;
+        border-radius: 8px;
+        background: Palette.accent-background;
+        bd := Text {
+            text: root.badge > 99 ? "99+" : root.badge;
+            color: Palette.accent-foreground;
+            font-size: 10px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: parent.width;
+            height: parent.height;
+        }
+    }
+    TouchArea { clicked => { root.clicked(); } }
+}
+
 component NavItem inherits Rectangle {
     in property <string> label;
     in property <image> icon;
@@ -1418,7 +1476,9 @@ export component AppWindow inherits Window {
     property <float> nav-t: max(root.width-t, root.open-t);
     property <bool> wide-nav: root.width-t > 0.99;
     property <bool> nav-expanded: root.nav-t > 0.55;
-    property <length> pane-width: 76px + 168px * root.width-t;
+    /// Phones held upright: the navigation moves to a bar along the bottom (the sidebar becomes the "More" drawer).
+    property <bool> bottom-nav: Device.touch && root.height > root.width;
+    property <length> pane-width: root.bottom-nav ? 0px : 76px + 168px * root.width-t;
 
     // state
     in-out property <string> page: "login"; // login | home | grid | detail
@@ -1549,7 +1609,8 @@ export component AppWindow inherits Window {
     property <bool> controls-on: !root.mini && !root.pip && (root.controls-shown || root.player-paused || !root.player-started);
     // quick fade in, slower fade out
     property <float> controls-op: root.controls-on ? 1.0 : 0.0;
-    animate controls-op { duration: root.controls-on ? 150ms : 500ms; easing: ease-out; }
+    // no fade on touch/TV: a fading group renders as black boxes on some phone GPUs
+    animate controls-op { duration: (Device.touch || Device.tv) ? 0ms : (root.controls-on ? 150ms : 500ms); easing: ease-out; }
     in property <[TrackRow]> audio-tracks;
     in property <[TrackRow]> sub-tracks;
     in-out property <bool> menu-hold: false;
@@ -1886,7 +1947,8 @@ export component AppWindow inherits Window {
 
     // Move: show the controls. Right button: hide them, and keep them hidden briefly.
     function player-pointer(e: PointerEvent) {
-        if e.kind == PointerEventKind.move { root.poke-controls(); }
+        // a finger "moves" to where it lands; only a tap (below) should toggle the controls on touch
+        if e.kind == PointerEventKind.move && !Device.touch { root.poke-controls(); }
         else if e.kind == PointerEventKind.down && e.button == PointerEventButton.right {
             controls-shown = false;
             root.controls-lock = true;
@@ -1900,7 +1962,7 @@ export component AppWindow inherits Window {
     // quick fade between pages: drop the opacity on change, a one-shot timer then fades it back up
     property <float> page-op: 1.0;
     animate page-op { duration: 150ms; easing: ease-out; }
-    changed page => { root.page-op = 0.2; page-fade.running = true; }
+    changed page => { if Device.desktop { root.page-op = 0.2; page-fade.running = true; } }
     page-fade := Timer {
         interval: 16ms;
         running: false;
@@ -2285,6 +2347,7 @@ export component AppWindow inherits Window {
 
     if page != "login" && !full-player: Rectangle {
       HorizontalLayout {
+        padding-bottom: root.bottom-nav ? 100px : 0px;
         // room for the floating navigation
         Rectangle { width: root.pane-width; }
 
@@ -2869,8 +2932,10 @@ export component AppWindow inherits Window {
             // ---- settings ----
             if page == "settings": ScrollView {
                 mouse-drag-pan-enabled: true;
+                // never wider than the screen: rows wrap instead of pushing the page off the edge
+                viewport-width: self.visible-width;
                 VerticalLayout {
-                    padding: 28px;
+                    padding: Device.touch ? 14px : 28px;
                     padding-top: 20px;
                     spacing: 8px;
                     alignment: start;
@@ -2932,12 +2997,13 @@ export component AppWindow inherits Window {
                         SettingRow {
                             title: "Hardware decoding";
                             description: "Uses your graphics card to decode video. Turn off if you see glitches.";
+                            divider: Device.desktop;
                             ToggleSwitch {
                                 checked <=> root.hw-decode;
                                 toggled(c) => { root.set-hwdec(c); }
                             }
                         }
-                        SettingRow {
+                        if Device.desktop: SettingRow {
                             title: "Decoding method";
                             description: "If the picture looks noisy or corrupt with hardware decoding on, try another method.";
                             Dropdown {
@@ -2947,7 +3013,7 @@ export component AppWindow inherits Window {
                                 selected => { root.set-hw-mode(self.current-index); }
                             }
                         }
-                        SettingRow {
+                        if Device.desktop: SettingRow {
                             title: "Keep player on top";
                             description: "While a video is playing, keeps the window above other windows. Also a pin on the player controls.";
                             ToggleSwitch {
@@ -2955,7 +3021,7 @@ export component AppWindow inherits Window {
                                 toggled(c) => { root.set-on-top(c); }
                             }
                         }
-                        SettingRow {
+                        if Device.desktop: SettingRow {
                             title: "Close to tray";
                             description: "Closing the window keeps Foyer running in the notification area so it can keep checking for new episodes. Right-click the tray icon to quit.";
                             ToggleSwitch {
@@ -2963,7 +3029,7 @@ export component AppWindow inherits Window {
                                 toggled(c) => { root.set-close-to-tray(c); }
                             }
                         }
-                        SettingRow {
+                        if Device.desktop: SettingRow {
                             title: "Full screen";
                             description: "Press F11 any time, or double-click the video.";
                             divider: false;
@@ -3168,7 +3234,7 @@ export component AppWindow inherits Window {
                                 }
                             }
                         }
-                        SettingRow {
+                        if Device.desktop: SettingRow {
                             title: "Window material";
                             description: "Experimental. Mica and Acrylic let your Windows wallpaper and accent colour show through the window (Windows 11).";
                             divider: false;
@@ -3312,8 +3378,8 @@ export component AppWindow inherits Window {
                                 }
                             }
                             SettingRow {
-                                title: "Windows notifications";
-                                description: "Also show a Windows notification, not just the banner inside Foyer.";
+                                title: Device.desktop ? "Windows notifications" : "System notifications";
+                                description: Device.desktop ? "Also show a Windows notification, not just the banner inside Foyer." : "Also show an Android notification, not just the banner inside Foyer.";
                                 divider: false;
                                 ToggleSwitch {
                                     checked <=> root.notify-windows;
@@ -5002,10 +5068,11 @@ export component AppWindow inherits Window {
             clicked => { root.nav-open = false; }
         }
         Rectangle {
+            visible: !root.bottom-nav || root.nav-open;
             x: 10px;
             y: 10px;
             width: 56px + 168px * root.nav-t;
-            height: parent.height - 20px;
+            height: parent.height - 20px - (root.bottom-nav ? 100px : 0px);
             border-radius: 22px;
             background: Palette.nav-glass;
             border-width: 1px;
@@ -5166,6 +5233,52 @@ export component AppWindow inherits Window {
                 }
             }
         }
+
+        // Phone in portrait: tabs along the bottom, like a music app.
+        if root.bottom-nav: Rectangle {
+            x: 12px;
+            width: parent.width - 24px;
+            height: 66px;
+            y: parent.height - self.height - 18px;
+            border-radius: 26px;
+            background: Palette.nav-glass;
+            border-width: 1px;
+            border-color: Palette.glass-border;
+            HorizontalLayout {
+                padding: 6px;
+                TabItem {
+                    label: "Home";
+                    icon: @image-url("icons/home.svg");
+                    selected: root.page == "home";
+                    clicked => { root.nav-open = false; root.go-home(); }
+                }
+                TabItem {
+                    label: "Search";
+                    icon: @image-url("icons/search.svg");
+                    selected: root.page == "search";
+                    clicked => { root.nav-open = false; root.open-search(); }
+                }
+                TabItem {
+                    label: "Favourites";
+                    icon: @image-url("icons/heart.svg");
+                    selected: root.page == "grid" && root.fav-tabs.length > 0;
+                    clicked => { root.nav-open = false; root.open-favorites(); }
+                }
+                TabItem {
+                    label: "Alerts";
+                    icon: @image-url("icons/bell.svg");
+                    badge: root.unread-count;
+                    selected: root.page == "notifications";
+                    clicked => { root.nav-open = false; root.open-notifications(); }
+                }
+                TabItem {
+                    label: "More";
+                    icon: @image-url("icons/menu.svg");
+                    selected: root.nav-open;
+                    clicked => { root.nav-open = !root.nav-open; }
+                }
+            }
+        }
     }
 
     // ---------------- player ----------------
@@ -5185,7 +5298,12 @@ export component AppWindow inherits Window {
             mouse-cursor: (root.controls-shown || root.player-paused || !root.player-started) ? MouseCursor.default : MouseCursor.none;
             pointer-event(e) => { root.player-pointer(e); }
             clicked => {
-                root.video-click();
+                if Device.touch {
+                    // tap shows or hides the controls; pause is the button
+                    if root.controls-shown { root.controls-shown = false; } else { root.poke-controls(); }
+                } else {
+                    root.video-click();
+                }
             }
         }
 

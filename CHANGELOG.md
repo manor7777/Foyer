@@ -2,6 +2,18 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.1
+
+### ✨ Highlights
+
+- **Android: a proper phone layout.** Held upright, the navigation moves to a bar along the bottom (Home, Search, Favourites, Alerts, More; *More* opens the full menu with your libraries). In landscape the side bar stays.
+- **Settings fit small screens.** Each setting's control now sits under its text on a phone instead of running off the edge, and the descriptions no longer overlap. Options that only make sense on Windows (tray, F11, keep on top, window material, decoding method) are hidden on Android, and notifications are labelled as system notifications.
+- **App icon on Android.**
+
+### 🐞 Fixes
+
+- Android player: the transport controls no longer flash black boxes as they fade in, they appear instantly, and tapping the video shows or hides them instead of pausing (use the play button to pause).
+
 ## Foyer 0.26.0
 
 ### ✨ Highlights
