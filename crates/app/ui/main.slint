@@ -5511,13 +5511,33 @@ export component AppWindow inherits Window {
             background: #000000a8;
             border-width: 1px;
             border-color: #ffffff45;
-            Image {
-                source: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
-                colorize: white;
-                width: 36px;
-                height: 36px;
-                x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
+            // Drawn from plain shapes rather than the icon images: on some phones the big SVG icon drew as a
+            // solid square.
+            if !root.player-paused: Rectangle {
+                x: parent.width / 2 - 13px;
+                y: parent.height / 2 - 14px;
+                width: 8px;
+                height: 28px;
+                border-radius: 2px;
+                background: white;
+            }
+            if !root.player-paused: Rectangle {
+                x: parent.width / 2 + 5px;
+                y: parent.height / 2 - 14px;
+                width: 8px;
+                height: 28px;
+                border-radius: 2px;
+                background: white;
+            }
+            if root.player-paused: Path {
+                x: parent.width / 2 - 9px;
+                y: parent.height / 2 - 15px;
+                width: 28px;
+                height: 30px;
+                viewbox-width: 28;
+                viewbox-height: 30;
+                commands: "M 0 0 L 28 15 L 0 30 Z";
+                fill: white;
             }
             TouchArea {
                 clicked => {

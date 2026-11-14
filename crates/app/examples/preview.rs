@@ -56,6 +56,7 @@ fn main() {
         ui.set_controls_shown(std::env::var("PREVIEW_HIDE").is_err());
         ui.set_player_paused(std::env::var("PREVIEW_PAUSED").is_ok());
         ui.set_player_title("Star Trek: Discovery S1:E7 Magic to Make the Sanest Man Go Mad".into());
+        ui.set_clock_text("12:00am".into());
         ui.set_player_pos(1680.0);
         ui.set_player_dur(2849.0);
     }
