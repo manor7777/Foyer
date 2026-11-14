@@ -472,6 +472,9 @@ struct State {
     click_gen: u64,
     /// Window size / position / maximised state to go back to when leaving picture-in-picture.
     pip_saved: Option<(slint::PhysicalSize, slint::PhysicalPosition, bool)>,
+    /// Which edge or corner of the picture-in-picture window is being dragged (see `platform::drag_resize`),
+    /// so the opposite side can stay put while the window keeps the video's shape.
+    pip_dir: Option<i32>,
     lib: LibView,
     sr: SeerrState,
     /// Log of every notification Foyer has shown, newest first.
@@ -2441,6 +2444,7 @@ impl Ctx {
                 w.set_fullscreen(false);
             }
             self.st.lock().unwrap().pip_saved = Some((w.size(), w.position(), w.is_maximized()));
+            self.st.lock().unwrap().pip_dir = None;
             if w.is_maximized() {
                 w.set_maximized(false);
             }
@@ -2460,6 +2464,7 @@ impl Ctx {
             });
         } else {
             let Some((size, pos, max)) = self.st.lock().unwrap().pip_saved.take() else { return };
+            self.st.lock().unwrap().pip_dir = None;
             platform::set_decorations(w, true);
             w.set_size(size);
             w.set_position(pos);
@@ -3576,6 +3581,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
             last_click: None,
             click_gen: 0,
             pip_saved: None,
+            pip_dir: None,
             lib: LibView::default(),
             sr: SeerrState::default(),
             notes: notes::load_notes(),
@@ -4324,14 +4330,39 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     ui.on_video_click(move || c.video_click());
     let c = ctx.clone();
     ui.on_mouse_moved(move || c.mouse_moved());
-    // Like Chrome's PiP, resizing keeps the video's shape.
+    // Like Chrome's PiP, resizing keeps the video's shape, and the side opposite the one you drag stays
+    // where it is (dragging the top-left corner moves only the top-left corner).
     let weak = ui.as_weak();
+    let c = ctx.clone();
     ui.on_pip_resized(move || {
         let Some(ui) = weak.upgrade() else { return };
-        let s = ui.window().size();
-        let h = (s.width as f32 / ui.get_video_aspect().max(0.2)) as u32;
-        if ui.get_pip() && h.abs_diff(s.height) > 2 {
-            ui.window().set_size(slint::PhysicalSize::new(s.width, h));
+        if !ui.get_pip() {
+            return;
+        }
+        let w = ui.window();
+        let s = w.size();
+        let aspect = ui.get_video_aspect().max(0.2);
+        let dir = c.st.lock().unwrap().pip_dir;
+        match dir {
+            // Top or bottom edge: the height decides, the width follows.
+            Some(0) | Some(1) => {
+                let tw = (s.height as f32 * aspect).round() as u32;
+                if tw.abs_diff(s.width) > 2 {
+                    w.set_size(slint::PhysicalSize::new(tw, s.height));
+                }
+            }
+            // Anything else: the width decides, the height follows. Dragging a top corner moves the top
+            // edge, so shift the window to keep its bottom edge where it was.
+            _ => {
+                let th = (s.width as f32 / aspect).round() as u32;
+                if th.abs_diff(s.height) > 2 {
+                    let p = w.position();
+                    w.set_size(slint::PhysicalSize::new(s.width, th));
+                    if matches!(dir, Some(4) | Some(5)) {
+                        w.set_position(slint::PhysicalPosition::new(p.x, p.y + s.height as i32 - th as i32));
+                    }
+                }
+            }
         }
     });
     let c = ctx.clone();
@@ -4343,8 +4374,10 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
         }
     });
     let weak = ui.as_weak();
+    let c = ctx.clone();
     ui.on_pip_resize(move |dir| {
         if let Some(ui) = weak.upgrade() {
+            c.st.lock().unwrap().pip_dir = Some(dir);
             platform::drag_resize(ui.window(), dir);
         }
     });

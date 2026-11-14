@@ -1294,7 +1294,7 @@ component CardView inherits Rectangle {
             if (self.has-hover) { Hover.entered(root.card.id, root.card.kind); } else { Hover.left(); }
         }
         clicked => {
-            fs.focus();
+            if (!Device.touch) { fs.focus(); }
             root.clicked();
         }
     }
@@ -1473,7 +1473,7 @@ component NavItem inherits Rectangle {
         border-width: fs.has-focus ? 2px : 0px;
         border-color: Palette.accent-background;
     }
-    nta := TouchArea { enabled: root.enabled; clicked => { fs.focus(); root.clicked(); } }
+    nta := TouchArea { enabled: root.enabled; clicked => { if (!Device.touch) { fs.focus(); } root.clicked(); } }
 }
 
 component Heading inherits Text {
@@ -1512,6 +1512,8 @@ export component AppWindow inherits Window {
     property <bool> bottom-nav: Device.touch && root.height > root.width;
     /// Height of the on-screen keyboard while it is up (0 otherwise): content is lifted above it.
     property <length> kb: root.virtual-keyboard-size.height;
+    /// Space the system (navigation bar, taskbar) takes at the bottom of the window.
+    property <length> inset-bottom: root.safe-area-insets.bottom;
     /// Not enough room for a picture beside the text (phone in portrait, or a very narrow window).
     property <bool> narrow: root.width - root.pane-width < 640px;
     property <length> pane-width: root.bottom-nav ? 0px : 76px + 168px * root.width-t;
@@ -2021,6 +2023,15 @@ export component AppWindow inherits Window {
         if root.playing { root-focus.focus(); }
         root.playing-changed(root.playing);
     }
+    // Phones: if focus ends up somewhere that doesn't pass keys on, Android sees Back as unhandled and
+    // leaves the app. Put focus back on the root handler (not while the keyboard is typing into a field).
+    refocus := Timer {
+        interval: 300ms;
+        running: Device.touch;
+        triggered => {
+            if !root-focus.has-focus && root.kb < 1px { root-focus.focus(); }
+        }
+    }
     root-focus := FocusScope {
         key-pressed(e) => {
             if root.message-open {
@@ -2052,6 +2063,10 @@ export component AppWindow inherits Window {
             }
             if e.text == Key.F11 {
                 root.full-screen = !root.full-screen;
+                return accept;
+            }
+            if e.text == Key.Back && root.nav-open && !root.wide-nav {
+                root.nav-open = false;
                 return accept;
             }
             if (e.text == Key.Escape || e.text == Key.Backspace || e.text == Key.Back || (e.modifiers.alt && e.text == Key.LeftArrow)) && root.can-go-back && !root.full-player {
@@ -2392,7 +2407,7 @@ export component AppWindow inherits Window {
 
     if page != "login" && !full-player: Rectangle {
       HorizontalLayout {
-        padding-bottom: root.kb > 1px ? root.kb : (root.bottom-nav ? 100px : 0px);
+        padding-bottom: root.kb > 1px ? root.kb : (root.bottom-nav ? 100px + root.inset-bottom : root.inset-bottom);
         // room for the floating navigation
         Rectangle { width: root.pane-width; }
 
@@ -5211,7 +5226,7 @@ export component AppWindow inherits Window {
             x: 10px;
             y: 10px;
             width: 56px + 168px * root.nav-t;
-            height: parent.height - 20px - (root.bottom-nav ? 100px : 0px);
+            height: parent.height - 20px - root.inset-bottom - (root.bottom-nav ? 100px : 0px);
             border-radius: 22px;
             background: Palette.nav-glass;
             border-width: 1px;
@@ -5378,7 +5393,7 @@ export component AppWindow inherits Window {
             x: 12px;
             width: parent.width - 24px;
             height: 66px;
-            y: parent.height - self.height - 18px;
+            y: parent.height - self.height - 18px - root.inset-bottom;
             border-radius: 26px;
             background: Palette.nav-glass;
             border-width: 1px;
