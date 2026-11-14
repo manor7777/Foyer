@@ -5,6 +5,7 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 ## Foyer 0.26.9
 
 - Detail pages (movie, episode, series, season): fixed the description and the buttons sliding under the Cast & crew row on foldables and other mid-width screens. The header now measures its wrapped text (title, details, description) at its real width instead of assuming one line.
+- Long descriptions collapse to five lines with a Read more / Show less toggle, so the header stays a sensible height however much text the server has.
 - Requests tabs: on phones and tablets the tab row is now a drop-down (Discover, Requests, Watchlist, Issues, Users), since a sideways-scrolling row hid the tabs that were off screen. Desktop keeps the tab row.
 
 ## Foyer 0.26.8

@@ -907,6 +907,54 @@ component WrapText inherits Rectangle {
     }
 }
 
+/// A long description: at most five lines, with a Read more / Show less toggle, so the header
+/// stays a sensible height however much text the server has.
+component Overview inherits Rectangle {
+    in property <string> text;
+    property <bool> open: false;
+    property <length> line-h: probe.preferred-height;
+    property <length> full-h: t.preferred-height;
+    property <length> clamp-h: root.line-h * 5;
+    property <bool> long: root.full-h > root.clamp-h + 2px;
+    changed text => { root.open = false; }
+    height: (root.long && !root.open ? root.clamp-h : root.full-h) + (root.long ? 30px : 0px);
+    probe := Text { text: "Ag"; visible: false; width: 100px; }
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: root.long && !root.open ? root.clamp-h : root.full-h;
+        clip: true;
+        t := Text {
+            y: 0px;
+            width: parent.width;
+            text: root.text;
+            color: Palette.foreground;
+            wrap: word-wrap;
+        }
+    }
+    if root.long: Rectangle {
+        y: parent.height - 30px;
+        height: 30px;
+        width: 130px;
+        x: 0px;
+        Text {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            text: root.open ? "Show less" : "Read more";
+            color: Palette.accent-background;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+        TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.open = !root.open; }
+        }
+    }
+}
+
 /// Keeps a button at its natural width inside a VerticalLayout (which would stretch it across).
 component StartRow inherits HorizontalLayout {
     alignment: start;
@@ -5361,7 +5409,7 @@ export component AppWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                             }
-                            WrapText {
+                            Overview {
                                 text: detail.overview;
                             }
                         }

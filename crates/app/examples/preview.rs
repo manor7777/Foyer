@@ -36,7 +36,7 @@ fn main() {
             subtitle: "Star Trek: Discovery S1:E6".into(),
             meta: "7.3 · 21 Oct 2017 · 44m · Ends at 15:29".into(),
             summary: "1080p H264 · English EAC3 5.1 (Default) · 2 subtitle tracks".into(),
-            overview: "Burnham and Sarek are stranded after a mission goes wrong; Lorca discovers a connection with a stranger who knows far more about the ship than he lets on, and tensions across the crew boil over as the Discovery races to reach them in time.".into(),
+            overview: "Burnham and Sarek are stranded after a mission goes wrong; Lorca discovers a connection with a stranger who knows far more about the ship than he lets on, and tensions across the crew boil over as the Discovery races to reach them in time.".repeat(if std::env::var("PREVIEW_LONG").is_ok() { 5 } else { 1 }).into(),
             playable: true,
             can_resume: true,
             progress: 0.3,
