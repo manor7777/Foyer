@@ -89,6 +89,24 @@ fn main() {
         ui.set_sr_user("Norman".into());
         ui.set_sr_manage_users(true);
     }
+    if std::env::var("PREVIEW_CAST").is_ok() {
+        let card = |n: &str| foyer::Card { id: "x".into(), kind: "Person".into(), title: n.into(), subtitle: "Actor".into(), ..Default::default() };
+        let cards: Vec<foyer::Card> = ["Ann", "Bo", "Cy", "Di", "Ed", "Flo", "Gus"].iter().map(|n| card(n)).collect();
+        ui.set_detail_cast(slint::ModelRc::new(slint::VecModel::from(cards)));
+    }
+    if std::env::var("PREVIEW_REPORT").is_ok() {
+        use foyer::PickRow;
+        let rows = |v: &[(&str, bool)]| slint::ModelRc::new(slint::VecModel::from(v.iter().map(|(l, on)| PickRow { label: (*l).into(), on: *on }).collect::<Vec<_>>()));
+        ui.set_sr_report_title("Star Trek: Discovery".into());
+        ui.set_sr_report_tv(true);
+        ui.set_sr_report_kinds(rows(&[("Video", true), ("Audio", true), ("Subtitles", false), ("Other", false)]));
+        ui.set_sr_report_kinds_text("Video, Audio".into());
+        ui.set_sr_report_seasons(slint::ModelRc::new(slint::VecModel::from(vec![slint::SharedString::from("All seasons"), "Season 1".into(), "Season 2".into()])));
+        ui.set_sr_report_season_index(1);
+        ui.set_sr_report_eps(rows(&[("Episode 1", false), ("Episode 2", true), ("Episode 3", true), ("Episode 4", false)]));
+        ui.set_sr_report_eps_text("Episodes 2-3".into());
+        ui.set_sr_report_open(true);
+    }
     if std::env::var("PREVIEW_NAV_OPEN").is_ok() {
         ui.set_nav_open(true);
     }

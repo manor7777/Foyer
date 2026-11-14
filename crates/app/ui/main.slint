@@ -13,6 +13,12 @@ export global Device {
 }
 
 /// Hovering a poster fades the window background to that title's banner art (Settings > Appearance).
+/// One choice in a multi-select drop-down.
+export struct PickRow {
+    label: string,
+    on: bool,
+}
+
 export global Hover {
     in-out property <image> image;
     in-out property <bool> active: false;
@@ -313,6 +319,124 @@ component Dropdown inherits Rectangle {
                                 root.selected(t);
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A drop-down where several choices can be ticked (the list stays open while you tick).
+component MultiSelect inherits Rectangle {
+    in property <[PickRow]> rows;
+    in property <string> summary;
+    in property <bool> show-all: false;
+    callback toggled(int);
+    callback set-all(bool);
+    property <length> row-h: Device.touch ? 46px : 32px;
+    min-width: 140px;
+    height: Device.touch ? 44px : 32px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Palette.border;
+    background: ta.has-hover ? Palette.control-hover : Palette.control-background;
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 10px;
+        spacing: 8px;
+        Text {
+            text: root.summary;
+            color: Palette.foreground;
+            font-size: 13px;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+        Image {
+            source: @image-url("icons/chevron-down.svg");
+            colorize: Palette.foreground;
+            width: 12px;
+            height: 12px;
+            y: (parent.height - self.height) / 2;
+            opacity: 0.7;
+        }
+    }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { pop.show(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: 4px;
+        border-width: fs.has-focus ? 2px : 0px;
+        border-color: Palette.accent-background;
+    }
+    ta := TouchArea { clicked => { pop.show(); } }
+    pop := PopupWindow {
+        close-policy: close-on-click-outside;
+        x: 0px;
+        y: root.height + 2px;
+        width: max(root.width, 220px);
+        height: min(340px, (root.rows.length + (root.show-all ? 1 : 0)) * root.row-h + 12px);
+        Rectangle {
+            background: Palette.alternate-background;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: Palette.border;
+            ScrollView {
+                VerticalLayout {
+                    padding: 6px;
+                    spacing: 0px;
+                    if root.show-all: HorizontalLayout {
+                        height: root.row-h;
+                        spacing: 8px;
+                        Rectangle {
+                            border-radius: 4px;
+                            background: all-ta.has-hover ? Palette.control-hover : transparent;
+                            Text { text: "Select all"; color: Palette.accent-background; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            all-ta := TouchArea { clicked => { root.set-all(true); } }
+                        }
+                        Rectangle {
+                            border-radius: 4px;
+                            background: none-ta.has-hover ? Palette.control-hover : transparent;
+                            Text { text: "Clear"; color: Palette.accent-background; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            none-ta := TouchArea { clicked => { root.set-all(false); } }
+                        }
+                    }
+                    for r[i] in root.rows: Rectangle {
+                        height: root.row-h;
+                        border-radius: 4px;
+                        background: ra.has-hover ? Palette.control-hover : transparent;
+                        Rectangle {
+                            x: 10px;
+                            y: (parent.height - self.height) / 2;
+                            width: 20px;
+                            height: 20px;
+                            border-radius: 4px;
+                            border-width: 2px;
+                            border-color: r.on ? Palette.accent-background : Palette.foreground.with-alpha(0.5);
+                            background: r.on ? Palette.accent-background : transparent;
+                            if r.on: Text {
+                                text: "✓";
+                                color: Palette.accent-foreground;
+                                font-size: 13px;
+                                font-weight: 700;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Text {
+                            x: 42px;
+                            width: parent.width - 52px;
+                            height: parent.height;
+                            text: r.label;
+                            color: Palette.foreground;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        ra := TouchArea { clicked => { root.toggled(i); } }
                     }
                 }
             }
@@ -1332,6 +1456,77 @@ component CardMenuRow inherits Rectangle {
     ra := TouchArea { clicked => { root.clicked(); } }
 }
 
+/// "Options" on a detail page: the occasional actions (follow, hide, remove from Continue Watching,
+/// report a problem) in one menu instead of a stack of buttons.
+component DetailMenu inherits Rectangle {
+    in property <bool> can-follow: false;
+    in property <bool> following: false;
+    in property <bool> can-hide: false;
+    in property <bool> can-cw: false;
+    in property <string> cw-label;
+    in property <bool> can-cw-season: false;
+    in property <bool> can-report: false;
+    callback follow();
+    callback hide();
+    callback cw(bool);
+    callback report();
+    property <length> row-h: Device.touch ? 50px : 36px;
+    property <int> rows: (root.can-follow ? 1 : 0) + (root.can-hide ? 1 : 0) + (root.can-cw ? 1 : 0) + (root.can-cw-season ? 1 : 0) + (root.can-report ? 1 : 0);
+    height: 40px;
+    width: btn.preferred-width;
+    btn := PillButton {
+        text: "Options";
+        icon: @image-url("icons/chevron-down.svg");
+        clicked => { pop.show(); }
+    }
+    pop := PopupWindow {
+        close-policy: close-on-click;
+        x: 0px;
+        y: root.height + 4px;
+        width: 300px;
+        height: root.rows * (root.row-h + 2px) + 16px;
+        Rectangle {
+            background: Palette.alternate-background;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: Palette.border;
+            drop-shadow-blur: 16px;
+            drop-shadow-color: #00000088;
+            VerticalLayout {
+                padding: 8px;
+                spacing: 2px;
+                alignment: start;
+                if root.can-follow: CardMenuRow {
+                    label: root.following ? "Stop notifying me" : "Notify me of new episodes";
+                    icon: @image-url("icons/bell.svg");
+                    on: root.following;
+                    clicked => { root.follow(); }
+                }
+                if root.can-hide: CardMenuRow {
+                    label: "Hide";
+                    icon: @image-url("icons/close.svg");
+                    clicked => { root.hide(); }
+                }
+                if root.can-cw: CardMenuRow {
+                    label: root.cw-label;
+                    icon: @image-url("icons/close.svg");
+                    clicked => { root.cw(false); }
+                }
+                if root.can-cw-season: CardMenuRow {
+                    label: "Remove season from Continue Watching";
+                    icon: @image-url("icons/close.svg");
+                    clicked => { root.cw(true); }
+                }
+                if root.can-report: CardMenuRow {
+                    label: "Report a problem";
+                    icon: @image-url("icons/warning.svg");
+                    clicked => { root.report(); }
+                }
+            }
+        }
+    }
+}
+
 component CardView inherits Rectangle {
     in property <Card> card;
     in property <bool> wide: false;
@@ -2110,10 +2305,13 @@ export component AppWindow inherits Window {
     callback set-notify-my-issues(bool);
     in-out property <bool> sr-request-open: false;
     in-out property <bool> sr-report-open: false;
-    in-out property <int> sr-report-type: 0;
+    in property <[PickRow]> sr-report-kinds;
+    in property <string> sr-report-kinds-text;
+    in property <[string]> sr-report-seasons;
+    in-out property <int> sr-report-season-index: 0;
+    in property <[PickRow]> sr-report-eps;
+    in property <string> sr-report-eps-text;
     in-out property <string> sr-report-text;
-    in-out property <string> sr-report-season;
-    in-out property <string> sr-report-episode;
     in property <bool> sr-report-tv: false;
     in property <string> sr-report-title;
     property <bool> in-seerr: root.page == "sr-discover" || root.page == "sr-detail" || root.page == "sr-requests" || root.page == "sr-watchlist" || root.page == "sr-person" || root.page == "sr-browse" || root.page == "sr-issues" || root.page == "sr-issue" || root.page == "sr-connect";
@@ -2132,6 +2330,10 @@ export component AppWindow inherits Window {
     callback sr-season-toggled(int, bool);
     callback sr-report-start();
     callback sr-report-submit();
+    callback sr-report-toggle-kind(int);
+    callback sr-report-pick-season(int);
+    callback sr-report-toggle-ep(int);
+    callback sr-report-all-eps(bool);
     callback lib-report-issue();
     callback sr-req-filter-changed(int);
     callback sr-req-load-more();
@@ -5148,7 +5350,7 @@ export component AppWindow inherits Window {
                             x: root.narrow ? 24px : 24px + hero-poster.width + 24px;
                             y: root.narrow ? hero-poster.y + hero-poster.height + 16px : 50px;
                             width: parent.width - self.x - 24px;
-                            height: root.narrow ? self.preferred-height : 350px;
+                            height: self.preferred-height;
                             spacing: 8px;
                             alignment: start;
                             if detail.logo.width > 0: HorizontalLayout {
@@ -5216,65 +5418,20 @@ export component AppWindow inherits Window {
                                 font-size: 12px;
                                 text-opacity: 0.65;
                             }
-                            if detail.kind == "Series": HorizontalLayout {
+                            if detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode": HorizontalLayout {
                                 alignment: start;
-                                PillButton {
-                                    text: root.following ? "Following" : "Notify me of new episodes";
-                                    icon: @image-url("icons/bell.svg");
-                                    primary: root.following;
-                                    clicked => { root.toggle-follow(); }
-                                }
-                            }
-                            if !root.stack-actions && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): HorizontalLayout {
-                                alignment: start;
-                                spacing: 8px;
-                                if detail.kind == "Series" || detail.kind == "Movie": PillButton {
-                                    text: "Hide";
-                                    icon: @image-url("icons/close.svg");
-                                    clicked => { root.hide-item(); }
-                                }
-                                if detail.kind != "Season": PillButton {
-                                    text: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
-                                    clicked => { root.cw-hide(false); }
-                                }
-                                if detail.kind == "Season" || detail.kind == "Episode": PillButton {
-                                    text: "Remove season from Continue Watching";
-                                    clicked => { root.cw-hide(true); }
-                                }
-                                if root.sr-connected && root.sr-can-report: PillButton {
-                                    text: "Report a problem";
-                                    icon: @image-url("icons/warning.svg");
-                                    clicked => { root.lib-report-issue(); }
-                                }
-                            }
-                            if root.stack-actions && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): VerticalLayout {
-                                alignment: start;
-                                spacing: 8px;
-                                if detail.kind == "Series" || detail.kind == "Movie": StartRow {
-                                    PillButton {
-                                    text: "Hide";
-                                    icon: @image-url("icons/close.svg");
-                                    clicked => { root.hide-item(); }
-                                    }
-                                }
-                                if detail.kind != "Season": StartRow {
-                                    PillButton {
-                                    text: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
-                                    clicked => { root.cw-hide(false); }
-                                    }
-                                }
-                                if detail.kind == "Season" || detail.kind == "Episode": StartRow {
-                                    PillButton {
-                                    text: "Remove season from Continue Watching";
-                                    clicked => { root.cw-hide(true); }
-                                    }
-                                }
-                                if root.sr-connected && root.sr-can-report: StartRow {
-                                    PillButton {
-                                    text: "Report a problem";
-                                    icon: @image-url("icons/warning.svg");
-                                    clicked => { root.lib-report-issue(); }
-                                    }
+                                DetailMenu {
+                                    can-follow: detail.kind == "Series";
+                                    following: root.following;
+                                    can-hide: detail.kind == "Series" || detail.kind == "Movie";
+                                    can-cw: detail.kind != "Season";
+                                    cw-label: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
+                                    can-cw-season: detail.kind == "Season" || detail.kind == "Episode";
+                                    can-report: root.sr-connected && root.sr-can-report;
+                                    follow => { root.toggle-follow(); }
+                                    hide => { root.hide-item(); }
+                                    cw(season) => { root.cw-hide(season); }
+                                    report => { root.lib-report-issue(); }
                                 }
                             }
                             if detail.kind == "Series" && root.series-play-id != "": HorizontalLayout {
@@ -6547,8 +6704,10 @@ export component AppWindow inherits Window {
         TouchArea { }
         VerticalLayout {
             alignment: center;
+            HorizontalLayout {
+                alignment: center;
             Rectangle {
-                width: min(520px, parent.width - 32px);
+                width: min(520px, root.width - 32px);
                 height: rp-col.preferred-height;
                 background: Palette.alternate-background;
                 border-radius: 16px;
@@ -6568,25 +6727,29 @@ export component AppWindow inherits Window {
                         color: Palette.foreground;
                         opacity: 0.7;
                     }
-                    Dropdown {
-                        model: ["Video", "Audio", "Subtitles", "Other"];
-                        current-index <=> root.sr-report-type;
+                    Text { text: "Problem"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
+                    MultiSelect {
+                        rows: root.sr-report-kinds;
+                        summary: root.sr-report-kinds-text;
+                        toggled(i) => { root.sr-report-toggle-kind(i); }
                     }
-                    if root.sr-report-tv: HorizontalLayout {
-                        spacing: 8px;
-                        LineEdit {
-                            placeholder-text: "Season (optional)";
-                            text <=> root.sr-report-season;
-                            horizontal-stretch: 1;
-                        }
-                        LineEdit {
-                            placeholder-text: "Episode (optional)";
-                            text <=> root.sr-report-episode;
-                            horizontal-stretch: 1;
-                        }
+                    if root.sr-report-tv: Text { text: "Season"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
+                    if root.sr-report-tv: Dropdown {
+                        model: root.sr-report-seasons;
+                        current-index: root.sr-report-season-index;
+                        selected => { root.sr-report-pick-season(self.current-index); }
                     }
+                    if root.sr-report-tv && root.sr-report-eps.length > 0: Text { text: "Episodes"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
+                    if root.sr-report-tv && root.sr-report-eps.length > 0: MultiSelect {
+                        rows: root.sr-report-eps;
+                        summary: root.sr-report-eps-text;
+                        show-all: true;
+                        toggled(i) => { root.sr-report-toggle-ep(i); }
+                        set-all(on) => { root.sr-report-all-eps(on); }
+                    }
+                    Text { text: "What is wrong?"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
                     LineEdit {
-                        placeholder-text: "What is wrong?";
+                        placeholder-text: "Describe the problem";
                         text <=> root.sr-report-text;
                         accepted => { root.sr-report-submit(); }
                     }
@@ -6604,6 +6767,7 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+            }
             }
         }
     }

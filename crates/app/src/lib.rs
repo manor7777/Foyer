@@ -3994,6 +3994,14 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let c = ctx.clone();
     ui.on_sr_report_submit(move || c.sr_report_submit());
     let c = ctx.clone();
+    ui.on_sr_report_toggle_kind(move |i| c.report_toggle_kind(i.max(0) as usize));
+    let c = ctx.clone();
+    ui.on_sr_report_pick_season(move |i| c.report_pick_season(i.max(0) as usize));
+    let c = ctx.clone();
+    ui.on_sr_report_toggle_ep(move |i| c.report_toggle_ep(i.max(0) as usize));
+    let c = ctx.clone();
+    ui.on_sr_report_all_eps(move |on| c.report_all_eps(on));
+    let c = ctx.clone();
     ui.on_lib_report_issue(move || c.report_from_library());
     let c = ctx.clone();
     ui.on_sr_req_filter_changed(move |i| c.sr_req_filter(i));

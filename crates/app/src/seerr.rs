@@ -21,6 +21,16 @@ pub struct DetailCtx {
     pub tmdb: i64,
     pub media_id: i64,
     pub title: String,
+    /// (season number, episode count) for a series, so the report dialog can list them.
+    pub seasons: Vec<(i32, i32)>,
+}
+
+/// The Report a problem dialog: which kinds of problem, which season, which episodes.
+#[derive(Default)]
+pub struct ReportState {
+    pub kinds: [bool; 4],
+    pub season_idx: usize,
+    pub eps: Vec<bool>,
 }
 
 
@@ -159,6 +169,7 @@ pub struct SeerrState {
     pub issue_loaded: usize,
     pub issue_open: i64,
     pub detail: Option<DetailCtx>,
+    pub report: ReportState,
     pub library_id: Option<String>,
     pub titles: HashMap<(String, i64), TitleInfo>,
     /// "View all" page: which discover list, last page loaded, total pages, cards shown.
@@ -725,7 +736,7 @@ impl Ctx {
             let title = d.display_title();
             {
                 let mut s = ctx.st.lock().unwrap();
-                s.sr.detail = Some(DetailCtx { kind: kind.clone(), tmdb: id, media_id: info.id, title: title.clone() });
+                s.sr.detail = Some(DetailCtx { kind: kind.clone(), tmdb: id, media_id: info.id, title: title.clone(), seasons: d.seasons.iter().map(|x| (x.season_number, x.episode_count.unwrap_or(0))).collect() });
                 s.sr.library_id = library_id.clone();
             }
             let detail = DetailData {
@@ -1400,12 +1411,11 @@ impl Ctx {
             self.sr_notify("Can't report yet", "Seerr doesn't track this title yet. Request it first, or report it once it's available.");
             return;
         }
-        ui.set_sr_report_title(d.title.into());
+        ui.set_sr_report_title(d.title.clone().into());
         ui.set_sr_report_tv(d.kind == "tv");
-        ui.set_sr_report_type(0);
         ui.set_sr_report_text("".into());
-        ui.set_sr_report_season("".into());
-        ui.set_sr_report_episode("".into());
+        self.report_reset(&d, 0, &[]);
+        self.report_sync(&ui);
         ui.set_sr_report_open(true);
     }
 
@@ -1456,49 +1466,169 @@ impl Ctx {
                 return fail(&ctx, "Seerr doesn't know this title yet.");
             }
             let title = d.display_title();
-            ctx.st.lock().unwrap().sr.detail = Some(DetailCtx { kind: kind.to_string(), tmdb, media_id, title: title.clone() });
+            ctx.st.lock().unwrap().sr.detail = Some(DetailCtx { kind: kind.to_string(), tmdb, media_id, title: title.clone(), seasons: d.seasons.iter().map(|x| (x.season_number, x.episode_count.unwrap_or(0))).collect() });
             let ctx2 = ctx.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ctx2.ui.upgrade() {
-                    ui.set_sr_report_title(title.into());
+                    ui.set_sr_report_title(title.clone().into());
                     ui.set_sr_report_tv(kind == "tv");
-                    ui.set_sr_report_type(0);
                     ui.set_sr_report_text("".into());
-                    ui.set_sr_report_season(if season > 0 { season.to_string() } else { String::new() }.into());
-                    ui.set_sr_report_episode(if episode > 0 { episode.to_string() } else { String::new() }.into());
+                    if let Some(d) = ctx2.st.lock().unwrap().sr.detail.clone() {
+                        ctx2.report_reset(&d, season, &if episode > 0 { vec![episode] } else { Vec::new() });
+                    }
+                    ctx2.report_sync(&ui);
                     ui.set_sr_report_open(true);
                 }
             });
         });
     }
 
+    /// Fills the dialog's choices for a title: nothing ticked except Video, and the season / episodes
+    /// it was opened on (from a season or episode page) if any.
+    fn report_reset(&self, d: &DetailCtx, season: i32, episodes: &[i32]) {
+        let mut s = self.st.lock().unwrap();
+        let r = &mut s.sr.report;
+        r.kinds = [true, false, false, false];
+        r.season_idx = d.seasons.iter().filter(|x| x.0 > 0).position(|x| x.0 == season).map_or(0, |p| p + 1);
+        r.eps = Vec::new();
+        if r.season_idx > 0 {
+            let count = d.seasons.iter().filter(|x| x.0 > 0).nth(r.season_idx - 1).map_or(0, |x| x.1).max(0) as usize;
+            r.eps = (1..=count).map(|e| episodes.contains(&(e as i32))).collect();
+        }
+    }
+
+    /// Pushes the dialog state (choices, ticks and the summaries shown on the drop-downs) to the UI.
+    fn report_sync(&self, ui: &AppWindow) {
+        let s = self.st.lock().unwrap();
+        let (Some(d), r) = (&s.sr.detail, &s.sr.report) else { return };
+        const KINDS: [&str; 4] = ["Video", "Audio", "Subtitles", "Other"];
+        let rows = |labels: Vec<String>, on: Vec<bool>| ModelRc::new(VecModel::from(labels.into_iter().zip(on).map(|(label, on)| PickRow { label: label.into(), on }).collect::<Vec<_>>()));
+        ui.set_sr_report_kinds(rows(KINDS.iter().map(|k| k.to_string()).collect(), r.kinds.to_vec()));
+        let picked: Vec<&str> = KINDS.iter().zip(r.kinds).filter(|(_, on)| *on).map(|(k, _)| *k).collect();
+        ui.set_sr_report_kinds_text(if picked.is_empty() { "Choose a problem".to_string() } else { picked.join(", ") }.into());
+        let seasons: Vec<&(i32, i32)> = d.seasons.iter().filter(|x| x.0 > 0).collect();
+        let mut names = vec!["All seasons".to_string()];
+        names.extend(seasons.iter().map(|x| format!("Season {}", x.0)));
+        ui.set_sr_report_seasons(ModelRc::new(VecModel::from(names.into_iter().map(SharedString::from).collect::<Vec<_>>())));
+        ui.set_sr_report_season_index(r.season_idx as i32);
+        ui.set_sr_report_eps(rows((1..=r.eps.len()).map(|e| format!("Episode {e}")).collect(), r.eps.clone()));
+        let chosen: Vec<i32> = r.eps.iter().enumerate().filter(|(_, on)| **on).map(|(i, _)| i as i32 + 1).collect();
+        ui.set_sr_report_eps_text(episode_summary(&chosen).into());
+    }
+
+    pub fn report_toggle_kind(&self, i: usize) {
+        {
+            let mut s = self.st.lock().unwrap();
+            if let Some(k) = s.sr.report.kinds.get_mut(i) {
+                *k = !*k;
+            }
+        }
+        if let Some(ui) = self.ui.upgrade() {
+            self.report_sync(&ui);
+        }
+    }
+
+    pub fn report_pick_season(&self, idx: usize) {
+        {
+            let mut s = self.st.lock().unwrap();
+            let count = s.sr.detail.as_ref().and_then(|d| d.seasons.iter().filter(|x| x.0 > 0).nth(idx.wrapping_sub(1)).map(|x| x.1)).unwrap_or(0).max(0) as usize;
+            let r = &mut s.sr.report;
+            r.season_idx = idx;
+            r.eps = if idx > 0 { vec![false; count] } else { Vec::new() };
+        }
+        if let Some(ui) = self.ui.upgrade() {
+            self.report_sync(&ui);
+        }
+    }
+
+    pub fn report_toggle_ep(&self, i: usize) {
+        {
+            let mut s = self.st.lock().unwrap();
+            if let Some(e) = s.sr.report.eps.get_mut(i) {
+                *e = !*e;
+            }
+        }
+        if let Some(ui) = self.ui.upgrade() {
+            self.report_sync(&ui);
+        }
+    }
+
+    pub fn report_all_eps(&self, on: bool) {
+        self.st.lock().unwrap().sr.report.eps.iter_mut().for_each(|e| *e = on);
+        if let Some(ui) = self.ui.upgrade() {
+            self.report_sync(&ui);
+        }
+    }
+
+    /// One issue per chosen problem and episode (Seerr issues hold a single type and episode).
     pub fn sr_report_submit(&self) {
         let Some((seerr, _)) = self.sr_session() else { return };
         let Some(d) = self.st.lock().unwrap().sr.detail.clone() else { return };
         let Some(ui) = self.ui.upgrade() else { return };
         let text = ui.get_sr_report_text().trim().to_string();
+        let (kinds, season, episodes) = {
+            let s = self.st.lock().unwrap();
+            let r = &s.sr.report;
+            let kinds: Vec<i32> = r.kinds.iter().enumerate().filter(|(_, on)| **on).map(|(i, _)| i as i32 + 1).collect();
+            let season = if r.season_idx > 0 { d.seasons.iter().filter(|x| x.0 > 0).nth(r.season_idx - 1).map_or(0, |x| x.0) } else { 0 };
+            let episodes: Vec<i32> = r.eps.iter().enumerate().filter(|(_, on)| **on).map(|(i, _)| i as i32 + 1).collect();
+            (kinds, season, episodes)
+        };
+        if kinds.is_empty() {
+            self.sr_notify("Choose a problem", "Pick at least one kind of problem.");
+            return;
+        }
         if text.is_empty() {
             self.sr_notify("Add a description", "Tell the admins what's wrong.");
             return;
         }
-        let kind = ui.get_sr_report_type() + 1;
-        let season = ui.get_sr_report_season().trim().parse::<i32>().unwrap_or(0).max(0);
-        let episode = ui.get_sr_report_episode().trim().parse::<i32>().unwrap_or(0).max(0);
         ui.set_sr_report_open(false);
         ui.set_sr_busy(true);
         let ctx = self.clone();
         self.rt.spawn(async move {
-            let res = seerr.create_issue(kind, &text, d.media_id, season, episode).await;
+            let targets: Vec<i32> = if episodes.is_empty() { vec![0] } else { episodes };
+            let (mut sent, mut failed) = (0, None);
+            for kind in &kinds {
+                for ep in &targets {
+                    match seerr.create_issue(*kind, &text, d.media_id, season, *ep).await {
+                        Ok(()) => sent += 1,
+                        Err(e) => failed = Some(e.to_string()),
+                    }
+                }
+            }
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ctx.ui.upgrade() {
                     ui.set_sr_busy(false);
                 }
-                match res {
-                    Ok(()) => ctx.sr_notify("Issue reported", &format!("Thanks. The admins can now see your report about {}.", d.title)),
-                    Err(e) => ctx.sr_notify("Couldn't report the issue", &e.to_string()),
+                match (sent, failed) {
+                    (0, Some(e)) => ctx.sr_notify("Couldn't report the issue", &e),
+                    (n, Some(e)) => ctx.sr_notify("Some reports failed", &format!("{n} sent, then: {e}")),
+                    (1, None) => ctx.sr_notify("Issue reported", &format!("Thanks. The admins can now see your report about {}.", d.title)),
+                    (n, None) => ctx.sr_notify("Issues reported", &format!("Thanks. {n} reports about {} are with the admins.", d.title)),
                 }
             });
         });
+    }
+}
+
+/// "Whole season", "Episode 3" or "Episodes 1-4, 6".
+fn episode_summary(eps: &[i32]) -> String {
+    match eps {
+        [] => "Whole season".to_string(),
+        [e] => format!("Episode {e}"),
+        _ => {
+            let mut parts: Vec<String> = Vec::new();
+            let mut i = 0;
+            while i < eps.len() {
+                let mut j = i;
+                while j + 1 < eps.len() && eps[j + 1] == eps[j] + 1 {
+                    j += 1;
+                }
+                parts.push(if j > i { format!("{}-{}", eps[i], eps[j]) } else { eps[i].to_string() });
+                i = j + 1;
+            }
+            format!("Episodes {}", parts.join(", "))
+        }
     }
 }
 
