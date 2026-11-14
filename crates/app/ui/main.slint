@@ -1516,6 +1516,9 @@ export component AppWindow inherits Window {
     property <length> inset-bottom: root.safe-area-insets.bottom;
     /// Not enough room for a picture beside the text (phone in portrait, or a very narrow window).
     property <bool> narrow: root.width - root.pane-width < 640px;
+    /// The detail page's text column is too narrow for its rows of buttons side by side: stack them.
+    /// (The picture takes 320 px beside an episode's text, 180 px beside a film's; plus margins.)
+    property <bool> stack-actions: root.narrow || (root.width - root.pane-width - 72px - (detail.kind == "Episode" ? 320px : 180px)) < 680px;
     property <length> pane-width: root.bottom-nav ? 0px : 76px + 168px * root.width-t;
 
     // state
@@ -4914,7 +4917,7 @@ export component AppWindow inherits Window {
                                     clicked => { root.toggle-follow(); }
                                 }
                             }
-                            if !root.narrow && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): HorizontalLayout {
+                            if !root.stack-actions && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): HorizontalLayout {
                                 alignment: start;
                                 spacing: 8px;
                                 if detail.kind == "Series" || detail.kind == "Movie": PillButton {
@@ -4936,7 +4939,7 @@ export component AppWindow inherits Window {
                                     clicked => { root.lib-report-issue(); }
                                 }
                             }
-                            if root.narrow && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): VerticalLayout {
+                            if root.stack-actions && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): VerticalLayout {
                                 alignment: start;
                                 spacing: 8px;
                                 if detail.kind == "Series" || detail.kind == "Movie": PillButton {
@@ -5009,23 +5012,23 @@ export component AppWindow inherits Window {
                                     enabled: !root.full-player;
                                     clicked => { root.play(detail.id, false, false); }
                                 }
-                                if !root.narrow: RoundIcon {
+                                if !root.stack-actions: RoundIcon {
                                     icon: @image-url("icons/check.svg");
                                     active: detail.played;
                                     clicked => { root.toggle-played(); }
                                 }
-                                if !root.narrow: RoundIcon {
+                                if !root.stack-actions: RoundIcon {
                                     icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
                                     active: detail.favorite;
                                     clicked => { root.toggle-favorite(); }
                                 }
-                                if !root.narrow: RoundIcon {
+                                if !root.stack-actions: RoundIcon {
                                     icon: @image-url("icons/info.svg");
                                     active: root.info-open;
                                     clicked => { root.info-open = !root.info-open; }
                                 }
                             }
-                            if detail.playable && root.narrow: HorizontalLayout {
+                            if detail.playable && root.stack-actions: HorizontalLayout {
                                 spacing: 10px;
                                 alignment: start;
                                 RoundIcon {
