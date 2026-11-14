@@ -2825,7 +2825,7 @@ impl Ctx {
                 w.set_maximized(false);
             }
             let sf = w.scale_factor();
-            let (pw, ph) = ((480.0 * sf) as u32, (270.0 * sf) as u32);
+            let (pw, ph) = ((480.0 * sf) as u32, (480.0 * sf / ui.get_video_aspect().max(0.2)) as u32);
             let area = w.with_winit_window(|win| {
                 win.set_decorations(false);
                 win.current_monitor().map(|m| (m.position().x, m.position().y, m.size().width, m.size().height))
@@ -3497,6 +3497,9 @@ impl PlayEnv {
             ui.set_player_paused(t.paused);
             ui.set_player_volume(t.volume as f32);
             ui.set_player_muted(t.muted);
+            if t.aspect > 0.2 {
+                ui.set_video_aspect(t.aspect as f32);
+            }
             ui.set_player_audio(t.audio.into());
             ui.set_player_sub(t.subtitle.into());
             let delay_changed = (ui.get_player_audio_delay() - t.audio_delay as f32).abs() > 0.001;
@@ -3951,7 +3954,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             // (it is only freed once the UI stops showing it).
                             let img = unsafe {
                                 slint::BorrowedOpenGLTextureBuilder::new_gl_2d_rgba_texture(id, [key.1 as u32, key.2 as u32].into())
-                                    .origin(slint::BorrowedOpenGLTextureOrigin::BottomLeft)
+                                    .origin(slint::BorrowedOpenGLTextureOrigin::TopLeft)
                                     .build()
                             };
                             ui.set_mini_frame(img);
@@ -4741,6 +4744,16 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     ui.on_video_click(move || c.video_click());
     let c = ctx.clone();
     ui.on_mouse_moved(move || c.mouse_moved());
+    // Like Chrome's PiP, resizing keeps the video's shape.
+    let weak = ui.as_weak();
+    ui.on_pip_resized(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let s = ui.window().size();
+        let h = (s.width as f32 / ui.get_video_aspect().max(0.2)) as u32;
+        if ui.get_pip() && h.abs_diff(s.height) > 2 {
+            ui.window().set_size(slint::PhysicalSize::new(s.width, h));
+        }
+    });
     let c = ctx.clone();
     ui.on_pip_changed(move |on| c.apply_pip(on));
     let weak = ui.as_weak();

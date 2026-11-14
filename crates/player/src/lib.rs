@@ -107,6 +107,8 @@ pub struct Tick {
     pub eof: bool,
     pub volume: f64,
     pub muted: bool,
+    /// Display aspect ratio of the video (0 = unknown).
+    pub aspect: f64,
     pub audio: String,
     pub subtitle: String,
     pub audio_delay: f64,
@@ -777,6 +779,7 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     eof: opts.keep_open && read_str("eof-reached").as_deref() == Some("yes"),
                     volume: read_str("volume").and_then(|s| s.parse().ok()).unwrap_or(100.0),
                     muted: read_str("mute").as_deref() == Some("yes"),
+                    aspect: read_str("video-params/aspect").and_then(|s| s.parse().ok()).unwrap_or(0.0),
                     audio: track_label(&read_str, "audio"),
                     subtitle: track_label(&read_str, "sub"),
                     audio_delay: read_str("audio-delay").and_then(|s| s.parse().ok()).unwrap_or(0.0),

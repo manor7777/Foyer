@@ -1283,6 +1283,10 @@ export component AppWindow inherits Window {
     out property <length> mini-h: 216px;
     callback pip-changed(bool);
     callback pip-drag();
+    callback pip-resized();
+    in property <float> video-aspect: 1.7778;
+    changed height => { root.pip-resized(); }
+    no-frame: root.pip;
     changed pip => { root.pip-changed(root.pip); }
     in property <[string]> discovered;
     in property <bool> discovering: false;
@@ -1430,7 +1434,7 @@ export component AppWindow inherits Window {
     callback set-card-scale(int);
     in-out property <bool> card-auto: false;
     callback set-card-auto(bool);
-    changed width => { Scale.window-w = self.width; }
+    changed width => { Scale.window-w = self.width; root.pip-resized(); }
     in property <bool> following: false;
     callback toggle-follow();
     in property <[string]> fav-tabs;
@@ -5060,7 +5064,6 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 padding: 14px;
                 spacing: 12px;
-                alignment: start;
                 IconButton {
                     icon: @image-url("icons/back.svg");
                     clicked => { root.player-key("quit"); }
@@ -5375,9 +5378,8 @@ export component AppWindow inherits Window {
         border-radius: 12px * root.mini-t;
         background: black;
         clip: true;
-        drop-shadow-blur: 24px * root.mini-t;
-        drop-shadow-color: #000000a0;
-        drop-shadow-offset-y: 6px;
+        border-width: 1px * root.mini-t;
+        border-color: #ffffff40;
         Image {
             source: root.mini-frame;
             width: parent.width;
