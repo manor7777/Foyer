@@ -17,6 +17,7 @@ mod update;
 mod seerr;
 mod notes;
 mod hide;
+mod cardmenu;
 #[cfg(windows)]
 mod media;
 /// Windows-only media flyout / media keys; nothing to do elsewhere.
@@ -177,6 +178,7 @@ struct CardData {
     subtitle: String,
     progress: f32,
     played: bool,
+    favorite: bool,
     image: Option<String>,
     current: bool,
     next_season: bool,
@@ -270,6 +272,7 @@ fn card_for(client: &Client, i: &Item, wide: bool) -> CardData {
         subtitle,
         progress: i.progress(),
         played: i.user_data.as_ref().is_some_and(|u| u.played),
+        favorite: i.user_data.as_ref().is_some_and(|u| u.is_favorite),
         image,
         current: false,
                     next_season: false,
@@ -288,6 +291,7 @@ fn to_card(c: &CardData) -> Card {
         image: Image::default(),
         progress: c.progress,
         played: c.played,
+        favorite: c.favorite,
         current: c.current,
         next_season: c.next_season,
         badge: c.badge.clone().into(),
@@ -1849,6 +1853,7 @@ impl Ctx {
                     subtitle: p.role.clone().filter(|r| !r.is_empty()).or(p.kind.clone()).unwrap_or_default(),
                     progress: 0.0,
                     played: false,
+                    favorite: false,
                     image: client.person_image_url(p, 300),
                     current: false,
                     next_season: false,
@@ -1881,6 +1886,7 @@ impl Ctx {
                                     subtitle: e.run_time_ticks.filter(|t| *t > 0).map(duration_label).unwrap_or_default(),
                                     progress: e.progress(),
                                     played: e.user_data.as_ref().is_some_and(|u| u.played),
+                                    favorite: false,
                                     image: client.image_url(e, ImageKind::Primary, 480),
                                     current: e.id == item.id,
                                     next_season: false,
@@ -1908,6 +1914,7 @@ impl Ctx {
                                             subtitle: format!("Starts with {} {}", episode_tag(f), f.name),
                                             progress: 0.0,
                                             played: false,
+                                            favorite: false,
                                             image: None,
                                             current: false,
                                             next_season: true,
@@ -2995,6 +3002,7 @@ fn episode_row(client: &Client, e: &Item, hide_spoilers: bool) -> CardData {
         subtitle: rt,
         progress: e.progress(),
         played,
+        favorite: e.user_data.as_ref().is_some_and(|u| u.is_favorite),
         image: client.image_url(e, ImageKind::Primary, 320),
         current: false,
                     next_season: false,
@@ -4203,6 +4211,17 @@ pub fn run() -> Result<(), slint::PlatformError> {
     {
         let c = c.clone();
         ui.global::<Hover>().on_left(move || c.hover_left());
+    }
+    {
+        let m = ui.global::<CardMenu>();
+        let c1 = c.clone();
+        m.on_opened(move |id| c1.card_menu_open(id.to_string()));
+        let c2 = c.clone();
+        m.on_flag(move |id, fav, v| c2.card_menu_flag(id.to_string(), fav, v));
+        let c3 = c.clone();
+        m.on_cw_hide(move |id, name| c3.card_menu_cw_hide(id.to_string(), name.to_string()));
+        let c4 = c.clone();
+        m.on_play(move |id, resume| c4.play(id.to_string(), resume, false));
     }
     ui.set_hover_backdrop(ctx.st.lock().unwrap().cfg.hover_backdrop);
     let c = ctx.clone();

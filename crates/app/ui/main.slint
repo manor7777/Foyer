@@ -25,6 +25,7 @@ export global Scale {
     in-out property <float> base: 1.0;
     in-out property <bool> auto: false;
     in-out property <length> window-w: 1400px;
+    in-out property <length> window-h: 900px;
     // Auto size shrinks cards (down to 70%) once the window is narrower than 1400px.
     out property <float> factor: base * (auto ? clamp(window-w / 1400px, 0.7, 1.0) : 1.0) * (Device.tv ? 1.25 : 1.0);
 }
@@ -394,6 +395,7 @@ export struct Card {
     image: image,
     progress: float,
     played: bool,
+    favorite: bool,
     current: bool,
     next-season: bool,
     badge: string,
@@ -402,6 +404,17 @@ export struct Card {
     followed: bool,
     /// An image is on its way: show the shimmer and fade the picture in.
     loading: bool,
+}
+
+/// State and actions for the press-and-hold / right-click menu on a poster.
+export global CardMenu {
+    in-out property <bool> played;
+    in-out property <bool> favorite;
+    in-out property <Card> card;
+    callback opened(string);
+    callback flag(string, bool, bool); // id, favourite?, new value
+    callback cw-hide(string, string);
+    callback play(string, bool);
 }
 
 export struct HomeRowCfg {
@@ -1123,6 +1136,36 @@ component Skeleton inherits Rectangle {
     init => { root.p = 1.0; }
 }
 
+component CardMenuRow inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> on: false;
+    callback clicked();
+    height: Device.touch ? 50px : 36px;
+    border-radius: 6px;
+    background: ra.has-hover ? Palette.control-hover : transparent;
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 12px;
+        Image {
+            source: root.icon;
+            colorize: root.on ? Palette.accent-background : Palette.foreground;
+            width: 18px;
+            height: 18px;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.label;
+            color: Palette.foreground;
+            font-size: 14px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    ra := TouchArea { clicked => { root.clicked(); } }
+}
+
 component CardView inherits Rectangle {
     in property <Card> card;
     in property <bool> wide: false;
@@ -1136,6 +1179,37 @@ component CardView inherits Rectangle {
     callback clicked();
     callback request();
     callback follow();
+    property <bool> sr: root.requestable;
+    property <bool> menu-ok: root.card.kind != "Person" && root.card.kind != "person" && root.card.kind != "LiveTvView" && root.card.kind != "TvChannel" && !root.card.next-season && root.card.id != "";
+    property <bool> can-play: !root.sr && (root.card.kind == "Movie" || root.card.kind == "Episode" || root.card.kind == "Video");
+    property <bool> can-follow: root.followable && root.card.kind == "Series";
+    property <bool> in-cw: !root.sr && root.card.progress > 0 && root.card.progress < 1;
+    property <bool> can-request: root.sr && root.card.badge == "" && !root.asked;
+    property <int> rows: root.sr ? (1 + (root.can-request ? 1 : 0)) : (1 + (root.can-play ? 1 : 0) + 2 + (root.can-follow ? 1 : 0) + (root.in-cw ? 1 : 0));
+    property <length> menu-w: 240px;
+    property <length> menu-h: root.rows * (Device.touch ? 50px : 36px) + 16px + 2px * root.rows;
+    property <length> menu-x: 0px;
+    property <length> menu-y: 0px;
+    property <bool> long-fired: false;
+    function open-menu(px: length, py: length) {
+        if (!root.menu-ok) { return; }
+        CardMenu.card = root.card;
+        CardMenu.played = root.card.played;
+        CardMenu.favorite = root.card.favorite;
+        if (!root.sr) { CardMenu.opened(root.card.id); }
+        root.menu-x = min(max(px, 8px - root.absolute-position.x), Scale.window-w - root.absolute-position.x - root.menu-w - 8px);
+        root.menu-y = min(max(py, 8px - root.absolute-position.y), Scale.window-h - root.absolute-position.y - root.menu-h - 8px);
+        menu.show();
+    }
+    lp := Timer {
+        interval: 500ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.long-fired = true;
+            root.open-menu(ta.pressed-x, ta.pressed-y);
+        }
+    }
     property <bool> bell: root.followable && root.card.kind == "Series" && (root.hovered || root.card.followed);
 
     width: (wide ? 240px : 150px) * Scale.factor;
@@ -1146,6 +1220,10 @@ component CardView inherits Rectangle {
         key-pressed(e) => {
             if (e.text == Key.Return || e.text == " ") {
                 root.clicked();
+                return accept;
+            }
+            if (e.text == Key.Menu) {
+                root.open-menu(root.width / 2, root.height / 2);
                 return accept;
             }
             return reject;
@@ -1293,9 +1371,80 @@ component CardView inherits Rectangle {
         changed has-hover => {
             if (self.has-hover) { Hover.entered(root.card.id, root.card.kind); } else { Hover.left(); }
         }
+        pointer-event(e) => {
+            if (e.button == PointerEventButton.right && e.kind == PointerEventKind.down) {
+                root.open-menu(self.pressed-x, self.pressed-y);
+            } else if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down && Device.touch) {
+                root.long-fired = false;
+                lp.running = true;
+            } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                lp.running = false;
+            }
+        }
+        changed mouse-x => { if (lp.running && abs(self.mouse-x - self.pressed-x) > 12px) { lp.running = false; } }
+        changed mouse-y => { if (lp.running && abs(self.mouse-y - self.pressed-y) > 12px) { lp.running = false; } }
         clicked => {
+            if (root.long-fired) { root.long-fired = false; return; }
             if (!Device.touch) { fs.focus(); }
             root.clicked();
+        }
+    }
+
+    menu := PopupWindow {
+        x: root.menu-x;
+        y: root.menu-y;
+        width: root.menu-w;
+        height: root.menu-h;
+        Rectangle {
+            background: Palette.alternate-background;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: Palette.border;
+            drop-shadow-blur: 16px;
+            drop-shadow-color: #00000088;
+            VerticalLayout {
+                padding: 8px;
+                spacing: 2px;
+                alignment: start;
+                if root.can-play: CardMenuRow {
+                    label: root.in-cw ? "Resume" : "Play";
+                    icon: @image-url("icons/play.svg");
+                    clicked => { CardMenu.play(root.card.id, root.in-cw); }
+                }
+                CardMenuRow {
+                    label: "Open details";
+                    icon: @image-url("icons/info.svg");
+                    clicked => { root.clicked(); }
+                }
+                if root.can-request: CardMenuRow {
+                    label: "Request";
+                    icon: @image-url("icons/requests.svg");
+                    clicked => { root.asked = true; root.request(); }
+                }
+                if !root.sr: CardMenuRow {
+                    label: CardMenu.played ? "Mark unwatched" : "Mark watched";
+                    icon: @image-url("icons/check.svg");
+                    on: CardMenu.played;
+                    clicked => { CardMenu.flag(root.card.id, false, !CardMenu.played); }
+                }
+                if !root.sr: CardMenuRow {
+                    label: CardMenu.favorite ? "Remove from favourites" : "Add to favourites";
+                    icon: CardMenu.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
+                    on: CardMenu.favorite;
+                    clicked => { CardMenu.flag(root.card.id, true, !CardMenu.favorite); }
+                }
+                if root.can-follow: CardMenuRow {
+                    label: root.card.followed ? "Stop following" : "Follow for new episodes";
+                    icon: @image-url("icons/bell.svg");
+                    on: root.card.followed;
+                    clicked => { root.follow(); }
+                }
+                if root.in-cw: CardMenuRow {
+                    label: "Remove from Continue Watching";
+                    icon: @image-url("icons/close.svg");
+                    clicked => { CardMenu.cw-hide(root.card.id, root.card.title); }
+                }
+            }
         }
     }
 
@@ -1548,7 +1697,7 @@ export component AppWindow inherits Window {
     callback pip-resize(int);
     callback pip-resized();
     in property <float> video-aspect: 1.7778;
-    changed height => { root.pip-resized(); }
+    changed height => { Scale.window-h = self.height; root.pip-resized(); }
     no-frame: root.pip;
     changed pip => { root.pip-changed(root.pip); }
     in property <[string]> discovered;
@@ -1705,6 +1854,7 @@ export component AppWindow inherits Window {
     in-out property <bool> card-auto: false;
     callback set-card-auto(bool);
     changed width => { Scale.window-w = self.width; root.pip-resized(); }
+    init => { Scale.window-h = self.height; }
     in property <bool> following: false;
     callback toggle-follow();
     in property <[string]> fav-tabs;
@@ -2483,7 +2633,7 @@ export component AppWindow inherits Window {
                     // Wide: title and buttons on one line. Narrow: the buttons go under the title.
                     HorizontalLayout {
                         spacing: 10px;
-                        Heading { text: "Notifications"; horizontal-stretch: 1; vertical-alignment: center; }
+                        Heading { text: "Alerts"; horizontal-stretch: 1; vertical-alignment: center; }
                         if !root.narrow && root.unread-count > 0: PillButton {
                             text: "Mark all read";
                             icon: @image-url("icons/check.svg");
@@ -2510,7 +2660,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     if root.notes.length == 0: Text {
-                        text: "No notifications yet. New episodes, ready requests and updates will be listed here.";
+                        text: "No alerts yet. New episodes, ready requests and updates will be listed here.";
                         color: Palette.foreground;
                         opacity: 0.6;
                         wrap: word-wrap;
@@ -3432,7 +3582,7 @@ export component AppWindow inherits Window {
                     Rectangle { height: 6px; }
                     if root.seerr-on: VerticalLayout {
                         spacing: 8px;
-                        SectionLabel { text: "Notifications"; }
+                        SectionLabel { text: "Alerts"; }
                         SettingCard {
                             SettingRow {
                                 title: "Tell me when my requests arrive";
@@ -5047,6 +5197,20 @@ export component AppWindow inherits Window {
                                     clicked => { root.info-open = !root.info-open; }
                                 }
                             }
+                            if !detail.playable && (detail.kind == "Series" || detail.kind == "Season"): HorizontalLayout {
+                                spacing: 10px;
+                                alignment: start;
+                                RoundIcon {
+                                    icon: @image-url("icons/check.svg");
+                                    active: detail.played;
+                                    clicked => { root.toggle-played(); }
+                                }
+                                RoundIcon {
+                                    icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
+                                    active: detail.favorite;
+                                    clicked => { root.toggle-favorite(); }
+                                }
+                            }
                             if detail.can-resume: HorizontalLayout {
                                 spacing: 12px;
                                 alignment: start;
@@ -5381,7 +5545,7 @@ export component AppWindow inherits Window {
                 }
                 NavItem {
                     compact: !root.nav-expanded;
-                    label: "Notifications";
+                    label: "Alerts";
                     icon: @image-url("icons/bell.svg");
                     badge: root.unread-count;
                     selected: root.page == "notifications";
