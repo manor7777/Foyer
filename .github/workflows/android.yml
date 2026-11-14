@@ -23,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   apk:
@@ -51,17 +52,31 @@ jobs:
           RELEASE: ${{ inputs.release }}
         run: |
           mkdir -p crates/app/android/libs/arm64-v8a
+          fetch_from_release() {
+            gh release download libmpv-android --repo "$GITHUB_REPOSITORY" --pattern libmpv-android-arm64.zip --output libmpv.zip 2>/dev/null
+          }
+          fetch_from_run_artifact() {
+            # Newest runs of the libmpv workflow first; the first one that still has its artifact wins.
+            for id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow libmpv-android.yml --limit 15 --json databaseId --jq '.[].databaseId'); do
+              rm -rf libmpv-dl
+              if gh run download "$id" --repo "$GITHUB_REPOSITORY" --name libmpv-android-arm64 --dir libmpv-dl 2>/dev/null && [ -f libmpv-dl/libmpv-android-arm64.zip ]; then
+                mv libmpv-dl/libmpv-android-arm64.zip libmpv.zip
+                echo "Using the libmpv artifact from run $id"
+                return 0
+              fi
+            done
+            return 1
+          }
           if [ -n "$OVERRIDE_URL" ]; then
             curl -fsSL "$OVERRIDE_URL" -o libmpv.zip
           else
-            gh release download libmpv-android --repo "$GITHUB_REPOSITORY" --pattern libmpv-android-arm64.zip --output libmpv.zip \
-              || {
-                if [ "$RELEASE" = "true" ]; then
-                  echo "::error::No libmpv-android release yet: run the 'libmpv for Android' workflow first. Refusing to release an APK with no video."
-                  exit 1
-                fi
-                echo "::warning::No libmpv-android release yet (run the 'libmpv for Android' workflow): this APK has no video engine."
-              }
+            fetch_from_release || fetch_from_run_artifact || {
+              if [ "$RELEASE" = "true" ]; then
+                echo "::error::No libmpv build found: run the 'libmpv for Android' workflow first. Refusing to release an APK with no video."
+                exit 1
+              fi
+              echo "::warning::No libmpv build found (run the 'libmpv for Android' workflow): this APK has no video engine."
+            }
           fi
           if [ -f libmpv.zip ]; then
             unzip -q -o libmpv.zip -d crates/app/android/libs

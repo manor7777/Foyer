@@ -138,8 +138,12 @@ jobs:
           name: libmpv-android-arm64
           path: libmpv-android-arm64.zip
           if-no-files-found: error
+          retention-days: 90
 
+      # Nice to have, not essential: android.yml falls back to this run's artifact when there is no
+      # release, so a repository that doesn't let the workflow token create releases still works.
       - name: Publish as the libmpv-android release
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
