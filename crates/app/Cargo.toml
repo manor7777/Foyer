@@ -33,6 +33,7 @@ sevenz-rust2 = "0.13"
 notify-rust = "4"
 
 [target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
 slint = { version = "1.18", default-features = false, features = ["std", "compat-1-2", "renderer-femtovg", "accessibility", "gettext", "image-default-formats", "backend-android-activity-06"] }
 
 [target.'cfg(windows)'.dependencies]
@@ -78,6 +79,9 @@ name = "android.permission.INTERNET"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.POST_NOTIFICATIONS"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.REQUEST_INSTALL_PACKAGES"
 
 # Shows up in both the phone launcher and the TV launcher.
 [[package.metadata.android.application.activity.intent_filter]]

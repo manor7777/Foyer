@@ -600,6 +600,7 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
         if !opts.hw_decode {
             set("hwdec", "no");
         } else if cfg!(target_os = "android") {
+            set("ao", "audiotrack,opensles");
             // MediaCodec; "mediacodec" renders straight to the GL surface, "-copy" is the safe fallback.
             set("hwdec", if opts.hw_mode == 4 { "mediacodec" } else { "mediacodec-copy" });
         } else {
@@ -942,3 +943,20 @@ fn read_tracks(read: &dyn Fn(&str) -> Option<String>, hide_embedded_text: bool) 
     }
     out
 }
+
+/// Android: FFmpeg's MediaCodec decoder needs the process's JavaVM. libavcodec ships next to libmpv
+/// in the APK; looked up by name so desktop builds don't need it.
+#[cfg(target_os = "android")]
+pub fn set_java_vm(vm: *mut c_void) {
+    // SAFETY: av_jni_set_java_vm(void *vm, void *log_ctx) is FFmpeg's documented entry point.
+    unsafe {
+        let Ok(lib) = Library::new("libavcodec.so") else { return };
+        let lib: &'static Library = Box::leak(Box::new(lib));
+        if let Ok(f) = lib.get::<unsafe extern "C" fn(*mut c_void, *mut c_void) -> c_int>(b"av_jni_set_java_vm") {
+            f(vm, std::ptr::null_mut());
+        }
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+pub fn set_java_vm(_vm: *mut c_void) {}

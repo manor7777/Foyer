@@ -1821,6 +1821,7 @@ dependencies = [
  "emby-api",
  "foyer-core",
  "image",
+ "jni 0.21.1",
  "notify-rust",
  "p256",
  "player",

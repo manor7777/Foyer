@@ -15,7 +15,10 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 const LATEST: &str = "https://api.github.com/repos/manor7777/Foyer/releases/latest";
+#[cfg(not(target_os = "android"))]
 const ASSET: &str = "Foyer.exe";
+#[cfg(target_os = "android")]
+const ASSET: &str = "Foyer.apk";
 
 /// Public half of the release signing key (uncompressed P-256 point). The private half is the
 /// repository secret `UPDATE_SIGNING_KEY`.
@@ -76,10 +79,6 @@ fn is_newer(candidate: &str, running: &str) -> bool {
 }
 
 pub async fn check() -> Result<Checked, String> {
-    // The Android updater (signed APK handed to the package installer) is a later step of docs/ANDROID-PLAN.md.
-    if cfg!(target_os = "android") {
-        return Ok(Checked::Latest);
-    }
     let http = http()?;
     let resp = http.get(LATEST).header("Accept", "application/vnd.github+json").send().await.map_err(|e| e.without_url().to_string())?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
@@ -136,9 +135,6 @@ async fn fetch(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
 /// Downloads, verifies and swaps in the new exe. The running exe is renamed to `.old` (Windows
 /// allows that, not deleting), so the next start picks up the new one.
 pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String> {
-    if cfg!(target_os = "android") {
-        return Err("In-app updates are not available on Android yet.".into());
-    }
     let http = http()?;
     let sha = fetch(&http, &rel.sha_url).await?;
     let sig = fetch(&http, &rel.sig_url).await?;
@@ -148,9 +144,13 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
         return Err("The release's signed version does not match its name. Nothing was installed.".into());
     }
 
+    #[cfg(not(target_os = "android"))]
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    #[cfg(not(target_os = "android"))]
     let new = exe.with_extension("exe.new");
+    #[cfg(not(target_os = "android"))]
     let old = exe.with_extension("exe.old");
+    #[cfg(not(target_os = "android"))]
     let _ = std::fs::remove_file(&new);
 
     let mut resp = http.get(&rel.exe_url).timeout(Duration::from_secs(900)).send().await.and_then(|r| r.error_for_status()).map_err(|e| e.without_url().to_string())?;
@@ -167,12 +167,23 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
             }
         }
     }
+    #[cfg(not(target_os = "android"))]
     if !data.starts_with(b"MZ") {
         return Err("The download is not a Windows program.".into());
+    }
+    #[cfg(target_os = "android")]
+    if !data.starts_with(b"PK") {
+        return Err("The download is not an Android app.".into());
     }
     if hex(&Sha256::digest(&data)) != wanted {
         return Err("The download doesn't match its signed checksum. Nothing was installed.".into());
     }
+    // Android replaces the app itself: hand the verified APK to the system installer (which also
+    // insists on the same signing key as the installed app).
+    #[cfg(target_os = "android")]
+    return crate::platform::install_package(&data, &format!("Foyer-{}.apk", rel.version));
+    #[cfg(not(target_os = "android"))]
+    {
     std::fs::write(&new, &data).map_err(|e| format!("Couldn't save the update ({e})."))?;
 
     if old.exists() && std::fs::remove_file(&old).is_err() {
@@ -186,6 +197,7 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
         return Err(format!("Couldn't put the new version in place ({e})."));
     }
     Ok(())
+    }
 }
 
 /// Removes files an earlier update left behind.
@@ -227,7 +239,8 @@ impl Ctx {
         cleanup();
         let (check, install) = {
             let s = self.st.lock().unwrap();
-            (s.cfg.update_check, s.cfg.update_install)
+            // Android always asks: its installer shows a confirmation screen, which must not pop up unprompted.
+            (s.cfg.update_check, s.cfg.update_install && !cfg!(target_os = "android"))
         };
         if !check {
             return;
@@ -310,9 +323,16 @@ impl Ctx {
                     ui.set_update_installing(false);
                     ui.set_update_available(false);
                     ui.set_update_ready(true);
-                    ui.set_update_status(format!("Version {v} is installed. Restart Foyer to finish.").into());
+                    let msg = if cfg!(target_os = "android") {
+                        format!("Version {v} is ready. Confirm the install in the Android screen that opened.")
+                    } else {
+                        format!("Version {v} is installed. Restart Foyer to finish.")
+                    };
+                    ui.set_update_status(msg.into());
                 });
-                self.notify_user("Foyer updated".into(), format!("Version {} is installed. Restart Foyer to use it.", rel.version), None);
+                if !cfg!(target_os = "android") {
+                    self.notify_user("Foyer updated".into(), format!("Version {} is installed. Restart Foyer to use it.", rel.version), None);
+                }
             }
             Err(e) => {
                 applog(&format!("update failed: {e}"));

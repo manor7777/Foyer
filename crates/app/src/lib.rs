@@ -4463,6 +4463,9 @@ fn android_main(app: slint::android::AndroidApp) {
     if let Some(dir) = app.internal_data_path() {
         std::env::set_var("FOYER_DATA_DIR", dir);
     }
+    let (vm, activity) = (app.vm_as_ptr(), app.activity_as_ptr());
+    platform::init(vm, activity);
+    player::set_java_vm(vm);
     slint::android::init(app).expect("slint android init");
     if let Err(e) = run() {
         eprintln!("foyer exited with an error: {e}");
