@@ -26,248 +26,16 @@ mod media {
     pub fn sync(_ui: &AppWindow, _tx: &std::sync::mpsc::Sender<player::Control>) {}
     pub fn close() {}
 }
-use hide::{Hide, HideTarget};
-use notes::{Follow, NoteRec};
+use hide::HideTarget;
+use notes::NoteRec;
 use seerr::SeerrState;
+use foyer_core::color::{parse_hex, rgb_to_hsv};
+use foyer_core::{
+    clock, data_dir, decide, duration_label, fmt_bps, fmt_size, home_order, load_config, quality_label, save_config, skip_step_index, Config, Quality, SavedServer, AUTOPLAY_STREAK_LIMIT,
+    CARD_SCALES, HOME_ROWS, PRESETS, SKIP_STEPS,
+};
 
 // ---------------------------------------------------------------- config
-
-fn yes() -> bool {
-    true
-}
-
-// Container-level default: any field missing from an older config.json falls back to its default,
-// so adding a setting can never make an existing file unreadable.
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(default)]
-struct Config {
-    /// The active server (mirrors its entry in `servers`).
-    server: String,
-    #[serde(default)]
-    kind: emby_api::Kind,
-    /// Show the server switcher in the sidebar and keep several servers signed in.
-    #[serde(default)]
-    multi_server: bool,
-    #[serde(default)]
-    servers: Vec<SavedServer>,
-    user_id: String,
-    user_name: String,
-    token: String,
-    device_id: String,
-    #[serde(default)]
-    search_history: Vec<String>,
-    /// "" = never chosen (Original/direct); "auto"; "direct"; or a preset bitrate in bps.
-    #[serde(default)]
-    quality: String,
-    #[serde(default = "yes")]
-    autoplay_next: bool,
-    #[serde(default)]
-    auto_skip_intro: bool,
-    /// Seconds the rewind / skip-forward buttons and arrow keys jump.
-    #[serde(default = "default_rewind_secs")]
-    rewind_secs: i32,
-    #[serde(default = "default_forward_secs")]
-    forward_secs: i32,
-    #[serde(default = "yes")]
-    hw_decode: bool,
-    #[serde(default)]
-    hw_mode: usize,
-    #[serde(default)]
-    always_on_top: bool,
-    /// Index into SUB_LANGS.
-    #[serde(default)]
-    sub_lang: usize,
-    /// 0 solid, 1 Mica, 2 Acrylic.
-    #[serde(default)]
-    material: usize,
-    /// 0 = follow the Windows accent colour, 1 = the picked colour below.
-    #[serde(default = "default_accent_mode")]
-    accent_mode: usize,
-    /// Picked accent colour as 0xRRGGBB.
-    #[serde(default = "default_accent_rgb")]
-    accent_rgb: u32,
-    /// Keep the sidebar expanded at any window size.
-    #[serde(default)]
-    nav_pinned: bool,
-    /// Fade the background to a hovered poster's banner art.
-    #[serde(default)]
-    hover_backdrop: bool,
-    /// Library sort order (index into SORTS).
-    #[serde(default)]
-    library_sort: usize,
-    #[serde(default)]
-    seerr_enabled: bool,
-    #[serde(default)]
-    seerr_url: String,
-    /// Seerr session cookie (the only credential kept; no password or API key).
-    #[serde(default)]
-    seerr_cookie: String,
-    /// Home rows the user switched off: continue, nextup, requests, media, latest.
-    #[serde(default)]
-    hidden_rows: Vec<String>,
-    #[serde(default)]
-    row_order: Vec<String>,
-    #[serde(default = "yes")]
-    notify_enabled: bool,
-    #[serde(default = "yes")]
-    notify_movies: bool,
-    #[serde(default = "yes")]
-    notify_episodes: bool,
-    #[serde(default = "yes")]
-    notify_windows: bool,
-    /// 0 = every batch of new episodes, 1 = only when a whole season is ready.
-    #[serde(default)]
-    notify_mode: usize,
-    /// Index into seerr::NOTIFY_INTERVALS (minutes).
-    #[serde(default = "default_notify_interval")]
-    notify_interval: usize,
-    #[serde(default = "yes")]
-    notify_issues: bool,
-    #[serde(default = "yes")]
-    notify_my_issues: bool,
-    /// Look for a newer release when Foyer starts.
-    #[serde(default = "yes")]
-    update_check: bool,
-    /// Install it automatically (applies on the next start).
-    #[serde(default = "yes")]
-    update_install: bool,
-    #[serde(default)]
-    debug_logging: bool,
-    /// Closing the window hides it to the tray icon instead of quitting.
-    #[serde(default)]
-    close_to_tray: bool,
-    /// Index into CARD_SCALES; 2 = default size.
-    #[serde(default = "default_card_scale")]
-    card_scale: usize,
-    #[serde(default)]
-    card_auto: bool,
-    /// Last window size (physical pixels) and whether it was maximised.
-    #[serde(default)]
-    win_w: u32,
-    #[serde(default)]
-    win_h: u32,
-    #[serde(default)]
-    win_max: bool,
-    /// Series the user wants new-episode notifications for.
-    #[serde(default)]
-    followed: Vec<Follow>,
-    /// Blank the episode descriptions of unwatched episodes.
-    hide_spoilers: bool,
-    /// Take a title off the Seerr watchlist once it has been watched.
-    watchlist_autoremove: bool,
-    /// Last Emby server version we announced an update for.
-    server_update_seen: String,
-    /// Titles hidden from every list.
-    hidden_items: Vec<Hide>,
-    /// Movies, series and seasons removed from Continue Watching / Next Up.
-    cw_hidden: Vec<Hide>,
-}
-
-const CARD_SCALES: [f32; 5] = [0.6, 0.8, 1.0, 1.15, 1.3];
-
-fn default_card_scale() -> usize {
-    2
-}
-
-fn default_notify_interval() -> usize {
-    1
-}
-
-fn default_rewind_secs() -> i32 {
-    10
-}
-
-fn default_forward_secs() -> i32 {
-    30
-}
-
-/// Choices offered in Settings for the rewind / skip-forward step.
-/// After this many episodes autoplay in a row, stop and ask whether you're still watching.
-const AUTOPLAY_STREAK_LIMIT: u32 = 5;
-
-const SKIP_STEPS: [i32; 7] = [5, 10, 15, 30, 45, 60, 90];
-
-fn skip_step_index(secs: i32) -> i32 {
-    SKIP_STEPS.iter().position(|&v| v == secs).unwrap_or(1) as i32
-}
-
-fn default_accent_mode() -> usize {
-    1
-}
-
-fn default_accent_rgb() -> u32 {
-    0x60CDFF
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            server: String::new(),
-            kind: emby_api::Kind::Emby,
-            multi_server: false,
-            servers: Vec::new(),
-            user_id: String::new(),
-            user_name: String::new(),
-            token: String::new(),
-            device_id: String::new(),
-            search_history: Vec::new(),
-            quality: String::new(),
-            autoplay_next: true,
-            hw_decode: true,
-            auto_skip_intro: false,
-            rewind_secs: default_rewind_secs(),
-            forward_secs: default_forward_secs(),
-            hw_mode: 0,
-            always_on_top: false,
-            sub_lang: 0,
-            material: 0,
-            accent_mode: default_accent_mode(),
-            accent_rgb: default_accent_rgb(),
-            nav_pinned: false,
-            hover_backdrop: false,
-            library_sort: 0,
-            seerr_enabled: false,
-            seerr_url: String::new(),
-            seerr_cookie: String::new(),
-            hidden_rows: Vec::new(),
-            row_order: Vec::new(),
-            notify_enabled: true,
-            notify_movies: true,
-            notify_episodes: true,
-            notify_windows: true,
-            notify_mode: 0,
-            notify_interval: default_notify_interval(),
-            notify_issues: true,
-            notify_my_issues: true,
-            update_check: true,
-            update_install: true,
-            debug_logging: false,
-            close_to_tray: false,
-            card_scale: default_card_scale(),
-            card_auto: false,
-            win_w: 0,
-            win_h: 0,
-            win_max: false,
-            followed: Vec::new(),
-            hide_spoilers: false,
-            watchlist_autoremove: false,
-            server_update_seen: String::new(),
-            hidden_items: Vec::new(),
-            cw_hidden: Vec::new(),
-        }
-    }
-}
-
-fn data_dir() -> PathBuf {
-    let base = platform::data_base();
-    let dir = base.join("Foyer");
-    // Carry over settings and sign-in from the pre-rename folder.
-    let old = base.join("EmbyRevived");
-    if !dir.exists() && old.exists() {
-        let _ = std::fs::rename(&old, &dir);
-    }
-    dir
-}
 
 static DEBUG: AtomicBool = AtomicBool::new(false);
 
@@ -331,89 +99,6 @@ struct NowPlaying {
     added: std::collections::HashSet<i32>,
 }
 
-/// Playback quality: Auto picks direct play unless the connection clearly can't carry the file.
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Quality {
-    Auto,
-    Direct,
-    /// Index into PRESETS: server transcode capped at that bitrate.
-    Max(usize),
-}
-
-struct Preset {
-    bps: u32,
-    height: u32,
-    short: &'static str,
-    long: &'static str,
-}
-
-const PRESETS: [Preset; 9] = [
-    Preset { bps: 40_000_000, height: 1080, short: "40 Mbps", long: "40 Mbps · 1080p" },
-    Preset { bps: 20_000_000, height: 1080, short: "20 Mbps", long: "20 Mbps · 1080p" },
-    Preset { bps: 12_000_000, height: 1080, short: "12 Mbps", long: "12 Mbps · 1080p" },
-    Preset { bps: 8_000_000, height: 1080, short: "8 Mbps", long: "8 Mbps · 1080p" },
-    Preset { bps: 4_000_000, height: 720, short: "4 Mbps", long: "4 Mbps · 720p" },
-    Preset { bps: 3_000_000, height: 720, short: "3 Mbps", long: "3 Mbps · 720p" },
-    Preset { bps: 2_000_000, height: 480, short: "2 Mbps", long: "2 Mbps · 480p" },
-    Preset { bps: 1_500_000, height: 480, short: "1.5 Mbps", long: "1.5 Mbps · 480p" },
-    Preset { bps: 720_000, height: 360, short: "720 kbps", long: "720 kbps · 360p" },
-];
-
-impl Quality {
-    fn from_cfg(s: &str) -> Quality {
-        match s {
-            "" | "direct" => Quality::Direct,
-            "auto" => Quality::Auto,
-            n => n
-                .parse::<u32>()
-                .ok()
-                .and_then(|bps| PRESETS.iter().position(|p| p.bps == bps))
-                .map_or(Quality::Auto, Quality::Max),
-        }
-    }
-
-    fn to_cfg(self) -> String {
-        match self {
-            Quality::Auto => "auto".into(),
-            Quality::Direct => "direct".into(),
-            Quality::Max(i) => PRESETS[i].bps.to_string(),
-        }
-    }
-}
-
-/// Decides direct play (None) or a transcode preset. For Auto: direct unless a measurement
-/// shows the link is slower than the file needs.
-fn decide(q: Quality, src_bps: Option<i64>, measured: Option<f64>) -> (Option<usize>, String) {
-    match q {
-        Quality::Direct => (None, "Direct".into()),
-        Quality::Max(i) => (Some(i), PRESETS[i].short.into()),
-        Quality::Auto => {
-            let (Some(src), Some(m)) = (src_bps.filter(|b| *b > 0), measured) else {
-                return (None, "Direct".into());
-            };
-            if m >= src as f64 * 1.1 {
-                return (None, "Direct".into());
-            }
-            let budget = m * 0.8;
-            let idx = PRESETS.iter().position(|p| p.bps as f64 <= budget).unwrap_or(PRESETS.len() - 1);
-            if PRESETS[idx].bps as i64 >= src {
-                (None, "Direct".into())
-            } else {
-                (Some(idx), PRESETS[idx].short.into())
-            }
-        }
-    }
-}
-
-fn quality_label(q: Quality, resolved: &str) -> String {
-    match q {
-        Quality::Auto if resolved.is_empty() => "Auto".into(),
-        Quality::Auto => format!("Auto – {resolved}"),
-        Quality::Direct => "Direct".into(),
-        Quality::Max(i) => PRESETS[i].short.into(),
-    }
-}
-
 fn quality_rows(q: Quality, resolved: &str) -> Vec<TrackRow> {
     let mut rows = vec![
         TrackRow { id: 1, label: "Original (Direct)".into(), selected: q == Quality::Direct },
@@ -473,54 +158,12 @@ fn load_posters(weak: Weak<AppWindow>) {
 }
 
 /// A signed-in server kept for quick switching.
-#[derive(Serialize, Deserialize, Clone)]
-struct SavedServer {
-    kind: emby_api::Kind,
-    url: String,
-    user_id: String,
-    user_name: String,
-    token: String,
-}
-
 fn login_error(e: &emby_api::Error) -> String {
     match e {
         emby_api::Error::Http(h) if h.status().is_some_and(|s| s.as_u16() == 401 || s.as_u16() == 400) => "Wrong user name or password.".to_string(),
         emby_api::Error::Http(h) if h.is_connect() || h.is_timeout() => "Couldn't reach the server. Check the address.".to_string(),
         emby_api::Error::Other(m) => m.clone(),
         e => format!("Sign-in failed: {e}"),
-    }
-}
-
-fn load_config() -> Config {
-    let path = data_dir().join("config.json");
-    let mut c: Config = match std::fs::read_to_string(&path) {
-        Ok(text) => match serde_json::from_str(&text) {
-            Ok(c) => c,
-            Err(e) => {
-                // Never silently replace a file we couldn't read: keep it so nothing is lost.
-                applog(&format!("config.json unreadable ({e}); kept as config.bad.json"));
-                let _ = std::fs::copy(&path, data_dir().join("config.bad.json"));
-                Config::default()
-            }
-        },
-        Err(_) => Config::default(),
-    };
-    if c.device_id.is_empty() {
-        c.device_id = uuid::Uuid::new_v4().simple().to_string();
-        save_config(&c);
-    }
-    c
-}
-
-// shortcut: token is stored in plain JSON under %APPDATA%; move to Windows Credential Manager.
-fn save_config(c: &Config) {
-    let _ = std::fs::create_dir_all(data_dir());
-    if let Ok(s) = serde_json::to_string_pretty(c) {
-        // Write to a temp file and rename, so a crash mid-write can't leave a truncated config.
-        let tmp = data_dir().join("config.json.tmp");
-        if std::fs::write(&tmp, s).is_ok() {
-            let _ = std::fs::rename(&tmp, data_dir().join("config.json"));
-        }
     }
 }
 
@@ -657,19 +300,6 @@ fn to_card(c: &CardData) -> Card {
 
 fn cards_model(cards: &[CardData]) -> ModelRc<Card> {
     ModelRc::new(VecModel::from(cards.iter().map(to_card).collect::<Vec<_>>()))
-}
-
-fn duration_label(ticks: i64) -> String {
-    let mins = ticks / TICKS_PER_SEC / 60;
-    if mins >= 60 {
-        format!("{}h {}m", mins / 60, mins % 60)
-    } else {
-        format!("{mins}m")
-    }
-}
-
-fn clock(secs: i64) -> String {
-    format!("{}:{:02}:{:02}", secs / 3600, secs / 60 % 60, secs % 60)
 }
 
 // ---------------------------------------------------------------- images
@@ -3177,36 +2807,6 @@ impl Ctx {
     }
 }
 
-fn rgb_to_hsv(rgb: u32) -> (f32, f32, f32) {
-    let (r, g, b) = (((rgb >> 16) & 0xFF) as f32 / 255.0, ((rgb >> 8) & 0xFF) as f32 / 255.0, (rgb & 0xFF) as f32 / 255.0);
-    let max = r.max(g).max(b);
-    let min = r.min(g).min(b);
-    let d = max - min;
-    let h = if d == 0.0 {
-        0.0
-    } else if max == r {
-        60.0 * (((g - b) / d).rem_euclid(6.0))
-    } else if max == g {
-        60.0 * ((b - r) / d + 2.0)
-    } else {
-        60.0 * ((r - g) / d + 4.0)
-    };
-    (h, if max == 0.0 { 0.0 } else { d / max }, max)
-}
-
-fn parse_hex(s: &str) -> Option<u32> {
-    let t = s.trim().trim_start_matches('#');
-    match t.len() {
-        6 => u32::from_str_radix(t, 16).ok(),
-        3 => {
-            let v = u32::from_str_radix(t, 16).ok()?;
-            let (r, g, b) = ((v >> 8) & 0xF, (v >> 4) & 0xF, v & 0xF);
-            Some(((r * 17) << 16) | ((g * 17) << 8) | (b * 17))
-        }
-        _ => None,
-    }
-}
-
 fn rgb_of(c: slint::Color) -> u32 {
     ((c.red() as u32) << 16) | ((c.green() as u32) << 8) | c.blue() as u32
 }
@@ -3259,23 +2859,6 @@ async fn next_up_items(client: &Client, uid: &str, resume: &[Item], server: Vec<
     }
     out.retain(|i| !resume.iter().any(|r| r.id == i.id));
     out
-}
-
-fn fmt_size(bytes: i64) -> String {
-    let b = bytes as f64;
-    if b >= 1e9 {
-        format!("{:.2} GB", b / 1e9)
-    } else {
-        format!("{:.0} MB", b / 1e6)
-    }
-}
-
-fn fmt_bps(bps: i64) -> String {
-    if bps >= 1_000_000 {
-        format!("{:.1} Mbps", bps as f64 / 1e6)
-    } else {
-        format!("{} kbps", bps / 1000)
-    }
 }
 
 /// A one-line summary (like "1080p HEVC · English EAC3 5.1 · 3 subtitle tracks") and the
@@ -3873,6 +3456,8 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
 
 /// Starts the app. Shared by the desktop `main` and the Android activity entry point.
 pub fn run() -> Result<(), slint::PlatformError> {
+    foyer_core::set_data_base(platform::data_base());
+    foyer_core::set_log(applog);
     std::panic::set_hook(Box::new(|info| {
         let _ = std::fs::create_dir_all(data_dir());
         let _ = std::fs::write(data_dir().join("crash.log"), format!("{info}\n"));
@@ -4822,100 +4407,8 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     result
 }
 
-#[cfg(test)]
-mod quality_tests {
-    use super::*;
-
-    #[test]
-    fn auto_prefers_direct() {
-        // fast link: direct
-        assert_eq!(decide(Quality::Auto, Some(15_000_000), Some(100e6)).0, None);
-        // unknown bitrate or failed test: direct
-        assert_eq!(decide(Quality::Auto, None, Some(1e6)).0, None);
-        assert_eq!(decide(Quality::Auto, Some(15_000_000), None).0, None);
-        // just enough headroom: direct
-        assert_eq!(decide(Quality::Auto, Some(15_000_000), Some(16.6e6)).0, None);
-    }
-
-    #[test]
-    fn auto_steps_down_when_link_is_slow() {
-        // 25 Mbps file over a 14 Mbps link: budget 11.2 Mbps -> 8 Mbps preset
-        let (p, label) = decide(Quality::Auto, Some(25_000_000), Some(14e6));
-        assert_eq!(p.map(|i| PRESETS[i].bps), Some(8_000_000));
-        assert_eq!(label, "8 Mbps");
-        // very slow link bottoms out at the lowest preset
-        let (p, _) = decide(Quality::Auto, Some(25_000_000), Some(0.3e6));
-        assert_eq!(p, Some(PRESETS.len() - 1));
-        // 3 Mbps file over a 2.5 Mbps link: budget 2.0 Mbps -> the 2 Mbps preset
-        assert_eq!(decide(Quality::Auto, Some(3_000_000), Some(2.5e6)).0.map(|i| PRESETS[i].bps), Some(2_000_000));
-        // a tiny file never "transcodes" up to a preset bigger than itself
-        assert_eq!(decide(Quality::Auto, Some(700_000), Some(0.6e6)).0, None);
-    }
-
-    #[test]
-    fn explicit_choices_and_config_roundtrip() {
-        // a fresh install (nothing saved yet) plays the original file
-        assert_eq!(Quality::from_cfg(""), Quality::Direct);
-        assert_eq!(decide(Quality::Direct, Some(1), Some(1.0)).0, None);
-        assert_eq!(decide(Quality::Max(4), None, None).0, Some(4));
-        for q in [Quality::Auto, Quality::Direct, Quality::Max(0), Quality::Max(8)] {
-            assert_eq!(Quality::from_cfg(&q.to_cfg()), q);
-        }
-        assert_eq!(quality_label(Quality::Auto, "Direct"), "Auto – Direct");
-        assert_eq!(quality_label(Quality::Auto, "10 Mbps"), "Auto – 10 Mbps");
-    }
-}
-
-#[cfg(test)]
-mod accent_tests {
-    use super::*;
-
-    #[test]
-    fn parses_hex() {
-        assert_eq!(parse_hex("#60CDFF"), Some(0x60CDFF));
-        assert_eq!(parse_hex("60cdff"), Some(0x60CDFF));
-        assert_eq!(parse_hex("#fa0"), Some(0xFFAA00));
-        assert_eq!(parse_hex("nope"), None);
-        assert_eq!(parse_hex("#12345"), None);
-    }
-
-    #[test]
-    fn rgb_hsv_roundtrip_matches_known_colours() {
-        let (h, s, v) = rgb_to_hsv(0xFF0000);
-        assert!((h - 0.0).abs() < 0.01 && (s - 1.0).abs() < 0.01 && (v - 1.0).abs() < 0.01);
-        let (h, _, _) = rgb_to_hsv(0x00FF00);
-        assert!((h - 120.0).abs() < 0.01);
-        let (h, _, _) = rgb_to_hsv(0x0000FF);
-        assert!((h - 240.0).abs() < 0.01);
-        // the default accent
-        let (h, s, v) = rgb_to_hsv(0x60CDFF);
-        assert!((h - 199.0).abs() < 1.0 && (s - 0.62).abs() < 0.01 && (v - 1.0).abs() < 0.01);
-        // grey has no saturation
-        assert_eq!(rgb_to_hsv(0x808080).1, 0.0);
-    }
-}
 
 
-const HOME_ROWS: [(&str, &str, &str); 6] = [
-    ("media", "My Media", "Shortcuts to your libraries."),
-    ("continue", "Continue Watching", "Shows what you were part-way through."),
-    ("nextup", "Next Up", "The episode after the one you are on."),
-    ("requests", "My requests", "Your recent Seerr requests with their status. Needs Requests to be enabled."),
-    ("latest", "Recently added", "Titles added to each library on the server lately, whatever their age."),
-    ("released", "Recently released", "Movies and shows with the newest release or air dates."),
-];
-
-/// The saved row order, with any rows it doesn't mention appended in the default order.
-fn home_order(cfg: &Config) -> Vec<String> {
-    let mut out: Vec<String> = cfg.row_order.iter().filter(|k| HOME_ROWS.iter().any(|r| r.0 == k.as_str())).cloned().collect();
-    out.dedup();
-    for (k, _, _) in HOME_ROWS {
-        if !out.iter().any(|o| o == k) {
-            out.push(k.to_string());
-        }
-    }
-    out
-}
 
 fn home_rows_model(cfg: &Config) -> ModelRc<HomeRowCfg> {
     let rows: Vec<HomeRowCfg> = home_order(cfg)
@@ -4962,21 +4455,6 @@ fn auto_hw_mode() -> usize {
     })
 }
 
-#[cfg(test)]
-mod config_tests {
-    use super::*;
-
-    #[test]
-    fn old_config_without_new_fields_still_loads() {
-        let old = r#"{"server":"http://x:8096","user_id":"u","user_name":"n","token":"t","device_id":"d","debug_logging":true}"#;
-        let c: Config = serde_json::from_str(old).expect("old config must still parse");
-        assert_eq!(c.token, "t");
-        assert!(c.debug_logging);
-        assert_eq!(c.hw_mode, 0);
-        assert!(c.row_order.is_empty());
-        assert!(c.hw_decode && c.notify_issues);
-    }
-}
 
 /// Android entry point (called by the NativeActivity glue in the APK).
 #[cfg(target_os = "android")]

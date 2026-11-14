@@ -1819,6 +1819,7 @@ dependencies = [
  "chrono",
  "embed-resource",
  "emby-api",
+ "foyer-core",
  "image",
  "notify-rust",
  "p256",
@@ -1836,6 +1837,16 @@ dependencies = [
  "uuid",
  "windows",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "foyer-core"
+version = "0.25.1"
+dependencies = [
+ "emby-api",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]

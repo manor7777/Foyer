@@ -17,13 +17,7 @@ pub struct NoteRec {
     pub read: bool,
 }
 
-/// A series the user asked to be told about. `known` is every episode id seen so far.
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct Follow {
-    pub id: String,
-    pub name: String,
-    pub known: Vec<String>,
-}
+pub use foyer_core::Follow;
 
 const MAX_NOTES: usize = 200;
 

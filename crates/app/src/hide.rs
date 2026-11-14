@@ -3,11 +3,7 @@
 
 use super::*;
 
-#[derive(Serialize, Deserialize, Clone, Default)]
-pub struct Hide {
-    pub id: String,
-    pub name: String,
-}
+pub use foyer_core::Hide;
 
 /// What the open detail page can hide.
 #[derive(Clone, Default)]

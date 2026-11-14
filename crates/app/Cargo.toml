@@ -13,6 +13,7 @@ name = "foyer"
 path = "src/main.rs"
 
 [dependencies]
+foyer-core = { path = "../core" }
 emby-api = { path = "../emby-api" }
 seerr-api = { path = "../seerr-api" }
 player = { path = "../player" }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/emby-api", "crates/seerr-api", "crates/player", "crates/app"]
+members = ["crates/core", "crates/emby-api", "crates/seerr-api", "crates/player", "crates/app"]
 
 [workspace.package]
 edition = "2021"
