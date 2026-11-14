@@ -5309,6 +5309,16 @@ export component AppWindow inherits Window {
                         root.open-favorites();
                     }
                 }
+                if root.seerr-on: NavItem {
+                    compact: !root.nav-expanded;
+                    label: "Requests";
+                    icon: @image-url("icons/requests.svg");
+                    selected: root.in-seerr;
+                    clicked => {
+                        root.nav-open = false;
+                        root.open-seerr();
+                    }
+                }
                 Rectangle { height: 4px; }
                 if root.nav-expanded: Text {
                     text: "LIBRARIES";
@@ -5375,16 +5385,6 @@ export component AppWindow inherits Window {
                     clicked => {
                         root.nav-open = false;
                         root.open-notifications();
-                    }
-                }
-                if root.seerr-on: NavItem {
-                    compact: !root.nav-expanded;
-                    label: "Requests";
-                    icon: @image-url("icons/requests.svg");
-                    selected: root.in-seerr;
-                    clicked => {
-                        root.nav-open = false;
-                        root.open-seerr();
                     }
                 }
                 if root.is-admin: NavItem {
