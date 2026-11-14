@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
+exclude = ["vendor"]
 members = ["crates/core", "crates/emby-api", "crates/seerr-api", "crates/player", "crates/app"]
+
+[patch.crates-io]
+# One-line fix to Slint's drag handling; see vendor/i-slint-core/FOYER_PATCH.md.
+i-slint-core = { path = "vendor/i-slint-core" }
 
 [workspace.package]
 edition = "2021"
