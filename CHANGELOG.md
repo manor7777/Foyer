@@ -2,6 +2,11 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.9
+
+- Detail pages (movie, episode, series, season): fixed the description and the buttons sliding under the Cast & crew row on foldables and other mid-width screens. The header now measures its wrapped text (title, details, description) at its real width instead of assuming one line.
+- Requests tabs: on phones and tablets the tab row is now a drop-down (Discover, Requests, Watchlist, Issues, Users), since a sideways-scrolling row hid the tabs that were off screen. Desktop keeps the tab row.
+
 ## Foyer 0.26.8
 
 - Requests: the number of requests you have left (movies and series) now shows as two slim pills under the tabs on every Requests page, not just Discover. Each has a bar that drains as you use requests, and turns amber when low and red at zero.

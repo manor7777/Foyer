@@ -887,6 +887,26 @@ component Panel inherits Rectangle {
     }
 }
 
+/// Wrapped text that reports its real height. A bare wrapping Text inside a layout is measured as one
+/// line, so the box around it comes out too short and the next section lands on top of it.
+component WrapText inherits Rectangle {
+    in property <string> text;
+    in property <color> text-color: Palette.foreground;
+    in property <length> font-size: 1rem;
+    in property <int> font-weight: 400;
+    in property <float> text-opacity: 1;
+    height: t.preferred-height;
+    t := Text {
+        width: parent.width;
+        text: root.text;
+        color: root.text-color;
+        font-size: root.font-size;
+        font-weight: root.font-weight;
+        opacity: root.text-opacity;
+        wrap: word-wrap;
+    }
+}
+
 /// Keeps a button at its natural width inside a VerticalLayout (which would stretch it across).
 component StartRow inherits HorizontalLayout {
     alignment: start;
@@ -1067,11 +1087,17 @@ component SeerrTabs inherits Rectangle {
     in property <int> current;
     in property <bool> users: false;
     callback picked(int);
-    height: 38px + (SrQuota.shown ? 42px : 0px);
+    height: (Device.touch ? 44px : 38px) + (SrQuota.shown ? 42px : 0px);
     VerticalLayout {
         spacing: 8px;
         alignment: start;
-        Rectangle {
+        // Phones and tablets: one drop-down (a scrolling row of tabs hides what is off screen).
+        if Device.touch: Dropdown {
+            model: root.users ? ["Discover", "Requests", "Watchlist", "Issues", "Users"] : ["Discover", "Requests", "Watchlist", "Issues"];
+            current-index: root.current;
+            selected => { root.picked(self.current-index); }
+        }
+        if !Device.touch: Rectangle {
             height: 34px;
             // The row of tabs is wider than a phone: it scrolls sideways by itself.
             ScrollView {
@@ -5088,12 +5114,10 @@ export component AppWindow inherits Window {
                                     }
                                 }
                             }
-                            Text {
+                            WrapText {
                                 text: detail.title;
                                 font-size: 28px;
                                 font-weight: 700;
-                                color: Palette.foreground;
-                                wrap: word-wrap;
                             }
                             if detail.subtitle != "": Text {
                                 text: detail.subtitle;
@@ -5107,11 +5131,9 @@ export component AppWindow inherits Window {
                                     clicked => { root.open-item(detail.series-id, "Series"); }
                                 }
                             }
-                            Text {
+                            WrapText {
                                 text: detail.meta;
-                                color: Palette.foreground;
-                                opacity: 0.75;
-                                wrap: word-wrap;
+                                text-opacity: 0.75;
                             }
                             if root.detail-genres.length > 0: HorizontalLayout {
                                 alignment: start;
@@ -5137,12 +5159,10 @@ export component AppWindow inherits Window {
                                     }
                                 }
                             }
-                            if detail.summary != "": Text {
+                            if detail.summary != "": WrapText {
                                 text: detail.summary;
                                 font-size: 12px;
-                                color: Palette.foreground;
-                                opacity: 0.65;
-                                wrap: word-wrap;
+                                text-opacity: 0.65;
                             }
                             if detail.kind == "Series": HorizontalLayout {
                                 alignment: start;
@@ -5341,12 +5361,8 @@ export component AppWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                             }
-                            Text {
+                            WrapText {
                                 text: detail.overview;
-                                color: Palette.foreground;
-                                wrap: word-wrap;
-                                overflow: elide;
-                                vertical-stretch: 1;
                             }
                         }
                     }
