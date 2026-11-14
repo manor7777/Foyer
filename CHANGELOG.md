@@ -2,6 +2,18 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.25.0
+
+### ✨ Highlights
+
+- **Mini player.** The new shrink button (top right of the player, next to the title) minimises the video into a small window in the corner of Foyer, so you can browse and change settings while it plays. Hover it for pause, close and expand; click it to grow it back to full size with a smooth animation. Starting something else from the mini player replaces what's playing.
+- **Picture in picture.** The button beside it turns Foyer into a small, borderless, always-on-top video in the corner of your screen. Drag it anywhere; hover for pause, close and a button to go back to the full window (Esc does the same).
+
+### 🐞 Fixes
+
+- Subtitles now glide up smoothly when the controls appear, instead of stepping at a few frames a second.
+- After a right-click hides the controls, they stay hidden for 1.5 seconds even if the mouse twitches, so you have time to move it out of the way.
+
 ## Foyer 0.24.1
 
 ### 🐞 Fixes

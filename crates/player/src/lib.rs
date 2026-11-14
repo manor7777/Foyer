@@ -291,6 +291,84 @@ struct SurfState {
     mpv: usize,    // mpv core handle, published by the player thread (0 = none)
     render: usize, // mpv render context, owned by the GL thread (0 = none)
     release: bool, // player asked the GL thread to free the render context
+    mini: Option<MiniTex>, // off-screen target used while the video is shown as a small in-app image
+}
+
+/// Off-screen render target (GL thread only): mpv draws here and the host shows the texture as an image.
+#[derive(Clone, Copy)]
+struct MiniTex {
+    fbo: u32,
+    tex: u32,
+    w: i32,
+    h: i32,
+}
+
+const GL_TEXTURE_2D: u32 = 0x0DE1;
+const GL_FRAMEBUFFER: u32 = 0x8D40;
+
+/// The few GL entry points needed to manage the off-screen target.
+struct GlFns {
+    gen_tex: unsafe extern "system" fn(i32, *mut u32),
+    del_tex: unsafe extern "system" fn(i32, *const u32),
+    bind_tex: unsafe extern "system" fn(u32, u32),
+    tex_image: unsafe extern "system" fn(u32, i32, i32, i32, i32, i32, u32, u32, *const c_void),
+    tex_param: unsafe extern "system" fn(u32, u32, i32),
+    gen_fbo: unsafe extern "system" fn(i32, *mut u32),
+    del_fbo: unsafe extern "system" fn(i32, *const u32),
+    bind_fbo: unsafe extern "system" fn(u32, u32),
+    fbo_tex: unsafe extern "system" fn(u32, u32, u32, u32, i32),
+    get_int: unsafe extern "system" fn(u32, *mut i32),
+}
+
+impl GlFns {
+    unsafe fn load(loader: GlLoader) -> Option<GlFns> {
+        macro_rules! f {
+            ($n:literal) => {{
+                let p = loader(CStr::from_bytes_with_nul_unchecked(concat!($n, " ").as_bytes()));
+                if p.is_null() {
+                    return None;
+                }
+                std::mem::transmute(p)
+            }};
+        }
+        Some(GlFns {
+            gen_tex: f!("glGenTextures"),
+            del_tex: f!("glDeleteTextures"),
+            bind_tex: f!("glBindTexture"),
+            tex_image: f!("glTexImage2D"),
+            tex_param: f!("glTexParameteri"),
+            gen_fbo: f!("glGenFramebuffers"),
+            del_fbo: f!("glDeleteFramebuffers"),
+            bind_fbo: f!("glBindFramebuffer"),
+            fbo_tex: f!("glFramebufferTexture2D"),
+            get_int: f!("glGetIntegerv"),
+        })
+    }
+
+    unsafe fn free(&self, m: MiniTex) {
+        (self.del_fbo)(1, &m.fbo);
+        (self.del_tex)(1, &m.tex);
+    }
+
+    unsafe fn create(&self, w: i32, h: i32) -> MiniTex {
+        let (mut prev_tex, mut tex, mut fbo) = (0i32, 0u32, 0u32);
+        (self.get_int)(0x8069, &mut prev_tex);
+        (self.gen_tex)(1, &mut tex);
+        (self.bind_tex)(GL_TEXTURE_2D, tex);
+        (self.tex_image)(GL_TEXTURE_2D, 0, 0x8058, w, h, 0, 0x1908, 0x1401, std::ptr::null());
+        (self.tex_param)(GL_TEXTURE_2D, 0x2801, 0x2601);
+        (self.tex_param)(GL_TEXTURE_2D, 0x2800, 0x2601);
+        (self.tex_param)(GL_TEXTURE_2D, 0x2802, 0x812F);
+        (self.tex_param)(GL_TEXTURE_2D, 0x2803, 0x812F);
+        (self.bind_tex)(GL_TEXTURE_2D, prev_tex as u32);
+        let mut prev_fbo = 0i32;
+        (self.get_int)(0x8CA6, &mut prev_fbo);
+        (self.gen_fbo)(1, &mut fbo);
+        (self.bind_fbo)(GL_FRAMEBUFFER, fbo);
+        (self.fbo_tex)(GL_FRAMEBUFFER, 0x8CE0, GL_TEXTURE_2D, tex, 0);
+        (self.bind_fbo)(GL_FRAMEBUFFER, prev_fbo as u32);
+        MiniTex { fbo, tex, w, h }
+    }
 }
 
 struct SurfaceInner {
@@ -306,16 +384,19 @@ impl Surface {
     /// `redraw` asks the host to repaint (called from any thread).
     pub fn new(redraw: impl Fn() + Send + Sync + 'static) -> Self {
         Surface(Arc::new(SurfaceInner {
-            state: Mutex::new(SurfState { api: None, mpv: 0, render: 0, release: false }),
+            state: Mutex::new(SurfState { api: None, mpv: 0, render: 0, release: false, mini: None }),
             redraw: Box::new(redraw),
         }))
     }
 
     /// Draws the current video frame into the bound framebuffer 0 of size `w` x `h`.
     /// Call from the GL thread (Slint's BeforeRendering). Cheap when nothing is playing.
-    pub fn render(&self, loader: GlLoader, w: i32, h: i32) {
+    /// With `mini` = Some((w, h)) the video goes into an off-screen texture of that size instead and
+    /// the texture id is returned, for the host to draw as an image.
+    pub fn render(&self, loader: GlLoader, w: i32, h: i32, mini: Option<(i32, i32)>) -> Option<u32> {
         let mut st = self.0.state.lock().unwrap();
-        let Some(api) = st.api else { return };
+        let Some(api) = st.api else { return None };
+        let mut tex_out = None;
         // SAFETY: render context pointers are only used here, under the lock, on the GL thread.
         unsafe {
             if st.release || st.mpv == 0 {
@@ -324,7 +405,7 @@ impl Surface {
                     (api.render_free)(st.render as *mut c_void);
                     st.render = 0;
                 }
-                return;
+                return None;
             }
             let loader_ref: GlLoader = loader;
             GL_LOADER.store(&loader_ref as *const GlLoader as usize, Ordering::Release);
@@ -345,17 +426,50 @@ impl Surface {
             if st.render != 0 {
                 let ctx = st.render as *mut c_void;
                 (api.render_update)(ctx);
-                let mut fbo = GlFbo { fbo: 0, w, h, internal_format: 0 };
-                let mut flip: c_int = 1;
+                let gl = GlFns::load(loader);
+                // Off-screen target: (re)create it to match, or drop it when no longer wanted.
+                let mut target = None;
+                if let Some(gl) = &gl {
+                    match (mini, st.mini) {
+                        (Some((mw, mh)), cur) => {
+                            if cur.is_none_or(|m| m.w != mw || m.h != mh) {
+                                if let Some(m) = cur {
+                                    gl.free(m);
+                                }
+                                st.mini = Some(gl.create(mw.max(2), mh.max(2)));
+                            }
+                            target = st.mini;
+                        }
+                        (None, Some(m)) => {
+                            gl.free(m);
+                            st.mini = None;
+                        }
+                        (None, None) => {}
+                    }
+                }
+                let mut prev_fbo = 0i32;
+                if let (Some(gl), Some(_)) = (&gl, target) {
+                    (gl.get_int)(0x8CA6, &mut prev_fbo);
+                }
+                let mut fbo = match target {
+                    Some(m) => GlFbo { fbo: m.fbo as c_int, w: m.w, h: m.h, internal_format: 0x8058 },
+                    None => GlFbo { fbo: 0, w, h, internal_format: 0 },
+                };
+                let mut flip: c_int = if target.is_some() { 0 } else { 1 };
                 let mut params = [
                     RenderParam { kind: PARAM_GL_FBO, data: &mut fbo as *mut GlFbo as *mut c_void },
                     RenderParam { kind: PARAM_FLIP_Y, data: &mut flip as *mut c_int as *mut c_void },
                     RenderParam { kind: 0, data: std::ptr::null_mut() },
                 ];
                 (api.render_render)(ctx, params.as_mut_ptr());
+                if let (Some(gl), Some(m)) = (&gl, target) {
+                    (gl.bind_fbo)(GL_FRAMEBUFFER, prev_fbo as u32);
+                    tex_out = Some(m.tex);
+                }
             }
             GL_LOADER.store(0, Ordering::Release);
         }
+        tex_out
     }
 
     /// Tells mpv a frame was presented, so it can time video against audio accurately.
@@ -533,7 +647,14 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
         let mut sub_ids: Vec<i64> = Vec::new(); // selectable subtitle track ids, for cycling
         'play: loop {
             let mut forced_poll = false;
+            let mut sub_pos: Option<i64> = None;
             while let Ok(ctl) = controls.try_recv() {
+                // Sub-position nudges arrive every frame while the controls fade; only the latest matters,
+                // and they must not trigger the (slow) property poll below.
+                if let Control::SubPos(p) = ctl {
+                    sub_pos = Some(p);
+                    continue;
+                }
                 forced_poll = true;
                 match ctl {
                     Control::Quit => {
@@ -596,16 +717,20 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     Control::Screenshot(path) => {
                         run(&["screenshot-to-file", &path, "subtitles"]);
                     }
-                    Control::SubPos(p) => {
-                        run(&["set", "sub-pos", &p.to_string()]);
-                    }
+                    Control::SubPos(_) => {}
                     Control::AddSubtitle { url, title, lang } => {
                         run(&["sub-add", &url, "select", &title, &lang]);
                         tracks_due = Some(Instant::now() + Duration::from_millis(500));
                     }
                 }
             }
-            let ev = &*(api.wait)(ctx, 0.03);
+            if let Some(p) = sub_pos {
+                let args: Vec<CString> = ["set", "sub-pos", &p.to_string()].iter().map(|a| c(a)).collect();
+                let mut argv: Vec<*const c_char> = args.iter().map(|a| a.as_ptr()).collect();
+                argv.push(std::ptr::null());
+                (api.command_async)(ctx, 0, argv.as_ptr());
+            }
+            let ev = &*(api.wait)(ctx, if sub_pos.is_some() { 0.008 } else { 0.03 });
             match ev.event_id {
                 EV_SHUTDOWN => break,
                 EV_FILE_LOADED => {

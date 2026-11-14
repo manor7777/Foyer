@@ -849,6 +849,8 @@ struct State {
     last_move: Instant,
     last_click: Option<Instant>,
     click_gen: u64,
+    /// Window size / position / maximised state to go back to when leaving picture-in-picture.
+    pip_saved: Option<(slint::PhysicalSize, slint::PhysicalPosition, bool)>,
     lib: LibView,
     sr: SeerrState,
     /// Log of every notification Foyer has shown, newest first.
@@ -2804,6 +2806,51 @@ impl Ctx {
         }
     }
 
+    /// Picture-in-picture: shrink this window to a small borderless always-on-top video in the
+    /// screen corner; leaving puts it back as it was.
+    fn apply_pip(&self, on: bool) {
+        use slint::winit_030::WinitWindowAccessor;
+        let Some(ui) = self.ui.upgrade() else { return };
+        let w = ui.window();
+        if on {
+            if self.st.lock().unwrap().pip_saved.is_some() {
+                return;
+            }
+            ui.set_mini(false);
+            if w.is_fullscreen() {
+                w.set_fullscreen(false);
+            }
+            self.st.lock().unwrap().pip_saved = Some((w.size(), w.position(), w.is_maximized()));
+            if w.is_maximized() {
+                w.set_maximized(false);
+            }
+            let sf = w.scale_factor();
+            let (pw, ph) = ((480.0 * sf) as u32, (270.0 * sf) as u32);
+            let area = w.with_winit_window(|win| {
+                win.set_decorations(false);
+                win.current_monitor().map(|m| (m.position().x, m.position().y, m.size().width, m.size().height))
+            });
+            // Let the lowered minimum size take effect before resizing.
+            let weak = self.ui.clone();
+            slint::Timer::single_shot(Duration::from_millis(60), move || {
+                let Some(ui) = weak.upgrade() else { return };
+                ui.window().set_size(slint::PhysicalSize::new(pw, ph));
+                if let Some((mx, my, mw, mh)) = area.flatten() {
+                    let (margin, bottom) = ((24.0 * sf) as i32, (72.0 * sf) as i32);
+                    ui.window().set_position(slint::PhysicalPosition::new(mx + mw as i32 - pw as i32 - margin, my + mh as i32 - ph as i32 - bottom));
+                }
+            });
+        } else {
+            let Some((size, pos, max)) = self.st.lock().unwrap().pip_saved.take() else { return };
+            w.with_winit_window(|win| win.set_decorations(true));
+            w.set_size(size);
+            w.set_position(pos);
+            if max {
+                w.set_maximized(true);
+            }
+        }
+    }
+
     fn mouse_moved(&self) {
         self.st.lock().unwrap().last_move = Instant::now();
     }
@@ -3014,6 +3061,24 @@ impl Ctx {
         {
             let mut s = self.st.lock().unwrap();
             if s.playing {
+                // Playing in the mini player while browsing: stop it, then start this one.
+                let mini = self.ui.upgrade().is_some_and(|ui| ui.get_mini());
+                if mini {
+                    if let Some(tx) = &s.player_tx {
+                        let _ = tx.send(player::Control::Quit);
+                    }
+                    drop(s);
+                    let (c, title) = (self.clone(), title_hint);
+                    std::thread::spawn(move || {
+                        for _ in 0..100 {
+                            std::thread::sleep(Duration::from_millis(50));
+                            if !c.st.lock().unwrap().playing {
+                                break;
+                            }
+                        }
+                        let _ = slint::invoke_from_event_loop(move || c.start_playback(source, title));
+                    });
+                }
                 return;
             }
             s.playing = true;
@@ -3027,6 +3092,7 @@ impl Ctx {
             ui.set_player_started(false);
             ui.set_controls_shown(true);
             ui.set_player_live(matches!(source, Source::Live { .. }));
+            ui.set_mini(false);
             ui.set_playing(true);
         }
         let (tx, rx) = std::sync::mpsc::channel();
@@ -3096,6 +3162,9 @@ impl Ctx {
                     s.block_back_until = Instant::now() + Duration::from_millis(1500);
                 }
                 let Some(ui) = ctx2.ui.upgrade() else { return };
+                ui.set_mini(false);
+                ctx2.apply_pip(false);
+                ui.set_pip(false);
                 ui.set_playing(false);
                 media::close();
                 // Leave full screen with the player, otherwise the browse pages have no window controls.
@@ -3865,11 +3934,29 @@ fn main() -> Result<(), slint::PlatformError> {
     };
     {
         let (s, weak) = (surface.clone(), ui.as_weak());
+        let last_tex = std::cell::Cell::new((0u32, 0i32, 0i32));
         if let Err(e) = ui.window().set_rendering_notifier(move |state, api| match state {
             slint::RenderingState::BeforeRendering => {
                 if let (slint::GraphicsAPI::NativeOpenGL { get_proc_address }, Some(ui)) = (api, weak.upgrade()) {
                     let size = ui.window().size();
-                    s.render(*get_proc_address, size.width as i32, size.height as i32);
+                    // In the in-app mini player the video goes into a texture the UI draws as an image.
+                    let mini = ui.get_video_tex().then(|| {
+                        let sf = ui.window().scale_factor();
+                        ((ui.get_mini_w() * sf) as i32, (ui.get_mini_h() * sf) as i32)
+                    });
+                    if let Some(tex) = s.render(*get_proc_address, size.width as i32, size.height as i32, mini) {
+                        let key = (tex, mini.map_or(0, |m| m.0), mini.map_or(0, |m| m.1));
+                        if let (Some(id), true) = (std::num::NonZeroU32::new(tex), last_tex.replace(key) != key) {
+                            // SAFETY: the texture belongs to this window's GL context and outlives the image
+                            // (it is only freed once the UI stops showing it).
+                            let img = unsafe {
+                                slint::BorrowedOpenGLTextureBuilder::new_gl_2d_rgba_texture(id, [key.1 as u32, key.2 as u32].into())
+                                    .origin(slint::BorrowedOpenGLTextureOrigin::BottomLeft)
+                                    .build()
+                            };
+                            ui.set_mini_frame(img);
+                        }
+                    }
                 }
             }
             slint::RenderingState::AfterRendering => s.report_swap(),
@@ -3899,6 +3986,7 @@ fn main() -> Result<(), slint::PlatformError> {
             last_move: Instant::now(),
             last_click: None,
             click_gen: 0,
+            pip_saved: None,
             lib: LibView::default(),
             sr: SeerrState::default(),
             notes: notes::load_notes(),
@@ -4654,6 +4742,17 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     let c = ctx.clone();
     ui.on_mouse_moved(move || c.mouse_moved());
     let c = ctx.clone();
+    ui.on_pip_changed(move |on| c.apply_pip(on));
+    let weak = ui.as_weak();
+    ui.on_pip_drag(move || {
+        use slint::winit_030::WinitWindowAccessor;
+        if let Some(ui) = weak.upgrade() {
+            ui.window().with_winit_window(|w| {
+                let _ = w.drag_window();
+            });
+        }
+    });
+    let c = ctx.clone();
     let last_pos = std::cell::Cell::new(100i64);
     ui.on_sub_lift(move |ratio| {
         let pos = (100.0 - ratio * 100.0).round() as i64;
@@ -4684,7 +4783,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
             // Slint only re-applies its cursor rule on the next mouse event, so a still cursor would
             // stay visible after the controls fade. Drive the OS cursor directly as well.
             use slint::winit_030::WinitWindowAccessor;
-            let hidden = ui.get_playing() && ui.get_player_started() && !ui.get_controls_shown() && !ui.get_player_paused();
+            let hidden = ui.get_full_player() && !ui.get_pip() && ui.get_player_started() && !ui.get_controls_shown() && !ui.get_player_paused();
             if hidden != cursor_hidden.replace(hidden) {
                 ui.window().with_winit_window(|w| w.set_cursor_visible(!hidden));
             }
@@ -4709,7 +4808,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
         move || {
             let Some(ui) = c.ui.upgrade() else { return };
             let w = ui.window();
-            if w.is_fullscreen() || w.is_minimized() {
+            if w.is_fullscreen() || w.is_minimized() || ui.get_pip() {
                 return;
             }
             let (max, size) = (w.is_maximized(), w.size());

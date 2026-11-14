@@ -1236,16 +1236,16 @@ component Heading inherits Text {
 export component AppWindow inherits Window {
     title: "Foyer";
     icon: @image-url("icons/app.png");
-    min-width: 600px;
-    min-height: 380px;
+    min-width: root.pip ? 240px : 600px;
+    min-height: root.pip ? 135px : 380px;
     preferred-width: 1180px;
     preferred-height: 720px;
     // opaque while playing so resize frames (fullscreen toggle) don't flash the backdrop through
-    background: root.playing ? black : transparent;
+    background: root.full-player ? black : transparent;
     // fade out after stopping so the library can load in behind it
     animate background { duration: 250ms; easing: ease-out; }
     // pinned windows stay on top only while a video is playing
-    always-on-top: root.playing && root.on-top;
+    always-on-top: root.playing && (root.on-top || root.pip);
 
     // compact icon rail on small (picture-in-picture sized) windows
     // The sidebar width follows the window width continuously (icon rail below ~880px, full
@@ -1268,6 +1268,22 @@ export component AppWindow inherits Window {
     in-out property <string> play-error;
     in property <string> failed-id;
     in property <bool> playing: false;
+    // In-app mini player: the video shrinks into a corner while the pages stay usable.
+    in-out property <bool> mini: false;
+    // Picture-in-picture: the whole window becomes a small always-on-top video.
+    in-out property <bool> pip: false;
+    property <float> mini-t: root.mini && root.playing ? 1.0 : 0.0;
+    animate mini-t { duration: 280ms; easing: ease-in-out; }
+    // the full player (and pip) show only once the mini image has grown back to full size
+    out property <bool> full-player: root.playing && !root.mini && root.mini-t < 0.001;
+    // mpv is drawing into a texture (shown below as an image) rather than straight into the window
+    out property <bool> video-tex: root.playing && (root.mini || root.mini-t > 0.001);
+    in property <image> mini-frame;
+    out property <length> mini-w: 384px;
+    out property <length> mini-h: 216px;
+    callback pip-changed(bool);
+    callback pip-drag();
+    changed pip => { root.pip-changed(root.pip); }
     in property <[string]> discovered;
     in property <bool> discovering: false;
     in property <string> discover-note;
@@ -1366,7 +1382,7 @@ export component AppWindow inherits Window {
     in-out property <bool> auto-skip-intro: false;
     callback set-auto-skip-intro(bool);
     in-out property <bool> controls-shown: false;
-    property <bool> controls-on: root.controls-shown || root.player-paused || !root.player-started;
+    property <bool> controls-on: !root.mini && !root.pip && (root.controls-shown || root.player-paused || !root.player-started);
     // quick fade in, slower fade out
     property <float> controls-op: root.controls-on ? 1.0 : 0.0;
     animate controls-op { duration: root.controls-on ? 150ms : 500ms; easing: ease-out; }
@@ -1685,15 +1701,28 @@ export component AppWindow inherits Window {
             + (floor(mod(secs, 60)) < 10 ? "0" : "") + floor(mod(secs, 60));
     }
 
+    // After a right-click hides the controls, movement is ignored for a moment (a sensitive mouse
+    // reports tiny moves at once), giving time to move the pointer out of the way.
+    property <bool> controls-lock: false;
+    controls-lock-timer := Timer {
+        interval: 1500ms;
+        running: root.controls-lock;
+        triggered => { root.controls-lock = false; }
+    }
+
     function poke-controls() {
+        if root.controls-lock { return; }
         controls-shown = true;
         root.mouse-moved();
     }
 
-    // Move: show the controls. Right button: hide them at once.
+    // Move: show the controls. Right button: hide them, and keep them hidden briefly.
     function player-pointer(e: PointerEvent) {
         if e.kind == PointerEventKind.move { root.poke-controls(); }
-        else if e.kind == PointerEventKind.down && e.button == PointerEventButton.right { controls-shown = false; }
+        else if e.kind == PointerEventKind.down && e.button == PointerEventButton.right {
+            controls-shown = false;
+            root.controls-lock = true;
+        }
     }
 
     // Lift the subtitles clear of the bottom control bar as it fades in/out (ratio of window height).
@@ -1712,7 +1741,7 @@ export component AppWindow inherits Window {
 
     server-timer := Timer {
         interval: 5s;
-        running: root.page == "server" && !root.playing;
+        running: root.page == "server" && !root.full-player;
         triggered => { root.refresh-server(); }
     }
 
@@ -1725,7 +1754,7 @@ export component AppWindow inherits Window {
                 root.dismiss-message();
                 return accept;
             }
-            if root.playing {
+            if root.full-player {
                 if root.sub-dialog-open {
                     if e.text == Key.Escape { root.close-sub-search(); }
                     return accept;
@@ -1733,6 +1762,7 @@ export component AppWindow inherits Window {
                 // transport keys go to the player
                 if e.text == "f" || e.text == Key.F11 { root.full-screen = !root.full-screen; }
                 else if e.text == Key.Escape && root.full-screen { root.full-screen = false; }
+                else if e.text == Key.Escape && root.pip { root.pip = false; }
                 else if e.text == Key.Escape || e.text == Key.Backspace { root.player-key("quit"); }
                 else if e.text == " " { if root.skip-kind != 0 { root.player-key("skip"); } else { root.player-key("pause"); } }
                 else if e.text == Key.LeftArrow { root.player-key("back10"); }
@@ -1751,19 +1781,19 @@ export component AppWindow inherits Window {
                 root.full-screen = !root.full-screen;
                 return accept;
             }
-            if (e.text == Key.Escape || e.text == Key.Backspace || (e.modifiers.alt && e.text == Key.LeftArrow)) && root.can-go-back && !root.playing {
+            if (e.text == Key.Escape || e.text == Key.Backspace || (e.modifiers.alt && e.text == Key.LeftArrow)) && root.can-go-back && !root.full-player {
                 root.go-back();
                 return accept;
             }
             return reject;
         }
 
-    if !root.playing: Rectangle {
+    if !root.full-player: Rectangle {
         background: Palette.window-bg;
     }
 
     // Hovered poster's banner art, faded in behind the page.
-    if !root.playing && root.hover-backdrop: Image {
+    if !root.full-player && root.hover-backdrop: Image {
         source: Hover.image;
         x: 0px;
         y: 0px;
@@ -1773,7 +1803,7 @@ export component AppWindow inherits Window {
         opacity: Hover.active && Hover.image.width > 0 ? 1.0 : 0.0;
         animate opacity { duration: 220ms; easing: ease-out; }
     }
-    if !root.playing && root.hover-backdrop: Rectangle {
+    if !root.full-player && root.hover-backdrop: Rectangle {
         background: Palette.dark
             ? @linear-gradient(180deg, #0b0f1a99 0%, #0b0f1ad0 70%, #0b0f1aeb 100%)
             : @linear-gradient(180deg, #f3f5f9aa 0%, #f3f5f9e0 70%, #f3f5f9f0 100%);
@@ -1782,7 +1812,7 @@ export component AppWindow inherits Window {
     }
 
     // Detail pages: the backdrop fills the whole window, dimmed so text stays readable.
-    if page == "detail" && !root.playing: Image {
+    if page == "detail" && !root.full-player: Image {
         source: detail.backdrop;
         opacity: detail.backdrop.width > 0 ? 1.0 : 0.0;
         animate opacity { duration: 500ms; easing: ease-out; }
@@ -1792,13 +1822,13 @@ export component AppWindow inherits Window {
         height: parent.height;
         image-fit: cover;
     }
-    if page == "detail" && !root.playing: Rectangle {
+    if page == "detail" && !root.full-player: Rectangle {
         background: Palette.dark
             ? @linear-gradient(180deg, #0b0f1a8c 0%, #0b0f1ad8 70%, #0b0f1af0 100%)
             : @linear-gradient(180deg, #f3f5f9aa 0%, #f3f5f9e6 70%, #f3f5f9f5 100%);
     }
 
-    if page == "sr-detail" && !root.playing: Image {
+    if page == "sr-detail" && !root.full-player: Image {
         source: root.sr-detail.backdrop;
         x: 0px;
         y: 0px;
@@ -1808,7 +1838,7 @@ export component AppWindow inherits Window {
         opacity: root.sr-detail.backdrop.width > 0 ? 1.0 : 0.0;
         animate opacity { duration: 500ms; easing: ease-out; }
     }
-    if page == "sr-detail" && !root.playing: Rectangle {
+    if page == "sr-detail" && !root.full-player: Rectangle {
         background: Palette.dark
             ? @linear-gradient(180deg, #0b0f1a8c 0%, #0b0f1ad8 70%, #0b0f1af0 100%)
             : @linear-gradient(180deg, #f3f5f9aa 0%, #f3f5f9e6 70%, #f3f5f9f5 100%);
@@ -2081,7 +2111,7 @@ export component AppWindow inherits Window {
         }
     }
 
-    if page != "login" && !playing: Rectangle {
+    if page != "login" && !full-player: Rectangle {
       HorizontalLayout {
         // room for the floating navigation
         Rectangle { width: root.pane-width; }
@@ -4539,7 +4569,7 @@ export component AppWindow inherits Window {
                                     text: root.series-play-label;
                                     icon: @image-url("icons/play.svg");
                                     primary: true;
-                                    enabled: !root.playing;
+                                    enabled: !root.full-player;
                                     clicked => { root.play(root.series-play-id, root.series-play-resume, false); }
                                 }
                             }
@@ -4575,13 +4605,13 @@ export component AppWindow inherits Window {
                                     text: detail.can-resume ? "Resume" : "Play";
                                     icon: @image-url("icons/play.svg");
                                     primary: true;
-                                    enabled: !root.playing;
+                                    enabled: !root.full-player;
                                     clicked => { root.play(detail.id, detail.can-resume, false); }
                                 }
                                 if detail.can-resume: PillButton {
                                     text: "From beginning";
                                     icon: @image-url("icons/play.svg");
-                                    enabled: !root.playing;
+                                    enabled: !root.full-player;
                                     clicked => { root.play(detail.id, false, false); }
                                 }
                                 RoundIcon {
@@ -4783,7 +4813,7 @@ export component AppWindow inherits Window {
                                 y: (parent.height - self.height) / 2;
                                 icon: @image-url("icons/play.svg");
                                 tint: Palette.foreground;
-                                visible: !root.playing;
+                                visible: !root.full-player;
                                 clicked => { root.play(ep.id, ep.progress > 0, false); }
                             }
                         }
@@ -4968,7 +4998,7 @@ export component AppWindow inherits Window {
 
     // ---------------- player ----------------
     // mpv renders into this window's GL surface underneath; everything here is drawn over it.
-    if playing: Rectangle {
+    if root.full-player && !root.pip: Rectangle {
         if !root.player-started: Rectangle {
             background: black;
             Text {
@@ -5043,6 +5073,15 @@ export component AppWindow inherits Window {
                     vertical-alignment: center;
                     height: 40px;
                     overflow: elide;
+                    horizontal-stretch: 1;
+                }
+                IconButton {
+                    icon: @image-url("icons/shrink.svg");
+                    clicked => { root.mini = true; }
+                }
+                IconButton {
+                    icon: @image-url("icons/pip.svg");
+                    clicked => { root.pip = true; }
                 }
             }
         }
@@ -5283,6 +5322,98 @@ export component AppWindow inherits Window {
                     }
                 }
               }
+            }
+        }
+    }
+
+    // ---------------- picture-in-picture (the window itself is the small video) ----------------
+    if root.full-player && root.pip: Rectangle {
+        pip-ta := TouchArea {
+            pointer-event(e) => {
+                if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.pip-drag(); }
+            }
+        }
+        Rectangle {
+            opacity: pip-ta.has-hover || root.player-paused ? 1.0 : 0.0;
+            animate opacity { duration: 150ms; }
+            background: #00000070;
+            HorizontalLayout {
+                padding: 6px;
+                spacing: 2px;
+                alignment: end;
+                y: 0px;
+                height: 44px;
+                IconButton {
+                    size: 32px;
+                    icon: @image-url("icons/expand.svg");
+                    clicked => { root.pip = false; }
+                }
+                IconButton {
+                    size: 32px;
+                    icon: @image-url("icons/close.svg");
+                    clicked => { root.player-key("quit"); }
+                }
+            }
+            IconButton {
+                size: 52px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                icon: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                clicked => { root.player-key("pause"); }
+            }
+        }
+    }
+
+    // ---------------- mini player (video as a small image over the pages) ----------------
+    if root.playing && root.video-tex: Rectangle {
+        property <length> x0: parent.width - root.mini-w - 20px;
+        property <length> y0: parent.height - root.mini-h - 20px;
+        x: root.mini-t * self.x0;
+        y: root.mini-t * self.y0;
+        width: parent.width + root.mini-t * (root.mini-w - parent.width);
+        height: parent.height + root.mini-t * (root.mini-h - parent.height);
+        border-radius: 12px * root.mini-t;
+        background: black;
+        clip: true;
+        drop-shadow-blur: 24px * root.mini-t;
+        drop-shadow-color: #000000a0;
+        drop-shadow-offset-y: 6px;
+        Image {
+            source: root.mini-frame;
+            width: parent.width;
+            height: parent.height;
+            image-fit: contain;
+        }
+        mini-ta := TouchArea {
+            clicked => { root.mini = false; }
+        }
+        if root.mini && root.mini-t > 0.95: Rectangle {
+            opacity: mini-ta.has-hover || mini-ta.pressed ? 1.0 : 0.0;
+            animate opacity { duration: 150ms; }
+            background: #00000070;
+            HorizontalLayout {
+                padding: 6px;
+                spacing: 2px;
+                alignment: end;
+                y: 0px;
+                height: 44px;
+                IconButton {
+                    size: 32px;
+                    icon: @image-url("icons/expand.svg");
+                    clicked => { root.mini = false; }
+                }
+                IconButton {
+                    size: 32px;
+                    icon: @image-url("icons/close.svg");
+                    clicked => { root.player-key("quit"); }
+                }
+            }
+            IconButton {
+                size: 52px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                icon: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                clicked => { root.player-key("pause"); }
             }
         }
     }

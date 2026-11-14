@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1794607180.878309,
-    "seen": 1794607325.5534563,
-    "ast_hash": "420a15560f6c14ae8dddb1d8c2ac063e",
+    "mtime": 1794650208.1304202,
+    "seen": 1794650348.4141703,
+    "ast_hash": "cfcfa04747f3bd6b536cbf2254d8282a",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/main.rs": {
-    "mtime": 1794607062.5758452,
-    "seen": 1794607160.3449247,
-    "ast_hash": "f1126dfb4bfc813a2d30085a3ce43c58",
+    "mtime": 1794650070.5945756,
+    "seen": 1794650348.4141827,
+    "ast_hash": "0d831d377dc0c1db391893a4236d5748",
     "semantic_hash": ""
   },
   "crates/app/src/media.rs": {
@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "crates/player/src/lib.rs": {
-    "mtime": 1794610650.8130622,
-    "seen": 1794610975.3007283,
-    "ast_hash": "7ab6cafbb33a189105b62051198e280b",
+    "mtime": 1794649937.3354084,
+    "seen": 1794650348.4142034,
+    "ast_hash": "d344956dd8a72f96eaa217d11fa571b9",
     "semantic_hash": ""
   },
   "crates/seerr-api/Cargo.toml": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794607180.9361923,
-    "seen": 1794607325.5534859,
-    "ast_hash": "11209a5f1a9d8e2b3f92606b2ab8bea4",
+    "mtime": 1794650208.0843441,
+    "seen": 1794650348.4142115,
+    "ast_hash": "feb6c90a3cb2f8f1516cefdfc5765a92",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -423,6 +423,24 @@
     "mtime": 1794606982.8683136,
     "seen": 1794607160.3449361,
     "ast_hash": "08e06f2e97a8a91339a2438adca6a948",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/expand.svg": {
+    "mtime": 1794650026.2567446,
+    "seen": 1794650348.4142475,
+    "ast_hash": "ae60e02e69d7cd0a4888fd269d321957",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/pip.svg": {
+    "mtime": 1794650026.2546527,
+    "seen": 1794650348.4142923,
+    "ast_hash": "5fe56abf6c9fdeecbe073551cc28fb68",
+    "semantic_hash": ""
+  },
+  "crates/app/ui/icons/shrink.svg": {
+    "mtime": 1794650026.2556956,
+    "seen": 1794650348.4143243,
+    "ast_hash": "eada51fdd65aa52d702cfd917f938527",
     "semantic_hash": ""
   }
 }
