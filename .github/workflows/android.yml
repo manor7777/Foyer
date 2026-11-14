@@ -37,7 +37,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Test (shared code, Linux)
-        run: cargo test --locked --workspace
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev libxkbcommon-dev
+          cargo test --locked --workspace
 
       - name: Fetch libmpv for Android
         env:
