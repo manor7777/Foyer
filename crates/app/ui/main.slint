@@ -1583,6 +1583,8 @@ export component AppWindow inherits Window {
 
     // embedded player
     in property <string> player-title;
+    /// Time of day shown in the player's top-right corner (kept current from Rust).
+    in property <string> clock-text;
     in property <float> player-pos;
     in property <float> player-dur;
     in property <[float]> player-chapters;
@@ -5543,6 +5545,17 @@ export component AppWindow inherits Window {
                     height: 40px;
                     overflow: elide;
                     horizontal-stretch: 1;
+                }
+                // Time of day, like a phone's status bar, just left of the picture-in-picture buttons.
+                Text {
+                    text: root.clock-text;
+                    color: white;
+                    opacity: 0.85;
+                    font-size: 16px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                    height: 40px;
                 }
                 // The in-app mini player and the shrink-the-window picture-in-picture are desktop features.
                 if Device.desktop: IconButton {

@@ -50,6 +50,15 @@ fn main() {
     if std::env::var("PREVIEW_ACCENT").is_ok() {
         ui.set_accent_mode(1);
     }
+    if page == "player" {
+        ui.set_playing(true);
+        ui.set_player_started(true);
+        ui.set_controls_shown(true);
+        ui.set_player_paused(std::env::var("PREVIEW_PAUSED").is_ok());
+        ui.set_player_title("Star Trek: Discovery S1:E7 Magic to Make the Sanest Man Go Mad".into());
+        ui.set_player_pos(1680.0);
+        ui.set_player_dur(2849.0);
+    }
     if page == "notifications" {
         let mk = |id: &str, title: &str, body: &str, read: bool| foyer::NoteRow { id: id.into(), title: title.into(), body: body.into(), item: "x".into(), when: "Today 17:29".into(), read, ..Default::default() };
         let rows = vec![

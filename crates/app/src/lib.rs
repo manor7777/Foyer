@@ -4393,6 +4393,21 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     });
 
     // Hide the player controls after 3 s without mouse movement (unless paused or a menu is open).
+    // Time of day for the player's corner, e.g. "12:00am".
+    let clock_timer = slint::Timer::default();
+    {
+        let weak = ui.as_weak();
+        let tick = move || {
+            if let Some(ui) = weak.upgrade() {
+                let now = chrono::Local::now().format("%-I:%M%P").to_string();
+                if ui.get_clock_text().as_str() != now {
+                    ui.set_clock_text(now.into());
+                }
+            }
+        };
+        tick();
+        clock_timer.start(slint::TimerMode::Repeated, Duration::from_secs(10), tick);
+    }
     let hide_timer = slint::Timer::default();
     {
         let c = ctx.clone();
@@ -4481,6 +4496,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     // Remove the tray icon explicitly; otherwise Windows can leave a dead one behind.
     notes::set_tray(false);
     drop(window_timer);
+    drop(clock_timer);
     drop(hide_timer);
     drop(accent_timer);
     result
