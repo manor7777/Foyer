@@ -2,6 +2,21 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.3
+
+### ✨ Highlights
+
+- **Android: the keyboard no longer hides what you type.** When the on-screen keyboard opens, the sign-in card and the page above it move up so you can see the field (and the bottom bar steps out of the way). This covers the Foyer and Requests sign-ins.
+- **Android: videos play in landscape.** A phone or tablet turns to landscape when playback starts and goes back to normal when it stops, so the whole control bar is always visible.
+- **Android: a big play / pause button** in the middle of the video while the controls are showing. A tap on the video shows or hides the controls.
+- **A proper Android app icon** that fills your launcher's shape (round, square or squircle) instead of sitting on a white circle.
+
+### 🐞 Fixes
+
+- **After watching, you land on the episode you finished on** (Windows and Android). If you started an episode from its page and autoplay carried on to later ones, backing out of the player now shows the last episode you watched, not the one you started on.
+- **Windows: the picture-in-picture window can be resized again.** It has no frame, so there was nothing to grab; dragging any edge or corner now resizes it (it keeps the video's shape).
+- Android: the in-app mini player and the shrink-the-window picture-in-picture are desktop features; their buttons no longer appear on Android, where they left the screen broken. Real system picture-in-picture for Android needs changes to how the app is packaged and is planned.
+
 ## Foyer 0.26.2
 
 ### ✨ Highlights

@@ -54,3 +54,4 @@ Everything below is built by CI on every push; none of it has been run on a real
   - Directional (up/down) focus movement is linear (Tab order); a row-aware grid navigation would feel better on TV.
   - Material You accent, Android Picture-in-Picture, background notifications, 32-bit ARM and x86 builds.
   - Much of `lib.rs` (about 4,500 lines) is still UI glue that could move into the core crate.
+  - Picture-in-picture on Android needs `android:supportsPictureInPicture` on the activity, which cargo-apk 0.26-era manifests cannot express; it needs a custom manifest or a different packaging step. Until then the mini player and window-shrink PiP are desktop-only.

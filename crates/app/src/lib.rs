@@ -2723,6 +2723,8 @@ impl Ctx {
         std::thread::spawn(move || {
             let env = PlayEnv { controls: rx, surface: ctx.surface.clone(), ui: ctx.ui.clone(), now: ctx.now.clone(), bandwidth: ctx.bandwidth.clone(), restart: ctx.restart.clone(), hw_decode, hw_mode, auto_skip_intro, autoplay, tx };
             let mut source = source;
+            // Where playback started, to land on the episode you actually finished on (autoplay may have moved on).
+            let first_id = source.id().to_string();
             let mut error: Option<(String, String)> = None; // (item id, message)
             // Episodes that rolled on by themselves since you last pressed something.
             let mut auto_streak = 0;
@@ -2770,10 +2772,19 @@ impl Ctx {
                     }
                 }
             }
+            let last_id = source.id().to_string();
             let ctx2 = ctx.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 {
                     let mut s = ctx2.st.lock().unwrap();
+                    // Started from an episode's page and finished on a later one: show the later one.
+                    if error.is_none() && first_id != last_id {
+                        if let Some(Page::Detail { id }) = s.nav.last_mut() {
+                            if *id == first_id {
+                                *id = last_id.clone();
+                            }
+                        }
+                    }
                     s.playing = false;
                     s.player_tx = None;
                     // The UI is still leaving the player: ignore back input briefly.
@@ -3476,6 +3487,10 @@ pub fn run() -> Result<(), slint::PlatformError> {
         let device = ui.global::<Device>();
         device.set_touch(ff == platform::FormFactor::Touch);
         device.set_tv(ff == platform::FormFactor::Tv);
+    }
+    // Phones turn to landscape while a video plays (TVs already are, desktops have no use for it).
+    if platform::form_factor() == platform::FormFactor::Touch {
+        ui.on_playing_changed(platform::set_landscape);
     }
     // TV remote: arrows move focus along the page. Slint already moves focus on Tab / Shift+Tab, so
     // send those (after the current key event has finished, not from inside its handler).
@@ -4324,6 +4339,12 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     ui.on_pip_drag(move || {
         if let Some(ui) = weak.upgrade() {
             platform::drag_window(ui.window());
+        }
+    });
+    let weak = ui.as_weak();
+    ui.on_pip_resize(move |dir| {
+        if let Some(ui) = weak.upgrade() {
+            platform::drag_resize(ui.window(), dir);
         }
     });
     let c = ctx.clone();

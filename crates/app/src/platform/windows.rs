@@ -94,3 +94,6 @@ pub fn gpu_names() -> Vec<String> {
     out
 }
 
+
+/// Phones turn to landscape while a video plays; nothing to do here.
+pub fn set_landscape(_on: bool) {}

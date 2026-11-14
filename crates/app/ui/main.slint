@@ -1105,6 +1105,15 @@ component HScroll inherits Rectangle {
     }
 }
 
+/// An invisible strip along a window edge or corner: press it to resize the (frameless) window.
+component ResizeGrip inherits TouchArea {
+    in property <int> dir;
+    callback resize(int);
+    pointer-event(e) => {
+        if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.resize(root.dir); }
+    }
+}
+
 /// Placeholder block that pulses until the real picture arrives.
 component Skeleton inherits Rectangle {
     property <float> p: 0.0;
@@ -1501,6 +1510,8 @@ export component AppWindow inherits Window {
     property <bool> nav-expanded: root.nav-t > 0.55;
     /// Phones held upright: the navigation moves to a bar along the bottom (the sidebar becomes the "More" drawer).
     property <bool> bottom-nav: Device.touch && root.height > root.width;
+    /// Height of the on-screen keyboard while it is up (0 otherwise): content is lifted above it.
+    property <length> kb: root.virtual-keyboard-size.height;
     /// Not enough room for a picture beside the text (phone in portrait, or a very narrow window).
     property <bool> narrow: root.width - root.pane-width < 640px;
     property <length> pane-width: root.bottom-nav ? 0px : 76px + 168px * root.width-t;
@@ -1528,6 +1539,8 @@ export component AppWindow inherits Window {
     out property <length> mini-h: 216px;
     callback pip-changed(bool);
     callback pip-drag();
+    /// Picture-in-picture is frameless: its edges resize it. 0 N, 1 S, 2 E, 3 W, 4 NE, 5 NW, 6 SE, 7 SW.
+    callback pip-resize(int);
     callback pip-resized();
     in property <float> video-aspect: 1.7778;
     changed height => { root.pip-resized(); }
@@ -1640,6 +1653,8 @@ export component AppWindow inherits Window {
     in property <[TrackRow]> sub-tracks;
     in-out property <bool> menu-hold: false;
     in-out property <bool> nav-open: false;
+    /// Playback started or stopped (a phone turns to landscape while a video plays).
+    callback playing-changed(bool);
     /// TV remote: move focus along the page (-1 back, +1 forward); Rust turns it into Shift+Tab / Tab.
     callback dpad(int);
     in-out property <bool> nav-pinned: false;
@@ -2002,7 +2017,10 @@ export component AppWindow inherits Window {
 
     forward-focus: root-focus;
     // Whatever had focus on the page underneath is gone once the player opens; take it back so keys work.
-    changed playing => { if root.playing { root-focus.focus(); } }
+    changed playing => {
+        if root.playing { root-focus.focus(); }
+        root.playing-changed(root.playing);
+    }
     root-focus := FocusScope {
         key-pressed(e) => {
             if root.message-open {
@@ -2165,6 +2183,8 @@ export component AppWindow inherits Window {
         Rectangle {
             width: min(440px, parent.width - 32px);
             height: min(login-col.preferred-height + 8px, parent.height - 32px);
+            // lifted clear of the on-screen keyboard
+            y: max(16px, (parent.height - root.kb - self.height) / 2);
             border-radius: 26px;
             background: #0f1422d8;
             border-width: 1px;
@@ -2372,7 +2392,7 @@ export component AppWindow inherits Window {
 
     if page != "login" && !full-player: Rectangle {
       HorizontalLayout {
-        padding-bottom: root.bottom-nav ? 100px : 0px;
+        padding-bottom: root.kb > 1px ? root.kb : (root.bottom-nav ? 100px : 0px);
         // room for the floating navigation
         Rectangle { width: root.pane-width; }
 
@@ -5336,7 +5356,7 @@ export component AppWindow inherits Window {
         }
 
         // Phone in portrait: tabs along the bottom, like a music app.
-        if root.bottom-nav: Rectangle {
+        if root.bottom-nav && root.kb < 1px: Rectangle {
             x: 12px;
             width: parent.width - 24px;
             height: 66px;
@@ -5408,6 +5428,32 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Touch: a big play/pause button in the middle while the controls are showing.
+        if Device.touch && root.controls-op > 0 && root.player-started: Rectangle {
+            width: 76px;
+            height: 76px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 38px;
+            background: #000000a8;
+            border-width: 1px;
+            border-color: #ffffff45;
+            Image {
+                source: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                colorize: white;
+                width: 36px;
+                height: 36px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+            TouchArea {
+                clicked => {
+                    root.player-key("pause");
+                    root.poke-controls();
+                }
+            }
+        }
+
         if root.skip-kind != 0 && root.player-started: HorizontalLayout {
             width: self.preferred-width;
             x: parent.width - self.width - 24px;
@@ -5465,11 +5511,12 @@ export component AppWindow inherits Window {
                     overflow: elide;
                     horizontal-stretch: 1;
                 }
-                IconButton {
+                // The in-app mini player and the shrink-the-window picture-in-picture are desktop features.
+                if Device.desktop: IconButton {
                     icon: @image-url("icons/shrink.svg");
                     clicked => { root.mini = true; }
                 }
-                IconButton {
+                if Device.desktop: IconButton {
                     icon: @image-url("icons/pip.svg");
                     clicked => { root.pip = true; }
                 }
@@ -5749,6 +5796,15 @@ export component AppWindow inherits Window {
                 clicked => { root.player-key("pause"); }
             }
         }
+        // Edges and corners that resize the window (a frameless window has no border to grab).
+        ResizeGrip { dir: 0; x: 10px; y: 0px; width: parent.width - 20px; height: 6px; mouse-cursor: MouseCursor.ns-resize; resize(d) => { root.pip-resize(d); } }
+        ResizeGrip { dir: 1; x: 10px; y: parent.height - 6px; width: parent.width - 20px; height: 6px; mouse-cursor: MouseCursor.ns-resize; resize(d) => { root.pip-resize(d); } }
+        ResizeGrip { dir: 3; x: 0px; y: 10px; width: 6px; height: parent.height - 20px; mouse-cursor: MouseCursor.ew-resize; resize(d) => { root.pip-resize(d); } }
+        ResizeGrip { dir: 2; x: parent.width - 6px; y: 10px; width: 6px; height: parent.height - 20px; mouse-cursor: MouseCursor.ew-resize; resize(d) => { root.pip-resize(d); } }
+        ResizeGrip { dir: 5; x: 0px; y: 0px; width: 10px; height: 10px; mouse-cursor: MouseCursor.nwse-resize; resize(d) => { root.pip-resize(d); } }
+        ResizeGrip { dir: 4; x: parent.width - 10px; y: 0px; width: 10px; height: 10px; mouse-cursor: MouseCursor.nesw-resize; resize(d) => { root.pip-resize(d); } }
+        ResizeGrip { dir: 7; x: 0px; y: parent.height - 10px; width: 10px; height: 10px; mouse-cursor: MouseCursor.nesw-resize; resize(d) => { root.pip-resize(d); } }
+        ResizeGrip { dir: 6; x: parent.width - 10px; y: parent.height - 10px; width: 10px; height: 10px; mouse-cursor: MouseCursor.nwse-resize; resize(d) => { root.pip-resize(d); } }
     }
 
     // ---------------- mini player (video as a small image over the pages) ----------------

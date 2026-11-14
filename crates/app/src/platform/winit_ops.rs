@@ -50,3 +50,23 @@ pub fn watch_window_events(w: &slint::Window, on_back: impl Fn() + 'static, on_c
         EventResult::Propagate
     });
 }
+
+/// Starts a resize drag from an edge or corner of a frameless window (picture-in-picture).
+/// `dir`: 0 north, 1 south, 2 east, 3 west, 4 north-east, 5 north-west, 6 south-east, 7 south-west.
+pub fn drag_resize(w: &slint::Window, dir: i32) {
+    use winit::window::ResizeDirection as R;
+    let d = match dir {
+        0 => R::North,
+        1 => R::South,
+        2 => R::East,
+        3 => R::West,
+        4 => R::NorthEast,
+        5 => R::NorthWest,
+        6 => R::SouthEast,
+        7 => R::SouthWest,
+        _ => return,
+    };
+    w.with_winit_window(|win| {
+        let _ = win.drag_resize_window(d);
+    });
+}

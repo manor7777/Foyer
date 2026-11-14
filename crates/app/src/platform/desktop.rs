@@ -33,3 +33,6 @@ pub fn open_folder(_dir: &Path) {}
 pub fn system_notify(title: &str, body: &str) {
     let _ = notify_rust::Notification::new().appname("Foyer").summary(title).body(body).show();
 }
+
+/// Phones turn to landscape while a video plays; nothing to do here.
+pub fn set_landscape(_on: bool) {}

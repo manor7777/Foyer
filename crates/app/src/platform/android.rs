@@ -95,6 +95,7 @@ pub fn open_folder(_dir: &Path) {}
 // No cursor, frame or movable window on Android.
 pub fn set_cursor_visible(_w: &slint::Window, _visible: bool) {}
 pub fn drag_window(_w: &slint::Window) {}
+pub fn drag_resize(_w: &slint::Window, _dir: i32) {}
 pub fn set_decorations(_w: &slint::Window, _on: bool) {}
 pub fn monitor_area(_w: &slint::Window) -> Option<(i32, i32, u32, u32)> {
     None
@@ -210,4 +211,15 @@ pub fn install_package(apk: &[u8], file_name: &str) -> Result<(), String> {
         "An Android call failed" | "Java exception was thrown" => "Android couldn't open the installer for this update.".to_string(),
         s => format!("Couldn't hand the update to Android ({s})."),
     })
+}
+
+/// While a video plays on a phone or tablet, turn to landscape (and let go again afterwards).
+/// SCREEN_ORIENTATION_SENSOR_LANDSCAPE = 6, SCREEN_ORIENTATION_UNSPECIFIED = -1.
+pub fn set_landscape(on: bool) {
+    if let Err(e) = with_env(|env, act| {
+        env.call_method(act, "setRequestedOrientation", "(I)V", &[JValue::Int(if on { 6 } else { -1 })])?;
+        Ok(())
+    }) {
+        eprintln!("setRequestedOrientation failed: {e}");
+    }
 }
