@@ -988,28 +988,37 @@ component StatusChip inherits Rectangle {
     }
 }
 
-component SeerrTabs inherits HorizontalLayout {
+component SeerrTabs inherits Rectangle {
     in property <int> current;
     in property <bool> users: false;
     callback picked(int);
-    spacing: 8px;
-    alignment: start;
-    for name[i] in (root.users ? ["Discover", "Requests", "Watchlist", "Issues", "Users"] : ["Discover", "Requests", "Watchlist", "Issues"]): Rectangle {
-        width: 112px;
-        height: 34px;
-        border-radius: 17px;
-        background: i == root.current ? Palette.accent-background : (ta.has-hover ? Palette.control-hover : Palette.control-background);
-        border-width: 1px;
-        border-color: i == root.current ? Palette.accent-background : Palette.border;
-        Text {
-            text: name;
-            color: i == root.current ? Palette.accent-foreground : Palette.foreground;
-            font-weight: 600;
-            font-size: 13px;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+    height: 38px;
+    // The row of tabs is wider than a phone: it scrolls sideways by itself.
+    ScrollView {
+        horizontal-scrollbar-policy: always-off;
+        vertical-scrollbar-policy: always-off;
+        mouse-drag-pan-enabled: true;
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for name[i] in (root.users ? ["Discover", "Requests", "Watchlist", "Issues", "Users"] : ["Discover", "Requests", "Watchlist", "Issues"]): Rectangle {
+                width: 112px;
+                height: 34px;
+                border-radius: 17px;
+                background: i == root.current ? Palette.accent-background : (ta.has-hover ? Palette.control-hover : Palette.control-background);
+                border-width: 1px;
+                border-color: i == root.current ? Palette.accent-background : Palette.border;
+                Text {
+                    text: name;
+                    color: i == root.current ? Palette.accent-foreground : Palette.foreground;
+                    font-weight: 600;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                ta := TouchArea { clicked => { root.picked(i); } }
+            }
         }
-        ta := TouchArea { clicked => { root.picked(i); } }
     }
 }
 
@@ -1053,6 +1062,18 @@ component HScroll inherits Rectangle {
     in property <length> start-offset: 0px;
     property <length> max-x: max(0px, sv.content-width - sv.visible-width);
     property <bool> applied: false;
+    // Animate only the arrow buttons: animating every change made a dragged row lag behind the finger.
+    property <bool> glide: false;
+    glide-off := Timer {
+        interval: 260ms;
+        running: false;
+        triggered => { self.running = false; root.glide = false; }
+    }
+    function glide-to(x: length) {
+        root.glide = true;
+        glide-off.running = true;
+        sv.content-x = x;
+    }
     // The scroll view resets its position while it first lays out, so apply the start offset
     // once the content has been measured.
     function apply-start() {
@@ -1065,7 +1086,7 @@ component HScroll inherits Rectangle {
         mouse-drag-pan-enabled: true;
         horizontal-scrollbar-policy: always-off;
         vertical-scrollbar-policy: always-off;
-        animate content-x { duration: 220ms; easing: ease-out; }
+        animate content-x { duration: root.glide ? 220ms : 0ms; easing: ease-out; }
         changed content-width => { root.apply-start(); }
         changed visible-width => { root.apply-start(); }
         @children
@@ -1074,13 +1095,13 @@ component HScroll inherits Rectangle {
         x: 6px;
         y: (parent.height - self.height) / 2 - 20px;
         turn: 90deg;
-        clicked => { sv.content-x = min(0px, sv.content-x + root.step); }
+        clicked => { root.glide-to(min(0px, sv.content-x + root.step)); }
     }
     if sv.content-x > -root.max-x + 4px && root.max-x > 4px: GlassArrow {
         x: parent.width - self.width - 6px;
         y: (parent.height - self.height) / 2 - 20px;
         turn: -90deg;
-        clicked => { sv.content-x = max(-root.max-x, sv.content-x - root.step); }
+        clicked => { root.glide-to(max(-root.max-x, sv.content-x - root.step)); }
     }
 }
 
@@ -2383,6 +2404,7 @@ export component AppWindow inherits Window {
 
             // ---- home ----
             if page == "home": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -2408,6 +2430,7 @@ export component AppWindow inherits Window {
 
             // ---- notifications ----
             if page == "notifications": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -2608,6 +2631,7 @@ export component AppWindow inherits Window {
 
             // ---- search ----
             if page == "search": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -2696,6 +2720,7 @@ export component AppWindow inherits Window {
 
             // ---- server administration ----
             if page == "server": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -3118,25 +3143,30 @@ export component AppWindow inherits Window {
                         }
                         SettingRow {
                             title: "Accent colour";
-                            description: "The colour the whole app is built around. Match your Windows accent colour, or pick your own.";
+                            description: Device.desktop ? "The colour the whole app is built around. Match your Windows accent colour, or pick your own." : "The colour the whole app is built around. Follow your phone's Material You colour (from your wallpaper), or pick your own.";
                             Dropdown {
                                 width: 230px;
-                                model: ["Match Windows", "Pick a colour"];
+                                model: [Device.desktop ? "Match Windows" : (Device.touch ? "Material You" : "Match system"), "Pick a colour"];
                                 current-index <=> root.accent-mode;
                                 selected => { root.set-accent-mode(self.current-index); }
                             }
                         }
-                        if root.accent-mode == 1: Rectangle {
-                            min-height: 232px;
-                            HorizontalLayout {
-                                padding: 16px;
-                                spacing: 32px;
-                                alignment: start;
+                        if root.accent-mode == 1: acc := Rectangle {
+                            // swatches beside the custom picker, or stacked above it when the screen is narrow
+                            property <bool> stack: Scale.window-w < 700px;
+                            property <length> sw: self.stack ? 26px : 30px;
+                            property <length> sw-h: 24px + ceil(root.swatches.length / 8) * (self.sw + 6px);
+                            min-height: self.stack ? 16px + self.sw-h + 20px + 244px + 16px : 232px;
+                            Rectangle {
                                 VerticalLayout {
+                                    x: 16px;
+                                    y: 16px;
+                                    width: 8 * acc.sw + 7 * 6px;
+                                    height: acc.sw-h;
                                     spacing: 8px;
                                     alignment: start;
                                     Text {
-                                        text: "Windows colours";
+                                        text: Device.desktop ? "Windows colours" : "Colours";
                                         font-size: 12px;
                                         color: Palette.foreground;
                                         opacity: 0.65;
@@ -3146,8 +3176,8 @@ export component AppWindow inherits Window {
                                         for c[i] in root.swatches: Rectangle {
                                             row: floor(i / 8);
                                             col: mod(i, 8);
-                                            width: 30px;
-                                            height: 30px;
+                                            width: acc.sw;
+                                            height: acc.sw;
                                             border-radius: 4px;
                                             background: c;
                                             border-width: Palette.seed == c ? 2px : (swa.has-hover ? 1px : 0px);
@@ -3159,6 +3189,10 @@ export component AppWindow inherits Window {
                                     }
                                 }
                                 VerticalLayout {
+                                    x: acc.stack ? 16px : 16px + 8 * acc.sw + 7 * 6px + 32px;
+                                    y: acc.stack ? 16px + acc.sw-h + 20px : 16px;
+                                    width: 240px;
+                                    height: 244px;
                                     spacing: 10px;
                                     alignment: start;
                                     Text {
@@ -3509,8 +3543,10 @@ export component AppWindow inherits Window {
             if page == "sr-connect": Rectangle {
                 VerticalLayout {
                     alignment: center;
-                    Rectangle {
-                        width: min(480px, parent.width - 48px);
+                    HorizontalLayout {
+                      alignment: center;
+                      Rectangle {
+                        width: min(480px, root.width - root.pane-width - 48px);
                         height: sc-col.preferred-height;
                         background: Palette.control-background;
                         border-radius: 18px;
@@ -3570,24 +3606,29 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
+                    }
                 }
             }
 
             // ---- requests: discover ----
             if page == "sr-discover": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
                     padding: 24px;
                     spacing: 14px;
                     HorizontalLayout {
+                        spacing: 12px;
                         Heading { text: "Requests"; }
-                        Rectangle { horizontal-stretch: 1; }
                         Text {
                             text: root.sr-quota;
                             color: Palette.foreground;
                             opacity: 0.6;
                             vertical-alignment: center;
+                            horizontal-alignment: right;
+                            overflow: elide;
+                            horizontal-stretch: 1;
                         }
                         Text {
                             text: root.sr-user;
@@ -3675,6 +3716,7 @@ export component AppWindow inherits Window {
 
             // ---- requests: a title ----
             if page == "sr-detail": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     Rectangle {
@@ -3788,12 +3830,14 @@ export component AppWindow inherits Window {
 
             // ---- requests: all requests (and admin actions) ----
             if page == "sr-requests": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
                     padding: 24px;
                     spacing: 12px;
                     HorizontalLayout {
+                        spacing: 12px;
                         Heading { text: "Requests"; }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
@@ -3929,6 +3973,7 @@ export component AppWindow inherits Window {
 
             // ---- requests: "view all" for a discover row ----
             if page == "sr-browse": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -3962,6 +4007,7 @@ export component AppWindow inherits Window {
 
             // ---- requests: a cast member ----
             if page == "sr-person": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -4046,12 +4092,14 @@ export component AppWindow inherits Window {
 
             // ---- requests: watchlist ----
             if page == "sr-watchlist": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
                     padding: 24px;
                     spacing: 14px;
                     HorizontalLayout {
+                        spacing: 12px;
                         Heading { text: "Requests"; }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
@@ -4087,12 +4135,14 @@ export component AppWindow inherits Window {
 
             // ---- requests: issues ----
             if page == "sr-issues": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
                     padding: 24px;
                     spacing: 12px;
                     HorizontalLayout {
+                        spacing: 12px;
                         Heading { text: "Requests"; }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
@@ -4187,6 +4237,7 @@ export component AppWindow inherits Window {
 
             // ---- requests: one issue ----
             if page == "sr-issue": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
@@ -4307,12 +4358,14 @@ export component AppWindow inherits Window {
 
             // ---- requests: users (admin) ----
             if page == "sr-users": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     alignment: start;
                     padding: 24px;
                     spacing: 12px;
                     HorizontalLayout {
+                        spacing: 12px;
                         Heading { text: "Requests"; }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
@@ -4397,6 +4450,7 @@ export component AppWindow inherits Window {
 
             // ---- requests: edit one user (admin) ----
             if page == "sr-user": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     padding: 28px;
@@ -4671,6 +4725,7 @@ export component AppWindow inherits Window {
 
             // ---- detail ----
             if page == "detail": ScrollView {
+                content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     Rectangle {

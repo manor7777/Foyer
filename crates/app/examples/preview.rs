@@ -47,6 +47,14 @@ fn main() {
         ui.set_detail_genres(slint::ModelRc::new(slint::VecModel::from(genres)));
         ui.set_can_go_back(true);
     }
+    if std::env::var("PREVIEW_ACCENT").is_ok() {
+        ui.set_accent_mode(1);
+    }
+    if page == "sr-discover" {
+        ui.set_sr_quota("Movies: unlimited  ·  Series: unlimited".into());
+        ui.set_sr_user("Norman".into());
+        ui.set_sr_manage_users(true);
+    }
     if std::env::var("PREVIEW_NAV_OPEN").is_ok() {
         ui.set_nav_open(true);
     }

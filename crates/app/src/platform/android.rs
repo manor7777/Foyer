@@ -72,8 +72,20 @@ pub fn gpu_names() -> Vec<String> {
     Vec::new()
 }
 
+/// Material You (Android 12+): the accent colour derived from the wallpaper, as 0xRRGGBB.
 pub fn system_accent() -> Option<u32> {
-    None
+    with_env(|env, act| {
+        let sdk = env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?.i()?;
+        if sdk < 31 {
+            return Ok(None);
+        }
+        let id = env.get_static_field("android/R$color", "system_accent1_500", "I")?.i()?;
+        let res = env.call_method(act, "getResources", "()Landroid/content/res/Resources;", &[])?.l()?;
+        let argb = env.call_method(&res, "getColor", "(ILandroid/content/res/Resources$Theme;)I", &[JValue::Int(id), JValue::Object(&JObject::null())])?.i()?;
+        Ok(Some((argb as u32) & 0x00FF_FFFF))
+    })
+    .ok()
+    .flatten()
 }
 
 pub fn set_material(_window: &slint::Window, _idx: usize) {}

@@ -198,8 +198,16 @@ pub fn skip_step_index(secs: i32) -> i32 {
     SKIP_STEPS.iter().position(|&v| v == secs).unwrap_or(1) as i32
 }
 
+static DEFAULT_ACCENT_MODE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
+/// Platforms with a system accent (Windows, Android's Material You) make "follow the system" the
+/// default for new installs. Call before loading the config.
+pub fn set_default_accent_mode(mode: usize) {
+    DEFAULT_ACCENT_MODE.store(mode, std::sync::atomic::Ordering::Relaxed);
+}
+
 fn default_accent_mode() -> usize {
-    1
+    DEFAULT_ACCENT_MODE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 fn default_accent_rgb() -> u32 {
