@@ -3,7 +3,8 @@
 //!
 //! cargo-apk ships no Java code, so the MediaSession callback class is a tiny dex built by CI
 //! (`.github/scripts/build-mediacb.sh`) and loaded here with an InMemoryDexClassLoader.
-use super::{with_env, MediaAction};
+use super::with_env;
+use crate::platform::MediaAction;
 use jni::objects::{GlobalRef, JClass, JObject, JValue};
 use jni::sys::{jint, jlong};
 use jni::{JNIEnv, NativeMethod};
