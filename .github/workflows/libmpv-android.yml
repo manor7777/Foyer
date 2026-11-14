@@ -1,0 +1,153 @@
+name: libmpv for Android
+
+# Builds an LGPL libmpv (with FFmpeg, MediaCodec decoding, libass) for Android arm64 from the
+# mpv-android build scripts, and publishes it as the `libmpv-android` release that android.yml bundles
+# into the APK. Run it by hand (Actions > libmpv for Android) when you want newer engine versions; it
+# also runs when this file changes. Takes roughly 40-60 minutes.
+#
+# The mpv-android project is GPL by default (it builds FFmpeg with --enable-gpl). This job patches that
+# off, builds mpv with -Dgpl=false, and then FAILS if the finished libraries still advertise GPL.
+on:
+  workflow_dispatch:
+  push:
+    branches: [android]
+    paths: [".github/workflows/libmpv-android.yml"]
+
+permissions:
+  contents: write
+
+env:
+  # Pinned so the engine doesn't change under us; bump deliberately.
+  MPV_ANDROID_REF: ebf1b3f0cbe9d6154a43cf6ec1ad6fc32a1b2d47
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf pkgconf libtool ninja-build python3-pip gperf nasm unzip
+          sudo pip3 install --break-system-packages meson
+
+      - name: Get the mpv-android build scripts
+        run: |
+          git clone https://github.com/mpv-android/mpv-android mpv-android
+          git -C mpv-android checkout "$MPV_ANDROID_REF"
+
+      - name: Make it an LGPL build
+        working-directory: mpv-android/buildscripts
+        run: |
+          # FFmpeg: drop --enable-gpl (keep version3, which LGPLv3 allows).
+          sed -i 's/--enable-{gpl,version3}/--enable-version3/' scripts/ffmpeg.sh
+          # mpv: build without GPL-only code.
+          sed -i 's|-Dlibmpv=true -Dcplayer=false|-Dlibmpv=true -Dcplayer=false -Dgpl=false|' scripts/mpv.sh
+          grep -n "enable-version3\|enable-gpl" scripts/ffmpeg.sh
+          grep -n "Dgpl" scripts/mpv.sh
+          if grep -q "enable-gpl\|enable-{gpl" scripts/ffmpeg.sh || ! grep -q "Dgpl=false" scripts/mpv.sh; then
+            echo "::error::The LGPL patch did not apply (upstream scripts changed). Update this step."
+            exit 1
+          fi
+
+      - name: Download the Android SDK/NDK and sources
+        working-directory: mpv-android/buildscripts
+        env:
+          IN_CI: "1"
+          WGET: "wget -q"
+        run: |
+          ./include/download-sdk.sh
+          ./include/download-deps.sh
+
+      - name: Build libmpv (arm64)
+        working-directory: mpv-android/buildscripts
+        run: ./buildall.sh --arch arm64 mpv
+
+      - name: Collect the libraries
+        run: |
+          prefix="mpv-android/buildscripts/prefix/arm64/lib"
+          ls -l "$prefix" | head -60
+          mkdir -p out/arm64-v8a
+          # Real files only (cp -L follows the soname symlinks FFmpeg creates).
+          find "$prefix" -maxdepth 1 \( -name 'libmpv*.so*' -o -name 'libav*.so*' -o -name 'libsw*.so*' -o -name 'libpostproc*.so*' \) | while read -r f; do
+            cp -L "$f" "out/arm64-v8a/$(basename "$f")"
+          done
+          ls -l out/arm64-v8a
+          test -f out/arm64-v8a/libmpv.so || { echo "::error::libmpv.so was not produced"; exit 1; }
+
+      - name: Check the libraries are LGPL and loadable
+        run: |
+          NDK_BIN="$(echo "$PWD"/mpv-android/buildscripts/sdk/android-ndk-*/toolchains/llvm/prebuilt/*/bin)"
+          cd out/arm64-v8a
+          # FFmpeg embeds its configure line; a GPL or nonfree build says so.
+          for f in libavutil*.so* libavcodec*.so*; do
+            [ -f "$f" ] || continue
+            cfg="$(strings -a "$f" | grep -m1 -- '--enable-' || true)"
+            echo "$f: $cfg"
+            if echo "$cfg" | grep -qE -- '--enable-(gpl|nonfree)'; then
+              echo "::error::$f was built with GPL/nonfree options; refusing to publish."
+              exit 1
+            fi
+          done
+          # Every library a .so needs must be here or part of Android itself.
+          system='libc.so libm.so libdl.so liblog.so libandroid.so libEGL.so libGLESv2.so libGLESv3.so libOpenSLES.so libz.so libmediandk.so libnativewindow.so libaaudio.so libcamera2ndk.so libvulkan.so'
+          for f in *.so*; do
+            "$NDK_BIN/llvm-readelf" -d "$f" | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' | while read -r need; do
+              if [ ! -f "$need" ] && ! echo " $system " | grep -q " $need "; then
+                echo "::warning::$f needs $need, which is neither bundled nor a system library."
+                echo "$need" >> "$RUNNER_TEMP/missing.txt"
+              fi
+            done
+          done
+          cat "$RUNNER_TEMP/missing.txt" 2>/dev/null | sort -u || true
+
+      - name: Bundle libc++ if something needs it
+        run: |
+          if [ -f "$RUNNER_TEMP/missing.txt" ] && grep -q 'libc++_shared.so' "$RUNNER_TEMP/missing.txt"; then
+            cp "$(echo "$PWD"/mpv-android/buildscripts/sdk/android-ndk-*/toolchains/llvm/prebuilt/*/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so)" out/arm64-v8a/
+          fi
+
+      - name: Record what went into it (LGPL source offer)
+        run: |
+          {
+            echo "libmpv for Android (arm64-v8a), built by .github/workflows/libmpv-android.yml in $GITHUB_REPOSITORY"
+            echo "Built: $(date -u +%FT%TZ)"
+            echo "License: LGPL (FFmpeg without --enable-gpl, mpv with -Dgpl=false), dynamically linked."
+            echo
+            echo "mpv-android build scripts: https://github.com/mpv-android/mpv-android @ $MPV_ANDROID_REF"
+            for d in mpv ffmpeg libass dav1d libplacebo; do
+              if [ -d "mpv-android/buildscripts/deps/$d/.git" ]; then
+                echo "$d: $(git -C mpv-android/buildscripts/deps/$d remote get-url origin) @ $(git -C mpv-android/buildscripts/deps/$d rev-parse HEAD)"
+              fi
+            done
+            echo
+            echo "Corresponding source for each component is available at the URLs and revisions above."
+          } > out/SOURCES.txt
+          cat out/SOURCES.txt
+          cd out && zip -r ../libmpv-android-arm64.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libmpv-android-arm64
+          path: libmpv-android-arm64.zip
+          if-no-files-found: error
+
+      - name: Publish as the libmpv-android release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view libmpv-android >/dev/null 2>&1; then
+            gh release upload libmpv-android libmpv-android-arm64.zip --clobber
+          else
+            gh release create libmpv-android libmpv-android-arm64.zip \
+              --prerelease --target "$GITHUB_SHA" \
+              --title "libmpv for Android (LGPL, arm64)" \
+              --notes "Engine libraries bundled into Foyer.apk. Built by the 'libmpv for Android' workflow; SOURCES.txt inside the zip lists the exact source revisions. Not a Foyer release."
+          fi

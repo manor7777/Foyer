@@ -44,16 +44,21 @@ jobs:
 
       - name: Fetch libmpv for Android
         env:
-          # Repository variable (Settings > Secrets and variables > Actions > Variables): URL of a zip
-          # holding arm64-v8a/libmpv.so (LGPL build). Without it the APK builds but cannot play video.
-          URL: ${{ vars.ANDROID_LIBMPV_URL }}
+          GH_TOKEN: ${{ github.token }}
+          # Optional override: URL of a zip holding arm64-v8a/*.so (repository variable ANDROID_LIBMPV_URL).
+          # Normally unset: the zip comes from this repo's `libmpv-android` release, built by libmpv-android.yml.
+          OVERRIDE_URL: ${{ vars.ANDROID_LIBMPV_URL }}
         run: |
           mkdir -p crates/app/android/libs/arm64-v8a
-          if [ -n "$URL" ]; then
-            curl -fsSL "$URL" -o libmpv.zip
-            unzip -q -o libmpv.zip -d crates/app/android/libs
+          if [ -n "$OVERRIDE_URL" ]; then
+            curl -fsSL "$OVERRIDE_URL" -o libmpv.zip
           else
-            echo "::warning::ANDROID_LIBMPV_URL is not set: this APK has no video engine."
+            gh release download libmpv-android --repo "$GITHUB_REPOSITORY" --pattern libmpv-android-arm64.zip --output libmpv.zip \
+              || echo "::warning::No libmpv-android release yet (run the 'libmpv for Android' workflow): this APK has no video engine."
+          fi
+          if [ -f libmpv.zip ]; then
+            unzip -q -o libmpv.zip -d crates/app/android/libs
+            ls -l crates/app/android/libs/arm64-v8a
           fi
 
       - name: Signing key
