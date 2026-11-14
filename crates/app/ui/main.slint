@@ -1717,6 +1717,9 @@ export component AppWindow inherits Window {
     in property <[string]> audio-options;
     in-out property <int> audio-index: 0;
     callback select-audio(int);
+    in property <[string]> sub-options;
+    in-out property <int> sub-index: 0;
+    callback select-detail-sub(int);
     in property <[Card]> episodes;
     in property <[Card]> season-cards;
     /// Season pages: index into `episodes` that Play starts (-1 = none) and its label.
@@ -3975,7 +3978,7 @@ export component AppWindow inherits Window {
                             x: root.narrow ? 24px : 24px + 180px + 24px;
                             y: root.narrow ? sr-poster.y + sr-poster.height + 16px : 50px;
                             width: parent.width - self.x - 24px;
-                            height: root.narrow ? self.preferred-height : 350px;
+                            height: self.preferred-height;
                             spacing: 8px;
                             alignment: start;
                             Text {
@@ -4960,7 +4963,7 @@ export component AppWindow inherits Window {
                 VerticalLayout {
                     Rectangle {
                         // Narrow: picture on top, text below, and the box grows to fit the text.
-                        height: root.narrow ? hero-text.y + hero-text.height + 24px : 420px;
+                        height: max(root.narrow ? 0px : 420px, hero-text.y + hero-text.height + 24px);
                         // poster (a landscape still for episodes)
                         hero-poster := Rectangle {
                             x: root.narrow ? (parent.width - self.width) / 2 : 24px;
@@ -5132,7 +5135,7 @@ export component AppWindow inherits Window {
                                     clicked => { root.play(root.episodes[root.season-play].id, root.episodes[root.season-play].progress > 0, false); }
                                 }
                             }
-                            if detail.playable && root.audio-options.length > 1: HorizontalLayout {
+                            if detail.playable && root.audio-options.length > 0: HorizontalLayout {
                                 alignment: start;
                                 spacing: 8px;
                                 Text {
@@ -5140,12 +5143,30 @@ export component AppWindow inherits Window {
                                     color: Palette.foreground;
                                     opacity: 0.75;
                                     vertical-alignment: center;
+                                    width: 76px;
                                 }
                                 Dropdown {
-                                    width: 280px;
+                                    width: root.narrow ? max(120px, parent.width - 84px) : 280px;
                                     model: root.audio-options;
                                     current-index <=> root.audio-index;
                                     selected => { root.select-audio(self.current-index); }
+                                }
+                            }
+                            if detail.playable: HorizontalLayout {
+                                alignment: start;
+                                spacing: 8px;
+                                Text {
+                                    text: "Subtitles";
+                                    color: Palette.foreground;
+                                    opacity: 0.75;
+                                    vertical-alignment: center;
+                                    width: 76px;
+                                }
+                                Dropdown {
+                                    width: root.narrow ? max(120px, parent.width - 84px) : 280px;
+                                    model: root.sub-options;
+                                    current-index <=> root.sub-index;
+                                    selected => { root.select-detail-sub(self.current-index); }
                                 }
                             }
                             if detail.playable: HorizontalLayout {

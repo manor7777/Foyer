@@ -90,6 +90,9 @@ pub struct Config {
     /// Index into SUB_LANGS.
     #[serde(default)]
     pub sub_lang: usize,
+    /// The subtitle language last picked on a detail page (3-letter code), or "off"; empty = no preference.
+    #[serde(default)]
+    pub sub_pref: String,
     /// 0 solid, 1 Mica, 2 Acrylic.
     #[serde(default)]
     pub material: usize,
@@ -243,6 +246,7 @@ impl Default for Config {
             hw_mode: 0,
             always_on_top: false,
             sub_lang: 0,
+            sub_pref: String::new(),
             material: 0,
             accent_mode: default_accent_mode(),
             accent_rgb: default_accent_rgb(),

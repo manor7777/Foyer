@@ -2,6 +2,13 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.7
+
+- Episode and movie pages get a Subtitles drop-down beside Audio. It always shows (Off at minimum), and the language you pick is remembered: it is chosen first on every other title that has it, ahead of English and the file's own default. Picking Off is remembered too. Picture-based subtitles (e.g. PGS) aren't listed here; use the player's subtitle menu for those.
+- The Audio drop-down now shows even when a file has only one audio track.
+- Detail pages on foldables and other mid-width screens: the header grows to fit its buttons, so the watched, favourite and Play buttons no longer slide under the next section.
+- Posters that failed to load (a dropped connection) are retried automatically, and a season or episode with no picture of its own shows its series' poster instead of a blank box.
+
 ## Foyer 0.26.6
 
 - Press and hold a poster (Android) or right-click it (Windows) for a menu: Play / Resume, Open details, Mark watched / unwatched, Add to / Remove from favourites, Follow for new episodes, Remove from Continue Watching, and Request on Seerr titles. It only offers what Foyer can do for that title.

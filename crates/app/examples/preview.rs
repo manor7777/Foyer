@@ -45,6 +45,9 @@ fn main() {
         });
         let genres: Vec<slint::SharedString> = vec!["Drama".into(), "Science Fiction".into(), "Adventure".into()];
         ui.set_detail_genres(slint::ModelRc::new(slint::VecModel::from(genres)));
+        ui.set_audio_options(slint::ModelRc::new(slint::VecModel::from(vec![slint::SharedString::from("English - EAC3 5.1 (Default)")])));
+        ui.set_sub_options(slint::ModelRc::new(slint::VecModel::from(vec![slint::SharedString::from("Off"), slint::SharedString::from("English - SubRip")])));
+        ui.set_sub_index(1);
         ui.set_can_go_back(true);
     }
     if std::env::var("PREVIEW_ACCENT").is_ok() {

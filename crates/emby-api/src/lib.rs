@@ -1265,6 +1265,15 @@ impl Client {
         Some(format!("{}{}/Items/{}/Images/{}?maxWidth={}&quality=90&tag={}", self.base, self.pfx(), owner, path, max_width, tag))
     }
 
+    /// The series' poster for a season or episode that has no picture of its own (Emby/Jellyfin only).
+    pub fn series_poster_url(&self, item: &Item, max_width: u32) -> Option<String> {
+        if self.kind == Kind::Plex || !matches!(item.kind.as_str(), "Season" | "Episode") {
+            return None;
+        }
+        let series = item.series_id.as_ref()?;
+        Some(format!("{}{}/Items/{}/Images/Primary?maxWidth={}&quality=90", self.base, self.pfx(), series, max_width))
+    }
+
     pub fn person_image_url(&self, p: &Person, max_width: u32) -> Option<String> {
         if self.kind == Kind::Plex {
             return self.plex_person_image(p, max_width);

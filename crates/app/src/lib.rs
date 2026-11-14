@@ -468,6 +468,8 @@ struct State {
     hide_target: Option<HideTarget>,
     /// Emby stream indexes behind the detail page's audio dropdown.
     audio_streams: Vec<i32>,
+    /// Emby stream index and language behind each subtitle dropdown entry after "Off".
+    sub_streams: Vec<(i32, String)>,
     player_tx: Option<std::sync::mpsc::Sender<player::Control>>,
     remote: Option<tokio::task::JoinHandle<()>>,
     /// Plex sign-in waiting for a server choice: the plex.tv client, the user and the choices.
@@ -562,7 +564,16 @@ impl Ctx {
                 if ctx.gen.load(Ordering::SeqCst) != my {
                     return;
                 }
-                let Ok(bytes) = cached_image(&client, &url).await else {
+                // A flaky mobile connection often drops one picture: try again a couple of times.
+                let mut got = cached_image(&client, &url).await;
+                for wait_ms in [600u64, 1800] {
+                    if got.is_ok() || ctx.gen.load(Ordering::SeqCst) != my {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+                    got = cached_image(&client, &url).await;
+                }
+                let Ok(bytes) = got else {
                     // stop the shimmer; the card falls back to its title
                     ctx.post(my, move |ui| apply_image(ui, slot, Image::default()));
                     return;
@@ -1750,7 +1761,8 @@ impl Ctx {
             if let Some(u) = client.image_url(&item, ImageKind::Backdrop, 1920).or_else(|| client.image_url(&item, ImageKind::Primary, 1920)) {
                 jobs.push((Slot::Backdrop, u));
             }
-            if let Some(u) = client.image_url(&item, ImageKind::Primary, 400) {
+            // A season or episode with no picture of its own shows its series' poster.
+            if let Some(u) = client.image_url(&item, ImageKind::Primary, 400).or_else(|| client.series_poster_url(&item, 400)) {
                 jobs.push((Slot::Poster, u));
             }
             if let Some(u) = client.image_url(&item, ImageKind::Logo, 600) {
@@ -1949,8 +1961,17 @@ impl Ctx {
                 (labels, default_audio(&streams), streams.iter().map(|a| a.index).collect::<Vec<_>>())
             };
             *AUDIO_PICK.lock().unwrap() = None;
+            *SUB_PICK.lock().unwrap() = None;
+            let (sub_labels, sub_default, sub_idx) = {
+                let streams = if item.is_playable() { sub_streams(&item) } else { Vec::new() };
+                let mut labels: Vec<SharedString> = vec!["Off".into()];
+                labels.extend(streams.iter().enumerate().map(|(n, a)| SharedString::from(a.display_title.clone().or(a.title.clone()).or(a.language.clone()).unwrap_or_else(|| format!("Subtitle {}", n + 1)))));
+                let pref = SUB_PREF.lock().unwrap().clone();
+                (labels, default_sub(&streams, &pref), streams.iter().map(|a| (a.index, a.language.clone().unwrap_or_default().to_ascii_lowercase())).collect::<Vec<_>>())
+            };
             {
                 let mut s = ctx.st.lock().unwrap();
+                s.sub_streams = sub_idx;
                 s.series_id = (item.kind == "Series").then(|| item.id.clone());
                 s.season_ids = season_ids;
                 s.hide_target = Some(HideTarget {
@@ -1992,6 +2013,8 @@ impl Ctx {
                 ui.set_following(following);
                 ui.set_audio_options(ModelRc::new(VecModel::from(audio_labels)));
                 ui.set_audio_index(audio_default as i32);
+                ui.set_sub_options(ModelRc::new(VecModel::from(sub_labels)));
+                ui.set_sub_index(sub_default as i32);
                 ui.set_info_rows(ModelRc::new(VecModel::from(info_rows)));
                 ui.set_seasons(ModelRc::new(VecModel::from(season_names.into_iter().map(SharedString::from).collect::<Vec<_>>())));
                 ui.set_season_index(season_index as i32);
@@ -2017,6 +2040,23 @@ impl Ctx {
         let Some(ui) = self.ui.upgrade() else { return };
         let idx = self.st.lock().unwrap().audio_streams.get(index.max(0) as usize).copied();
         *AUDIO_PICK.lock().unwrap() = idx.map(|i| (ui.get_detail().id.to_string(), i));
+    }
+
+    /// The detail page's subtitle dropdown: 0 is Off. The language is remembered and wins over the
+    /// file's own default (and over English) the next time any title is opened.
+    fn select_detail_sub(&self, index: i32) {
+        let Some(ui) = self.ui.upgrade() else { return };
+        let pick = (index > 0).then(|| self.st.lock().unwrap().sub_streams.get(index as usize - 1).cloned()).flatten();
+        let pref = match &pick {
+            Some((_, lang)) if !lang.is_empty() => lang.clone(),
+            Some(_) => String::new(),
+            None => "off".to_string(),
+        };
+        *SUB_PICK.lock().unwrap() = Some((ui.get_detail().id.to_string(), pick.map(|p| p.0)));
+        if index <= 0 || !pref.is_empty() {
+            *SUB_PREF.lock().unwrap() = pref.clone();
+            self.update_cfg(|c| c.sub_pref = pref);
+        }
     }
 
     fn select_season(&self, index: i32) {
@@ -3201,6 +3241,33 @@ fn goto_with(tx: &std::sync::mpsc::Sender<player::Control>, prev: bool) {
 /// plays English when the file has it.
 static AUDIO_PICK: Mutex<Option<(String, i32)>> = Mutex::new(None);
 
+/// The subtitle picked on the detail page: (item id, Emby stream index, or None for Off).
+static SUB_PICK: Mutex<Option<(String, Option<i32>)>> = Mutex::new(None);
+/// Last picked subtitle language ("off" = none), mirrored from the config for the player thread.
+static SUB_PREF: Mutex<String> = Mutex::new(String::new());
+
+/// Subtitles Foyer can switch on itself: external files and embedded text tracks (both are
+/// handed to the player from the server). Picture subtitles stay with the player's own menu.
+fn sub_streams(item: &Item) -> Vec<&MediaStream> {
+    item.media_sources.first().map(|s| s.media_streams.iter().filter(|m| m.kind == "Subtitle" && (m.is_external || m.is_text_subtitle_stream)).collect()).unwrap_or_default()
+}
+
+/// Dropdown position (0 = Off) to start with: the remembered language, else the file's own
+/// default / forced track, else Off.
+fn default_sub(streams: &[&MediaStream], pref: &str) -> usize {
+    if pref == "off" {
+        return 0;
+    }
+    if !pref.is_empty() {
+        let lang = |s: &MediaStream| s.language.as_deref().unwrap_or("").to_ascii_lowercase();
+        let hit = streams.iter().position(|s| lang(s) == pref && !s.is_forced).or_else(|| streams.iter().position(|s| lang(s) == pref));
+        if let Some(p) = hit {
+            return p + 1;
+        }
+    }
+    streams.iter().position(|s| s.is_default || s.is_forced).map_or(0, |p| p + 1)
+}
+
 fn audio_streams(item: &Item) -> Vec<&MediaStream> {
     item.media_sources.first().map(|s| s.media_streams.iter().filter(|m| m.kind == "Audio").collect()).unwrap_or_default()
 }
@@ -3346,11 +3413,16 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             let src = item.media_sources.iter().find(|m| m.id == source_id).or(item.media_sources.first());
             if let Some(src) = src {
                 // Embedded text subtitles are fetched from the server too, so mpv never demuxes them out of the stream.
+                let subs = sub_streams(item);
+                let chosen: Option<i32> = match &*SUB_PICK.lock().unwrap() {
+                    Some((pid, pick)) if *pid == item.id => *pick,
+                    _ => default_sub(&subs, &SUB_PREF.lock().unwrap()).checked_sub(1).and_then(|p| subs.get(p)).map(|s| s.index),
+                };
                 for st in src.media_streams.iter().filter(|m| m.kind == "Subtitle" && (m.is_external || m.is_text_subtitle_stream)) {
                     if let Some(url) = client.subtitle_url(&item.id, &src.id, st) {
                         decoupled |= !st.is_external;
                         ext_subs.push(player::ExtSub {
-                            select: st.is_default || st.is_forced,
+                            select: chosen == Some(st.index),
                             url,
                             title: st.display_title.clone().or(st.title.clone()).unwrap_or_else(|| "External".into()),
                             lang: st.language.clone().unwrap_or_default(),
@@ -3592,7 +3664,11 @@ pub fn run() -> Result<(), slint::PlatformError> {
         st: Arc::new(Mutex::new(State {
             client: None,
             user: None,
-            cfg: load_config(),
+            cfg: {
+                let cfg = load_config();
+                *SUB_PREF.lock().unwrap() = cfg.sub_pref.clone();
+                cfg
+            },
             nav: Vec::new(),
             playing: false,
             block_back_until: Instant::now(),
@@ -3600,6 +3676,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
             season_ids: Vec::new(),
             hide_target: None,
             audio_streams: Vec::new(),
+            sub_streams: Vec::new(),
             player_tx: None,
             remote: None,
             plex_pending: None,
@@ -3712,6 +3789,8 @@ pub fn run() -> Result<(), slint::PlatformError> {
     ui.on_select_season(move |i| c.select_season(i));
     let c = ctx.clone();
     ui.on_select_audio(move |i| c.select_audio(i));
+    let c = ctx.clone();
+    ui.on_select_detail_sub(move |i| c.select_detail_sub(i));
     let c = ctx.clone();
     ui.on_sign_out(move || c.sign_out());
     let c = ctx.clone();
