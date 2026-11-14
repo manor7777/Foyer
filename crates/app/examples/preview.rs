@@ -53,7 +53,7 @@ fn main() {
     if page == "player" {
         ui.set_playing(true);
         ui.set_player_started(true);
-        ui.set_controls_shown(true);
+        ui.set_controls_shown(std::env::var("PREVIEW_HIDE").is_err());
         ui.set_player_paused(std::env::var("PREVIEW_PAUSED").is_ok());
         ui.set_player_title("Star Trek: Discovery S1:E7 Magic to Make the Sanest Man Go Mad".into());
         ui.set_player_pos(1680.0);

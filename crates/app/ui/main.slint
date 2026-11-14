@@ -1897,6 +1897,10 @@ export component AppWindow inherits Window {
     callback set-material(int);
     in-out property <int> quality-index: 0;
     in-out property <bool> autoplay-next: true;
+    in-out property <bool> show-clock: true;
+    in-out property <bool> clock-24h: false;
+    callback set-show-clock(bool);
+    callback set-clock-24h(bool);
     in-out property <bool> hw-decode: true;
     in-out property <int> hw-mode: 0;
     callback set-hw-mode(int);
@@ -3048,6 +3052,22 @@ export component AppWindow inherits Window {
                             ToggleSwitch {
                                 checked <=> root.autoplay-next;
                                 toggled(c) => { root.set-autoplay(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Show the time in the player";
+                            description: "A small clock in the top-right corner while you watch. It sits beside the controls and moves to the corner when they fade.";
+                            ToggleSwitch {
+                                checked <=> root.show-clock;
+                                toggled(c) => { root.set-show-clock(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "24-hour clock";
+                            description: "Show 17:05 instead of 5:05pm.";
+                            ToggleSwitch {
+                                checked <=> root.clock-24h;
+                                toggled(c) => { root.set-clock-24h(c); }
                             }
                         }
                         SettingRow {
@@ -5463,6 +5483,24 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Time of day. Beside the picture-in-picture buttons while the controls are showing; when they fade it
+        // slides to the top-right corner and stays, so you can always see it. Off in Settings > Playback.
+        if root.show-clock && root.clock-text != "" && root.player-started: Text {
+            text: root.clock-text;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            opacity: root.controls-op > 0 ? 0.9 : 0.7;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            width: 96px;
+            height: 40px;
+            y: 14px;
+            // 14 px bar padding, then (on desktop) two 40 px buttons and the 12 px gaps around them
+            x: parent.width - self.width - (root.controls-op > 0 ? (Device.desktop ? 118px : 14px) : 16px);
+            animate x { duration: 160ms; easing: ease-out; }
+        }
+
         // Touch: a big play/pause button in the middle while the controls are showing.
         if Device.touch && root.controls-op > 0 && root.player-started: Rectangle {
             width: 76px;
@@ -5546,17 +5584,8 @@ export component AppWindow inherits Window {
                     overflow: elide;
                     horizontal-stretch: 1;
                 }
-                // Time of day, like a phone's status bar, just left of the picture-in-picture buttons.
-                Text {
-                    text: root.clock-text;
-                    color: white;
-                    opacity: 0.85;
-                    font-size: 16px;
-                    font-weight: 600;
-                    vertical-alignment: center;
-                    horizontal-alignment: right;
-                    height: 40px;
-                }
+                // Room for the clock (drawn separately, so it can stay on screen when this bar fades).
+                if root.show-clock: Rectangle { width: 96px; }
                 // The in-app mini player and the shrink-the-window picture-in-picture are desktop features.
                 if Device.desktop: IconButton {
                     icon: @image-url("icons/shrink.svg");

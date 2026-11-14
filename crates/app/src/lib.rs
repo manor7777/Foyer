@@ -1368,6 +1368,8 @@ impl Ctx {
             Quality::Max(i) => 2 + i as i32,
         });
         ui.set_autoplay_next(s.cfg.autoplay_next);
+        ui.set_show_clock(s.cfg.show_clock);
+        ui.set_clock_24h(s.cfg.clock_24h);
         ui.set_auto_skip_intro(s.cfg.auto_skip_intro);
         ui.set_rewind_secs(s.cfg.rewind_secs);
         ui.set_forward_secs(s.cfg.forward_secs);
@@ -2470,6 +2472,17 @@ impl Ctx {
             w.set_position(pos);
             if max {
                 w.set_maximized(true);
+            }
+        }
+    }
+
+    /// Updates the player's time-of-day label (only when the text changes).
+    fn refresh_clock(&self) {
+        let h24 = self.st.lock().unwrap().cfg.clock_24h;
+        let now = chrono::Local::now().format(if h24 { "%H:%M" } else { "%-I:%M%P" }).to_string();
+        if let Some(ui) = self.ui.upgrade() {
+            if ui.get_clock_text().as_str() != now {
+                ui.set_clock_text(now.into());
             }
         }
     }
@@ -4110,6 +4123,13 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let c = ctx.clone();
     ui.on_set_autoplay(move |v| c.update_cfg(|cfg| cfg.autoplay_next = v));
     let c = ctx.clone();
+    ui.on_set_show_clock(move |v| c.update_cfg(|cfg| cfg.show_clock = v));
+    let c = ctx.clone();
+    ui.on_set_clock_24h(move |v| {
+        c.update_cfg(|cfg| cfg.clock_24h = v);
+        c.refresh_clock();
+    });
+    let c = ctx.clone();
     ui.on_set_auto_skip_intro(move |v| c.update_cfg(|cfg| cfg.auto_skip_intro = v));
     let c = ctx.clone();
     ui.on_set_rewind_index(move |i| {
@@ -4393,20 +4413,12 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     });
 
     // Hide the player controls after 3 s without mouse movement (unless paused or a menu is open).
-    // Time of day for the player's corner, e.g. "12:00am".
+    // Time of day for the player's corner, e.g. "12:00am" (or "17:05").
     let clock_timer = slint::Timer::default();
     {
-        let weak = ui.as_weak();
-        let tick = move || {
-            if let Some(ui) = weak.upgrade() {
-                let now = chrono::Local::now().format("%-I:%M%P").to_string();
-                if ui.get_clock_text().as_str() != now {
-                    ui.set_clock_text(now.into());
-                }
-            }
-        };
-        tick();
-        clock_timer.start(slint::TimerMode::Repeated, Duration::from_secs(10), tick);
+        let c = ctx.clone();
+        c.refresh_clock();
+        clock_timer.start(slint::TimerMode::Repeated, Duration::from_secs(10), move || c.refresh_clock());
     }
     let hide_timer = slint::Timer::default();
     {
