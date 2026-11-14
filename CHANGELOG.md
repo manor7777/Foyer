@@ -2,6 +2,15 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.6
+
+- Press and hold a poster (Android) or right-click it (Windows) for a menu: Play / Resume, Open details, Mark watched / unwatched, Add to / Remove from favourites, Follow for new episodes, Remove from Continue Watching, and Request on Seerr titles. It only offers what Foyer can do for that title.
+- Series and seasons now have watched and favourite buttons on their detail page (only episodes and movies did before).
+- Android: real picture-in-picture. The PiP button in the player shrinks Foyer into Android's floating video window, and on Android 12+ pressing Home or swiping up while a video plays does it automatically.
+- Android: playback now registers as a media player, so the notification shade, lock screen and headset buttons show the title and control play, pause, previous, next and seek.
+- "Notifications" is now "Alerts" everywhere (navigation, page heading, settings).
+- Build: the Android build now uses a patched cargo-apk (adds the picture-in-picture manifest flag) and compiles a tiny Java helper for the media controls; see `.github/scripts`.
+
 ## Foyer 0.26.5
 
 - Android: the Back button/gesture now goes to the previous page instead of closing the app (and closes the side menu first).

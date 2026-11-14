@@ -7,6 +7,10 @@ use std::ffi::c_void;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+#[path = "android_media.rs"]
+mod android_media;
+pub use android_media::*;
+
 pub const SUPPORTS_MATERIAL: bool = false;
 
 /// Android TV reports itself through UiModeManager (UI_MODE_TYPE_TELEVISION = 4).

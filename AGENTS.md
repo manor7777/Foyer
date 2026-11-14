@@ -32,3 +32,5 @@ Foyer ships for Windows (`Foyer.exe`) and Android phones, tablets and TV (`Foyer
 - Every Android build you hand to someone to install gets a new patch version (and a matching `## Foyer X.Y.Z` section in `CHANGELOG.md`): some phones refuse to install an update with the same version number as the installed app.
 - `vendor/i-slint-core` is Slint with a one-function change to drag handling (see `vendor/i-slint-core/FOYER_PATCH.md`). Do not edit it casually; when updating Slint, re-apply the patch or check whether upstream has fixed it.
 - Disk in cloud sessions is limited: build with `CARGO_INCREMENTAL=0` and delete `target/debug/incremental` if the disk fills.
+
+- The Android media-session helper (`crates/app/android/java`) is compiled to `crates/app/android/mediacb.dex` by `.github/scripts/build-mediacb.sh` (needs a JDK and the Android SDK); the Android build embeds it. The APK is built with a patched cargo-apk (`.github/scripts/patch-cargo-apk.py`) so the manifest can declare picture-in-picture.

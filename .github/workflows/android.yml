@@ -110,8 +110,25 @@ jobs:
             echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
           fi
 
-      - name: Install cargo-apk
-        run: cargo install cargo-apk --locked
+      # cargo-apk 0.10 cannot write android:supportsPictureInPicture, so build it with a one-line patch.
+      - name: Cache patched cargo-apk
+        id: capk
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-apk
+          key: cargo-apk-pip-${{ hashFiles('.github/scripts/patch-cargo-apk.py') }}
+
+      - name: Install cargo-apk (patched for picture-in-picture)
+        if: steps.capk.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/capk" && cd "$RUNNER_TEMP/capk"
+          curl -sSfL https://crates.io/api/v1/crates/cargo-apk/0.10.0/download | tar xz
+          curl -sSfL https://crates.io/api/v1/crates/ndk-build/0.10.0/download | tar xz
+          python3 "$GITHUB_WORKSPACE/.github/scripts/patch-cargo-apk.py" ndk-build-0.10.0 cargo-apk-0.10.0
+          cargo install --path cargo-apk-0.10.0 --force
+
+      - name: Build the media-session helper (dex)
+        run: .github/scripts/build-mediacb.sh
 
       - name: Build APK
         working-directory: crates/app

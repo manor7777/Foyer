@@ -1693,6 +1693,8 @@ export component AppWindow inherits Window {
     out property <length> mini-h: 216px;
     callback pip-changed(bool);
     callback pip-drag();
+    /// Android: shrink into the system's floating picture-in-picture window.
+    callback enter-system-pip();
     /// Picture-in-picture is frameless: its edges resize it. 0 N, 1 S, 2 E, 3 W, 4 NE, 5 NW, 6 SE, 7 SW.
     callback pip-resize(int);
     callback pip-resized();
@@ -5782,6 +5784,10 @@ export component AppWindow inherits Window {
                     icon: @image-url("icons/pip.svg");
                     clicked => { root.pip = true; }
                 }
+                if Device.touch: IconButton {
+                    icon: @image-url("icons/pip.svg");
+                    clicked => { root.enter-system-pip(); }
+                }
             }
         }
 
@@ -6023,7 +6029,7 @@ export component AppWindow inherits Window {
     }
 
     // ---------------- picture-in-picture (the window itself is the small video) ----------------
-    if root.full-player && root.pip: Rectangle {
+    if root.full-player && root.pip && Device.desktop: Rectangle {
         pip-ta := TouchArea {
             pointer-event(e) => {
                 if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.pip-drag(); }

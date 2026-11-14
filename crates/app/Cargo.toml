@@ -67,8 +67,10 @@ icon = "@mipmap/ic_launcher"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
 
 [package.metadata.android.application.activity]
-config_changes = "orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode"
+config_changes = "orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode|density"
 orientation = "unspecified"
+# Needs the patched cargo-apk (.github/scripts/patch-cargo-apk.py); lets the player enter real picture-in-picture.
+supports_picture_in_picture = true
 
 # Touchscreen is optional so the APK installs on Android TV, which has none.
 [[package.metadata.android.uses_feature]]

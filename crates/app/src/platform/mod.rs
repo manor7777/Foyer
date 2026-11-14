@@ -41,3 +41,37 @@ pub enum FormFactor {
     /// Android TV / Google TV / Chromecast with Google TV (remote control only).
     Tv,
 }
+
+/// A button pressed on the system's media controls (notification shade, lock screen, headset).
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub enum MediaAction {
+    Play,
+    Pause,
+    Next,
+    Prev,
+    Stop,
+    Forward,
+    Rewind,
+    /// Absolute position in milliseconds.
+    Seek(i64),
+}
+
+// Real picture-in-picture and the system media session exist on Android only (Windows has its own
+// media-key integration in `media.rs`); everywhere else these do nothing.
+#[cfg(not(target_os = "android"))]
+pub fn enter_pip(_aspect: f32) -> bool {
+    false
+}
+#[cfg(not(target_os = "android"))]
+pub fn in_system_pip() -> bool {
+    false
+}
+#[cfg(not(target_os = "android"))]
+pub fn set_pip_auto(_on: bool, _aspect: f32) {}
+#[cfg(not(target_os = "android"))]
+pub fn set_media_handler(_f: Box<dyn Fn(MediaAction) + Send>) {}
+#[cfg(not(target_os = "android"))]
+pub fn media_update(_title: &str, _subtitle: &str, _playing: bool, _pos_ms: i64, _dur_ms: i64) {}
+#[cfg(not(target_os = "android"))]
+pub fn media_stop() {}

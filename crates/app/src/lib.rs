@@ -18,6 +18,7 @@ mod seerr;
 mod notes;
 mod hide;
 mod cardmenu;
+mod sysmedia;
 #[cfg(windows)]
 mod media;
 /// Windows-only media flyout / media keys; nothing to do elsewhere.
@@ -2442,6 +2443,10 @@ impl Ctx {
     /// Picture-in-picture: shrink this window to a small borderless always-on-top video in the
     /// screen corner; leaving puts it back as it was.
     fn apply_pip(&self, on: bool) {
+        // Android's picture-in-picture is the system's window, handled in sysmedia.rs.
+        if cfg!(target_os = "android") {
+            return;
+        }
         let Some(ui) = self.ui.upgrade() else { return };
         let w = ui.window();
         if on {
@@ -4439,6 +4444,26 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
         c.refresh_clock();
         clock_timer.start(slint::TimerMode::Repeated, Duration::from_secs(10), move || c.refresh_clock());
     }
+    // System media session + picture-in-picture (Android).
+    let media_timer = slint::Timer::default();
+    {
+        let c = ctx.clone();
+        platform::set_media_handler(Box::new(move |a| {
+            let c = c.clone();
+            let _ = slint::invoke_from_event_loop(move || c.media_action(a));
+        }));
+        let c = ctx.clone();
+        let armed = std::cell::Cell::new(None);
+        media_timer.start(slint::TimerMode::Repeated, Duration::from_secs(1), move || c.sysmedia_tick(&armed));
+    }
+    let weak = ui.as_weak();
+    ui.on_enter_system_pip(move || {
+        if let Some(ui) = weak.upgrade() {
+            if !platform::enter_pip(ui.get_video_aspect()) {
+                applog("picture-in-picture is not available on this device");
+            }
+        }
+    });
     let hide_timer = slint::Timer::default();
     {
         let c = ctx.clone();
@@ -4529,6 +4554,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     drop(window_timer);
     drop(clock_timer);
     drop(hide_timer);
+    drop(media_timer);
     drop(accent_timer);
     result
 }

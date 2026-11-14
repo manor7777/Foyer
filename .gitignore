@@ -7,3 +7,4 @@
 Thumbs.db
 /crates/app/android/libs/
 *.keystore
+crates/app/android/mediacb.dex
