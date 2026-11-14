@@ -679,10 +679,13 @@ component TrackMenu inherits PopupWindow {
     in property <string> heading;
     in property <[TrackRow]> items;
     in property <bool> allow-search: false;
+    in property <bool> allow-sync: false;
+    in property <float> sync-value: 0;
     callback pick(int);
     callback search();
+    callback sync(float);
     width: 340px;
-    height: min(380px, (root.items.length + (root.allow-search ? 1 : 0)) * 36px + 56px);
+    height: min(380px, (root.items.length + (root.allow-search ? 1 : 0)) * 36px + 56px + (root.allow-sync ? 40px : 0px));
     Rectangle {
         background: #232323f4;
         border-radius: 8px;
@@ -698,6 +701,36 @@ component TrackMenu inherits PopupWindow {
                 font-weight: 700;
                 height: 26px;
                 vertical-alignment: center;
+            }
+            if root.allow-sync: HorizontalLayout {
+                height: 36px;
+                spacing: 4px;
+                for b in [{ t: "−1s", d: -1.0 }, { t: "−0.1", d: -0.1 }]: Rectangle {
+                    width: 46px;
+                    border-radius: 6px;
+                    background: sb.has-hover ? #ffffff30 : #ffffff18;
+                    Text { text: b.t; color: white; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
+                    sb := TouchArea { clicked => { root.sync(b.d); } }
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                    Text {
+                        text: "Sync " + (root.sync-value >= 0 ? "+" : "−") + abs(root.sync-value) + "s";
+                        color: #ffffffc0;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    // click the value to reset
+                    sr := TouchArea { clicked => { root.sync(0.0); } }
+                }
+                for b in [{ t: "+0.1", d: 0.1 }, { t: "+1s", d: 1.0 }]: Rectangle {
+                    width: 46px;
+                    border-radius: 6px;
+                    background: sb2.has-hover ? #ffffff30 : #ffffff18;
+                    Text { text: b.t; color: white; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
+                    sb2 := TouchArea { clicked => { root.sync(b.d); } }
+                }
             }
             ScrollView {
                 VerticalLayout {
@@ -1588,6 +1621,8 @@ export component AppWindow inherits Window {
     in property <[InfoRow]> info-rows;
     in-out property <bool> info-open: false;
     in-out property <float> player-audio-delay: 0;
+    in property <float> player-sub-delay: 0;
+    callback sub-sync(float);
     callback toggle-played();
     callback toggle-favorite();
     in property <[Card]> related;
@@ -5107,9 +5142,6 @@ export component AppWindow inherits Window {
               background: #10141fb8;
               border-width: 1px;
               border-color: #ffffff30;
-              drop-shadow-blur: 28px;
-              drop-shadow-color: #00000090;
-              drop-shadow-offset-y: 8px;
               VerticalLayout {
                 padding: 10px;
                 padding-left: 16px;
@@ -5480,6 +5512,9 @@ export component AppWindow inherits Window {
         heading: "Subtitles";
         items: root.sub-tracks;
         allow-search: true;
+        allow-sync: true;
+        sync-value: root.player-sub-delay;
+        sync(d) => { root.sub-sync(d); }
         pick(id) => { root.pick-sub(id); }
         search() => { root.open-sub-search(); }
     }

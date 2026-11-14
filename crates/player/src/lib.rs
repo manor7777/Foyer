@@ -87,6 +87,9 @@ pub enum Control {
     SelectAudio(i64),
     /// Shift audio relative to video by this many seconds (positive = later).
     AudioDelayBy(f64),
+    /// Shift subtitles by this many seconds (positive = later); 0 resets.
+    SubDelayBy(f64),
+    ResetSubDelay,
     ResetAudioDelay,
     /// -1 turns subtitles off
     SelectSub(i64),
@@ -112,6 +115,7 @@ pub struct Tick {
     pub audio: String,
     pub subtitle: String,
     pub audio_delay: f64,
+    pub sub_delay: f64,
     /// Playback diagnostics (A/V sync, dropped frames), present every ~10 s.
     pub diag: Option<String>,
     /// Present on the first tick and whenever the track list changed.
@@ -705,6 +709,12 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     Control::AudioDelayBy(d) => {
                         run(&["add", "audio-delay", &format!("{d:.3}")]);
                     }
+                    Control::SubDelayBy(d) => {
+                        run(&["add", "sub-delay", &format!("{d:.3}")]);
+                    }
+                    Control::ResetSubDelay => {
+                        run(&["set", "sub-delay", "0"]);
+                    }
                     Control::ResetAudioDelay => {
                         run(&["set", "audio-delay", "0"]);
                     }
@@ -783,6 +793,7 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                     audio: track_label(&read_str, "audio"),
                     subtitle: track_label(&read_str, "sub"),
                     audio_delay: read_str("audio-delay").and_then(|s| s.parse().ok()).unwrap_or(0.0),
+                    sub_delay: read_str("sub-delay").and_then(|s| s.parse().ok()).unwrap_or(0.0),
                     diag: if last_diag.elapsed() >= Duration::from_secs(if opts.debug_log.is_some() { 2 } else { 10 }) {
                         last_diag = Instant::now();
                         let g = |k: &str| read_str(k).unwrap_or_else(|| "-".into());

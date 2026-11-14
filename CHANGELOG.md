@@ -2,6 +2,17 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.25.1
+
+### ✨ Highlights
+
+- **Subtitle sync.** The subtitle menu now has a sync bar at the top: −1s, −0.1, +0.1 and +1s nudge the subtitles earlier or later, and clicking the value resets it. For downloaded subtitles that are a second or three out.
+
+### 🐞 Fixes
+
+- Mini player is the right way up, and the player is smoother while the controls fade (the large blurred shadow behind the control bar made every frame slow, which also made the subtitle slide look choppy).
+- Picture in picture has no title bar and keeps the video's aspect ratio when resized; the shrink and PiP buttons sit at the far right of the header.
+
 ## Foyer 0.25.0
 
 ### ✨ Highlights

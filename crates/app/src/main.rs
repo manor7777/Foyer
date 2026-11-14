@@ -3504,6 +3504,7 @@ impl PlayEnv {
             ui.set_player_sub(t.subtitle.into());
             let delay_changed = (ui.get_player_audio_delay() - t.audio_delay as f32).abs() > 0.001;
             ui.set_player_audio_delay(t.audio_delay as f32);
+            ui.set_player_sub_delay(t.sub_delay as f32);
             let delay_rows = |d: f64| {
                 vec![
                     TrackRow { id: -10, label: "Audio later  (+50 ms)".into(), selected: false },
@@ -4724,6 +4725,10 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
             -12 => player::Control::ResetAudioDelay,
             _ => player::Control::SelectAudio(id as i64),
         });
+    });
+    let c = ctx.clone();
+    ui.on_sub_sync(move |d| {
+        c.send_control(if d == 0.0 { player::Control::ResetSubDelay } else { player::Control::SubDelayBy(d as f64) });
     });
     let c = ctx.clone();
     ui.on_pick_sub(move |id| {
