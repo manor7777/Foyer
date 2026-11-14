@@ -28,6 +28,28 @@ fn main() {
     let device = ui.global::<foyer::Device>();
     device.set_touch(kind == "touch");
     device.set_tv(kind == "tv");
+    if page == "detail" {
+        ui.set_detail(foyer::Detail {
+            id: "1".into(),
+            kind: "Episode".into(),
+            title: "Lethe".into(),
+            subtitle: "Star Trek: Discovery S1:E6".into(),
+            meta: "7.3 · 21 Oct 2017 · 44m · Ends at 15:29".into(),
+            summary: "1080p H264 · English EAC3 5.1 (Default) · 2 subtitle tracks".into(),
+            overview: "Burnham and Sarek are stranded after a mission goes wrong; Lorca discovers a connection with a stranger who knows far more about the ship than he lets on, and tensions across the crew boil over as the Discovery races to reach them in time.".into(),
+            playable: true,
+            can_resume: true,
+            progress: 0.3,
+            remaining: "31m remaining".into(),
+            ..Default::default()
+        });
+        let genres: Vec<slint::SharedString> = vec!["Drama".into(), "Science Fiction".into(), "Adventure".into()];
+        ui.set_detail_genres(slint::ModelRc::new(slint::VecModel::from(genres)));
+        ui.set_can_go_back(true);
+    }
+    if std::env::var("PREVIEW_NAV_OPEN").is_ok() {
+        ui.set_nav_open(true);
+    }
     ui.set_page(page.into());
     ui.show().unwrap();
     slint::platform::update_timers_and_animations();

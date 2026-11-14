@@ -8,6 +8,8 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 
 - **Android: a proper phone layout.** Held upright, the navigation moves to a bar along the bottom (Home, Search, Favourites, Alerts, More; *More* opens the full menu with your libraries). In landscape the side bar stays.
 - **Settings fit small screens.** Each setting's control now sits under its text on a phone instead of running off the edge, and the descriptions no longer overlap. Options that only make sense on Windows (tray, F11, keep on top, window material, decoding method) are hidden on Android, and notifications are labelled as system notifications.
+- **Title pages fit a phone.** On narrow screens (movie, episode and series pages, and request pages) the picture sits on top with the text and buttons underneath, and the buttons stack instead of running off the edge. The library's sort and filter menus and pop-up messages also shrink to fit.
+- **Readable menus.** The navigation bar and menu are solid on Android instead of see-through, so text over busy artwork stays legible.
 - **App icon on Android.**
 
 ### 🐞 Fixes

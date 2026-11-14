@@ -50,7 +50,9 @@ export global Palette {
     out property <color> foreground: dark ? #ffffff : #1b1f27;
     out property <color> accent-background: dark ? Colors.hsv(hue, asat, 1.0, 1) : Colors.hsv(hue, sat < 0.08 ? 0.0 : clamp(sat, 0.6, 1.0), 0.78, 1);
     out property <color> accent-foreground: dark ? Colors.hsv(hue, 0.7 * ssat, 0.14, 1) : #ffffff;
-    out property <color> nav-glass: dark ? #ffffff16 : #ffffffc0;
+    // Slint has no backdrop blur, so on phones and TVs (where the content behind is busy and the text must
+    // stay readable) the navigation is a solid surface; on desktop it stays glass over the window material.
+    out property <color> nav-glass: Device.desktop ? (dark ? #ffffff16 : #ffffffc0) : (dark ? Colors.hsv(shue, 0.42 * ssat, 0.20, 0.98) : #fffffff8);
     out property <color> glass-border: dark ? #ffffff30 : #0000001c;
     out property <brush> window-bg: glassy
         ? (dark ? @linear-gradient(180deg, #0a0e1a55 0%, #0a0e1a88 100%) : @linear-gradient(180deg, #ffffff44 0%, #ffffff44 100%))
@@ -1478,6 +1480,8 @@ export component AppWindow inherits Window {
     property <bool> nav-expanded: root.nav-t > 0.55;
     /// Phones held upright: the navigation moves to a bar along the bottom (the sidebar becomes the "More" drawer).
     property <bool> bottom-nav: Device.touch && root.height > root.width;
+    /// Not enough room for a picture beside the text (phone in portrait, or a very narrow window).
+    property <bool> narrow: root.width - root.pane-width < 640px;
     property <length> pane-width: root.bottom-nav ? 0px : 76px + 168px * root.width-t;
 
     // state
@@ -2533,13 +2537,13 @@ export component AppWindow inherits Window {
                     if root.lib-controls: HorizontalLayout {
                         spacing: 10px;
                         Dropdown {
-                            width: 200px;
+                            width: root.narrow ? 150px : 200px;
                             model: ["Name A–Z", "Name Z–A", "Recently added", "Newest release", "Oldest release", "Highest rated"];
                             current-index <=> root.lib-sort-index;
                             selected => { root.lib-sort-changed(self.current-index); }
                         }
                         Dropdown {
-                            width: 200px;
+                            width: root.narrow ? 130px : 200px;
                             model: root.lib-genres;
                             current-index <=> root.lib-genre-index;
                             selected => { root.lib-genre-changed(self.current-index); }
@@ -3674,12 +3678,12 @@ export component AppWindow inherits Window {
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     Rectangle {
-                        height: 420px;
-                        Rectangle {
-                            x: 24px;
-                            y: 60px;
-                            width: 180px;
-                            height: 270px;
+                        height: root.narrow ? sr-text.y + sr-text.height + 24px : 420px;
+                        sr-poster := Rectangle {
+                            x: root.narrow ? (parent.width - self.width) / 2 : 24px;
+                            y: root.narrow ? 12px : 60px;
+                            width: root.narrow ? min(parent.width - 48px, 200px) : 180px;
+                            height: root.narrow ? self.width * 1.5 : 270px;
                             border-radius: 8px;
                             clip: true;
                             background: Palette.control-background;
@@ -3695,11 +3699,11 @@ export component AppWindow inherits Window {
                                 image-fit: cover;
                             }
                         }
-                        VerticalLayout {
-                            x: 24px + 180px + 24px;
-                            y: 50px;
+                        sr-text := VerticalLayout {
+                            x: root.narrow ? 24px : 24px + 180px + 24px;
+                            y: root.narrow ? sr-poster.y + sr-poster.height + 16px : 50px;
                             width: parent.width - self.x - 24px;
-                            height: 350px;
+                            height: root.narrow ? self.preferred-height : 350px;
                             spacing: 8px;
                             alignment: start;
                             Text {
@@ -4670,13 +4674,14 @@ export component AppWindow inherits Window {
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
                     Rectangle {
-                        height: 420px;
+                        // Narrow: picture on top, text below, and the box grows to fit the text.
+                        height: root.narrow ? hero-text.y + hero-text.height + 24px : 420px;
                         // poster (a landscape still for episodes)
-                        Rectangle {
-                            x: 24px;
-                            y: 60px;
-                            width: detail.kind == "Episode" ? 320px : 180px;
-                            height: detail.kind == "Episode" ? 180px : 270px;
+                        hero-poster := Rectangle {
+                            x: root.narrow ? (parent.width - self.width) / 2 : 24px;
+                            y: root.narrow ? 12px : 60px;
+                            width: root.narrow ? min(parent.width - 48px, detail.kind == "Episode" ? 480px : 200px) : (detail.kind == "Episode" ? 320px : 180px);
+                            height: root.narrow ? (detail.kind == "Episode" ? self.width * 9 / 16 : self.width * 1.5) : (detail.kind == "Episode" ? 180px : 270px);
                             border-radius: 8px;
                             clip: true;
                             background: Palette.control-background;
@@ -4692,11 +4697,11 @@ export component AppWindow inherits Window {
                                 image-fit: cover;
                             }
                         }
-                        VerticalLayout {
-                            x: 24px + (detail.kind == "Episode" ? 320px : 180px) + 24px;
-                            y: 50px;
+                        hero-text := VerticalLayout {
+                            x: root.narrow ? 24px : 24px + hero-poster.width + 24px;
+                            y: root.narrow ? hero-poster.y + hero-poster.height + 16px : 50px;
                             width: parent.width - self.x - 24px;
-                            height: 350px;
+                            height: root.narrow ? self.preferred-height : 350px;
                             spacing: 8px;
                             alignment: start;
                             if detail.logo.width > 0: HorizontalLayout {
@@ -4779,7 +4784,29 @@ export component AppWindow inherits Window {
                                     clicked => { root.toggle-follow(); }
                                 }
                             }
-                            if detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode": HorizontalLayout {
+                            if !root.narrow && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): HorizontalLayout {
+                                alignment: start;
+                                spacing: 8px;
+                                if detail.kind == "Series" || detail.kind == "Movie": PillButton {
+                                    text: "Hide";
+                                    icon: @image-url("icons/close.svg");
+                                    clicked => { root.hide-item(); }
+                                }
+                                if detail.kind != "Season": PillButton {
+                                    text: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
+                                    clicked => { root.cw-hide(false); }
+                                }
+                                if detail.kind == "Season" || detail.kind == "Episode": PillButton {
+                                    text: "Remove season from Continue Watching";
+                                    clicked => { root.cw-hide(true); }
+                                }
+                                if root.sr-connected && root.sr-can-report: PillButton {
+                                    text: "Report a problem";
+                                    icon: @image-url("icons/warning.svg");
+                                    clicked => { root.lib-report-issue(); }
+                                }
+                            }
+                            if root.narrow && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): VerticalLayout {
                                 alignment: start;
                                 spacing: 8px;
                                 if detail.kind == "Series" || detail.kind == "Movie": PillButton {
@@ -4852,6 +4879,25 @@ export component AppWindow inherits Window {
                                     enabled: !root.full-player;
                                     clicked => { root.play(detail.id, false, false); }
                                 }
+                                if !root.narrow: RoundIcon {
+                                    icon: @image-url("icons/check.svg");
+                                    active: detail.played;
+                                    clicked => { root.toggle-played(); }
+                                }
+                                if !root.narrow: RoundIcon {
+                                    icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
+                                    active: detail.favorite;
+                                    clicked => { root.toggle-favorite(); }
+                                }
+                                if !root.narrow: RoundIcon {
+                                    icon: @image-url("icons/info.svg");
+                                    active: root.info-open;
+                                    clicked => { root.info-open = !root.info-open; }
+                                }
+                            }
+                            if detail.playable && root.narrow: HorizontalLayout {
+                                spacing: 10px;
+                                alignment: start;
                                 RoundIcon {
                                     icon: @image-url("icons/check.svg");
                                     active: detail.played;
@@ -4874,7 +4920,7 @@ export component AppWindow inherits Window {
                                 VerticalLayout {
                                     alignment: center;
                                     Bar {
-                                        width: 260px;
+                                        width: root.narrow ? 150px : 260px;
                                         progress: detail.progress;
                                     }
                                 }
@@ -5180,7 +5226,7 @@ export component AppWindow inherits Window {
                         clicked => { nav-sv.content-y = max(-(nav-sv.content-height - nav-sv.visible-height), nav-sv.content-y - 120px); }
                     }
                 }
-                if root.nav-expanded: NavItem {
+                if root.nav-expanded && Device.desktop: NavItem {
                     compact: false;
                     label: root.nav-pinned ? "Unpin sidebar" : "Pin sidebar open";
                     icon: @image-url("icons/pin.svg");
@@ -5710,7 +5756,7 @@ export component AppWindow inherits Window {
         VerticalLayout {
             alignment: center;
             Rectangle {
-                width: 520px;
+                width: min(520px, root.width - 32px);
                 height: msg-col.preferred-height;
                 background: Palette.alternate-background;
                 border-radius: 8px;
@@ -6078,7 +6124,7 @@ export component AppWindow inherits Window {
         VerticalLayout {
             alignment: center;
             Rectangle {
-                width: 420px;
+                width: min(420px, root.width - 32px);
                 height: cf-col.preferred-height;
                 background: Palette.alternate-background;
                 border-radius: 8px;
@@ -6124,7 +6170,7 @@ export component AppWindow inherits Window {
         VerticalLayout {
             alignment: center;
             Rectangle {
-                width: 460px;
+                width: min(460px, root.width - 32px);
                 height: err-col.preferred-height + 40px;
                 background: Palette.alternate-background;
                 border-radius: 8px;
