@@ -227,9 +227,12 @@ component ToggleSwitch inherits Rectangle {
 component Dropdown inherits Rectangle {
     in property <[string]> model;
     in-out property <int> current-index: 0;
+    /// A label shown before the choice ("Audio: English"), and a slimmer box.
+    in property <string> prefix;
+    in property <bool> compact: false;
     callback selected(string);
     min-width: 140px;
-    height: Device.touch ? 44px : 32px;
+    height: root.compact ? (Device.touch ? 36px : 28px) : (Device.touch ? 44px : 32px);
     border-radius: 4px;
     border-width: 1px;
     border-color: Palette.border;
@@ -239,7 +242,7 @@ component Dropdown inherits Rectangle {
         padding-right: 10px;
         spacing: 8px;
         Text {
-            text: root.model[root.current-index];
+            text: root.prefix + root.model[root.current-index];
             color: Palette.foreground;
             font-size: 13px;
             vertical-alignment: center;
@@ -2199,6 +2202,8 @@ export component AppWindow inherits Window {
     callback notes-clear();
     in-out property <bool> hide-spoilers: false;
     callback set-hide-spoilers(bool);
+    in-out property <bool> desc-icon: false;
+    callback set-desc-icon(bool);
     in-out property <bool> watchlist-auto: false;
     callback set-watchlist-auto(bool);
     in-out property <string> lib-query;
@@ -3688,6 +3693,14 @@ export component AppWindow inherits Window {
                             ToggleSwitch {
                                 checked <=> root.hide-spoilers;
                                 toggled(c) => { root.set-hide-spoilers(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Description behind an info icon";
+                            description: "Keeps title pages slim: the description is hidden until you tap the info icon (which also shows the media info).";
+                            ToggleSwitch {
+                                checked <=> root.desc-icon;
+                                toggled(c) => { root.set-desc-icon(c); }
                             }
                         }
                         SettingRow {
@@ -5412,7 +5425,68 @@ export component AppWindow inherits Window {
                                 font-size: 12px;
                                 text-opacity: 0.65;
                             }
+                            // Play buttons first; with room, the watched / favourite / info icons and Options sit in the same row.
                             if detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode": HorizontalLayout {
+                                spacing: 10px;
+                                alignment: start;
+                                if detail.playable: PillButton {
+                                    text: detail.can-resume ? "Resume" : "Play";
+                                    icon: @image-url("icons/play.svg");
+                                    primary: true;
+                                    enabled: !root.full-player;
+                                    clicked => { root.play(detail.id, detail.can-resume, false); }
+                                }
+                                if detail.playable && detail.can-resume: PillButton {
+                                    text: "From beginning";
+                                    icon: @image-url("icons/play.svg");
+                                    enabled: !root.full-player;
+                                    clicked => { root.play(detail.id, false, false); }
+                                }
+                                if detail.kind == "Series" && root.series-play-id != "": PillButton {
+                                    text: root.series-play-label;
+                                    icon: @image-url("icons/play.svg");
+                                    primary: true;
+                                    enabled: !root.full-player;
+                                    clicked => { root.play(root.series-play-id, root.series-play-resume, false); }
+                                }
+                                if detail.kind == "Season" && root.season-play >= 0: PillButton {
+                                    text: root.season-play-label;
+                                    icon: @image-url("icons/play.svg");
+                                    primary: true;
+                                    clicked => { root.play(root.episodes[root.season-play].id, root.episodes[root.season-play].progress > 0, false); }
+                                }
+                                if !root.stack-actions: DetailMenu {
+                                    can-follow: detail.kind == "Series";
+                                    following: root.following;
+                                    can-hide: detail.kind == "Series" || detail.kind == "Movie";
+                                    can-cw: detail.kind != "Season";
+                                    cw-label: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
+                                    can-cw-season: detail.kind == "Season" || detail.kind == "Episode";
+                                    can-report: root.sr-connected && root.sr-can-report;
+                                    follow => { root.toggle-follow(); }
+                                    hide => { root.hide-item(); }
+                                    cw(season) => { root.cw-hide(season); }
+                                    report => { root.lib-report-issue(); }
+                                }
+                                if !root.stack-actions: RoundIcon {
+                                    icon: @image-url("icons/check.svg");
+                                    active: detail.played;
+                                    clicked => { root.toggle-played(); }
+                                }
+                                if !root.stack-actions: RoundIcon {
+                                    icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
+                                    active: detail.favorite;
+                                    clicked => { root.toggle-favorite(); }
+                                }
+                                if !root.stack-actions && (detail.playable || root.desc-icon): RoundIcon {
+                                    icon: @image-url("icons/info.svg");
+                                    active: root.info-open;
+                                    clicked => { root.info-open = !root.info-open; }
+                                }
+                            }
+                            // Narrow: the same icons and Options on a second row.
+                            if root.stack-actions && (detail.kind == "Series" || detail.kind == "Movie" || detail.kind == "Season" || detail.kind == "Episode"): HorizontalLayout {
+                                spacing: 10px;
                                 alignment: start;
                                 DetailMenu {
                                     can-follow: detail.kind == "Series";
@@ -5427,123 +5501,42 @@ export component AppWindow inherits Window {
                                     cw(season) => { root.cw-hide(season); }
                                     report => { root.lib-report-issue(); }
                                 }
-                            }
-                            if detail.kind == "Series" && root.series-play-id != "": HorizontalLayout {
-                                alignment: start;
-                                PillButton {
-                                    text: root.series-play-label;
-                                    icon: @image-url("icons/play.svg");
-                                    primary: true;
-                                    enabled: !root.full-player;
-                                    clicked => { root.play(root.series-play-id, root.series-play-resume, false); }
+                                RoundIcon {
+                                    icon: @image-url("icons/check.svg");
+                                    active: detail.played;
+                                    clicked => { root.toggle-played(); }
+                                }
+                                RoundIcon {
+                                    icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
+                                    active: detail.favorite;
+                                    clicked => { root.toggle-favorite(); }
+                                }
+                                if detail.playable || root.desc-icon: RoundIcon {
+                                    icon: @image-url("icons/info.svg");
+                                    active: root.info-open;
+                                    clicked => { root.info-open = !root.info-open; }
                                 }
                             }
-                            if detail.kind == "Season" && root.season-play >= 0: HorizontalLayout {
-                                alignment: start;
-                                PillButton {
-                                    text: root.season-play-label;
-                                    icon: @image-url("icons/play.svg");
-                                    primary: true;
-                                    clicked => { root.play(root.episodes[root.season-play].id, root.episodes[root.season-play].progress > 0, false); }
-                                }
-                            }
-                            if detail.playable && root.audio-options.length > 0: HorizontalLayout {
-                                alignment: start;
+                            // Audio and subtitles: two slim boxes side by side.
+                            if detail.playable: HorizontalLayout {
                                 spacing: 8px;
-                                Text {
-                                    text: "Audio";
-                                    color: Palette.foreground;
-                                    opacity: 0.75;
-                                    vertical-alignment: center;
-                                    width: 76px;
-                                }
-                                Dropdown {
-                                    width: root.narrow ? max(120px, parent.width - 84px) : 280px;
+                                if root.audio-options.length > 0: Dropdown {
+                                    compact: true;
+                                    prefix: "Audio: ";
+                                    horizontal-stretch: 1;
+                                    max-width: 260px;
                                     model: root.audio-options;
                                     current-index <=> root.audio-index;
                                     selected => { root.select-audio(self.current-index); }
                                 }
-                            }
-                            if detail.playable: HorizontalLayout {
-                                alignment: start;
-                                spacing: 8px;
-                                Text {
-                                    text: "Subtitles";
-                                    color: Palette.foreground;
-                                    opacity: 0.75;
-                                    vertical-alignment: center;
-                                    width: 76px;
-                                }
                                 Dropdown {
-                                    width: root.narrow ? max(120px, parent.width - 84px) : 280px;
+                                    compact: true;
+                                    prefix: "Subs: ";
+                                    horizontal-stretch: 1;
+                                    max-width: 260px;
                                     model: root.sub-options;
                                     current-index <=> root.sub-index;
                                     selected => { root.select-detail-sub(self.current-index); }
-                                }
-                            }
-                            if detail.playable: HorizontalLayout {
-                                spacing: 10px;
-                                alignment: start;
-                                PillButton {
-                                    text: detail.can-resume ? "Resume" : "Play";
-                                    icon: @image-url("icons/play.svg");
-                                    primary: true;
-                                    enabled: !root.full-player;
-                                    clicked => { root.play(detail.id, detail.can-resume, false); }
-                                }
-                                if detail.can-resume: PillButton {
-                                    text: "From beginning";
-                                    icon: @image-url("icons/play.svg");
-                                    enabled: !root.full-player;
-                                    clicked => { root.play(detail.id, false, false); }
-                                }
-                                if !root.stack-actions: RoundIcon {
-                                    icon: @image-url("icons/check.svg");
-                                    active: detail.played;
-                                    clicked => { root.toggle-played(); }
-                                }
-                                if !root.stack-actions: RoundIcon {
-                                    icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
-                                    active: detail.favorite;
-                                    clicked => { root.toggle-favorite(); }
-                                }
-                                if !root.stack-actions: RoundIcon {
-                                    icon: @image-url("icons/info.svg");
-                                    active: root.info-open;
-                                    clicked => { root.info-open = !root.info-open; }
-                                }
-                            }
-                            if detail.playable && root.stack-actions: HorizontalLayout {
-                                spacing: 10px;
-                                alignment: start;
-                                RoundIcon {
-                                    icon: @image-url("icons/check.svg");
-                                    active: detail.played;
-                                    clicked => { root.toggle-played(); }
-                                }
-                                RoundIcon {
-                                    icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
-                                    active: detail.favorite;
-                                    clicked => { root.toggle-favorite(); }
-                                }
-                                RoundIcon {
-                                    icon: @image-url("icons/info.svg");
-                                    active: root.info-open;
-                                    clicked => { root.info-open = !root.info-open; }
-                                }
-                            }
-                            if !detail.playable && (detail.kind == "Series" || detail.kind == "Season"): HorizontalLayout {
-                                spacing: 10px;
-                                alignment: start;
-                                RoundIcon {
-                                    icon: @image-url("icons/check.svg");
-                                    active: detail.played;
-                                    clicked => { root.toggle-played(); }
-                                }
-                                RoundIcon {
-                                    icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
-                                    active: detail.favorite;
-                                    clicked => { root.toggle-favorite(); }
                                 }
                             }
                             if detail.can-resume: HorizontalLayout {
@@ -5564,18 +5557,22 @@ export component AppWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                             }
-                            Overview {
+                            if !root.desc-icon: Overview {
                                 text: detail.overview;
                             }
                         }
                     }
-                    if root.info-open && root.info-rows.length > 0: VerticalLayout {
+                    if root.info-open && (root.info-rows.length > 0 || (root.desc-icon && detail.overview != "")): VerticalLayout {
                         padding-left: 24px;
                         padding-right: 24px;
                         padding-bottom: 8px;
                         spacing: 8px;
-                        Heading { text: "Media info"; }
-                        Rectangle {
+                        if root.desc-icon && detail.overview != "": Heading { text: "Overview"; }
+                        if root.desc-icon && detail.overview != "": WrapText {
+                            text: detail.overview;
+                        }
+                        if root.info-rows.length > 0: Heading { text: "Media info"; }
+                        if root.info-rows.length > 0: Rectangle {
                             background: Palette.control-background;
                             border-radius: 10px;
                             border-width: 1px;

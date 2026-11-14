@@ -6,6 +6,8 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 
 - Report a problem (both platforms): clearly labelled drop-downs. Problem is multiple choice (Video, Audio, Subtitles, Other), Season is a drop-down of the show's real seasons, and Episodes is a multiple-choice list with Select all / Clear, so several bad episodes need one report, not one each. Seerr issues hold a single problem type and episode, so Foyer files one issue per ticked problem and episode and tells you how many it sent. The dialog is also centred on narrow screens.
 - Detail pages: Notify me of new episodes, Hide, Remove from Continue Watching and Report a problem now live in one "Options" menu instead of a stack of buttons, which saves a lot of room on phones and foldables.
+- Slimmer detail pages: Resume / From beginning (or Play) come first with the Options button, watched, favourite and info icons beside them (on a second row when narrow), then Audio and Subtitles as two slim boxes side by side ("Audio: English", "Subs: English").
+- New setting, off by default (Settings > Library): Description behind an info icon. Titles then show no description on the page; the info icon opens it (above the media info) when you want it.
 - Foldables, landscape and wide windows: fixed the description, buttons and Play row overlapping the Seasons and Cast & crew rows. The header's text column had a fixed height, so it could not grow; it now sizes to its content.
 
 ## Foyer 0.26.9

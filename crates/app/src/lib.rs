@@ -1433,6 +1433,7 @@ impl Ctx {
         ui.set_debug_logging(s.cfg.debug_logging);
         ui.set_close_to_tray(s.cfg.close_to_tray);
         ui.set_hide_spoilers(s.cfg.hide_spoilers);
+        ui.set_desc_icon(s.cfg.desc_icon);
         ui.set_watchlist_auto(s.cfg.watchlist_autoremove);
         ui.set_card_scale_index(s.cfg.card_scale.min(CARD_SCALES.len() - 1) as i32);
         ui.global::<Scale>().set_base(CARD_SCALES[s.cfg.card_scale.min(CARD_SCALES.len() - 1)]);
@@ -4122,6 +4123,8 @@ pub fn run() -> Result<(), slint::PlatformError> {
     });
     let c = ctx.clone();
     ui.on_set_hide_spoilers(move |v| c.update_cfg(|cfg| cfg.hide_spoilers = v));
+    let c = ctx.clone();
+    ui.on_set_desc_icon(move |v| c.update_cfg(|cfg| cfg.desc_icon = v));
     let c = ctx.clone();
     ui.on_set_watchlist_auto(move |v| c.update_cfg(|cfg| cfg.watchlist_autoremove = v));
     let c = ctx.clone();

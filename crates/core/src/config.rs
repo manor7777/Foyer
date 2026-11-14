@@ -169,6 +169,9 @@ pub struct Config {
     pub followed: Vec<Follow>,
     /// Blank the episode descriptions of unwatched episodes.
     pub hide_spoilers: bool,
+    /// Detail pages: the description sits behind an info icon instead of on the page.
+    #[serde(default)]
+    pub desc_icon: bool,
     /// Take a title off the Seerr watchlist once it has been watched.
     pub watchlist_autoremove: bool,
     /// Last Emby server version we announced an update for.
@@ -277,6 +280,7 @@ impl Default for Config {
             win_max: false,
             followed: Vec::new(),
             hide_spoilers: false,
+            desc_icon: false,
             watchlist_autoremove: false,
             server_update_seen: String::new(),
             hidden_items: Vec::new(),

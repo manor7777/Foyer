@@ -89,6 +89,10 @@ fn main() {
         ui.set_sr_user("Norman".into());
         ui.set_sr_manage_users(true);
     }
+    if std::env::var("PREVIEW_DESC_ICON").is_ok() {
+        ui.set_desc_icon(true);
+        ui.set_info_open(true);
+    }
     if std::env::var("PREVIEW_CAST").is_ok() {
         let card = |n: &str| foyer::Card { id: "x".into(), kind: "Person".into(), title: n.into(), subtitle: "Actor".into(), ..Default::default() };
         let cards: Vec<foyer::Card> = ["Ann", "Bo", "Cy", "Di", "Ed", "Flo", "Gus"].iter().map(|n| card(n)).collect();
