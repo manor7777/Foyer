@@ -913,12 +913,13 @@ component Overview inherits Rectangle {
     in property <string> text;
     property <bool> open: false;
     property <length> line-h: probe.preferred-height;
-    property <length> full-h: t.preferred-height;
+    property <length> full-h: measure.preferred-height;
     property <length> clamp-h: root.line-h * 5;
     property <bool> long: root.full-h > root.clamp-h + 2px;
     changed text => { root.open = false; }
     height: (root.long && !root.open ? root.clamp-h : root.full-h) + (root.long ? 30px : 0px);
     probe := Text { text: "Ag"; visible: false; width: 100px; }
+    measure := Text { text: root.text; visible: false; width: root.width; wrap: word-wrap; }
     Rectangle {
         x: 0px;
         y: 0px;
@@ -928,9 +929,12 @@ component Overview inherits Rectangle {
         t := Text {
             y: 0px;
             width: parent.width;
+            // Collapsed: a fixed height, so the last line ends in an ellipsis instead of being cut off.
+            height: root.long && !root.open ? root.clamp-h : root.full-h;
             text: root.text;
             color: Palette.foreground;
             wrap: word-wrap;
+            overflow: elide;
         }
     }
     if root.long: Rectangle {
