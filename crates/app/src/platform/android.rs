@@ -9,6 +9,17 @@ use std::sync::OnceLock;
 
 pub const SUPPORTS_MATERIAL: bool = false;
 
+/// Android TV reports itself through UiModeManager (UI_MODE_TYPE_TELEVISION = 4).
+pub fn form_factor() -> super::FormFactor {
+    with_env(|env, act| {
+        let service = env.new_string("uimode")?;
+        let mgr = env.call_method(act, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[JValue::Object(&service)])?.l()?;
+        Ok(env.call_method(&mgr, "getCurrentModeType", "()I", &[])?.i()? == 4)
+    })
+    .map(|tv| if tv { super::FormFactor::Tv } else { super::FormFactor::Touch })
+    .unwrap_or(super::FormFactor::Touch)
+}
+
 struct AndroidCtx {
     vm: JavaVM,
     activity: GlobalRef,

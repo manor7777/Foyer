@@ -30,3 +30,14 @@ pub use android::*;
 mod desktop;
 #[cfg(not(any(windows, target_os = "android")))]
 pub use desktop::*;
+
+/// What the app is running on. Decides tap-target sizes and whether a remote's D-pad drives focus.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FormFactor {
+    /// Mouse and keyboard (Windows, or Linux for development).
+    Desktop,
+    /// Android phone or tablet.
+    Touch,
+    /// Android TV / Google TV / Chromecast with Google TV (remote control only).
+    Tv,
+}

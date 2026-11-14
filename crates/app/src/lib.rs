@@ -3467,6 +3467,26 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
     std::thread::spawn(prune_image_cache);
     let ui = AppWindow::new()?;
+    {
+        let ff = platform::form_factor();
+        let device = ui.global::<Device>();
+        device.set_touch(ff == platform::FormFactor::Touch);
+        device.set_tv(ff == platform::FormFactor::Tv);
+    }
+    // TV remote: arrows move focus along the page. Slint already moves focus on Tab / Shift+Tab, so
+    // send those (after the current key event has finished, not from inside its handler).
+    {
+        let weak = ui.as_weak();
+        ui.on_dpad(move |dir| {
+            let weak = weak.clone();
+            slint::Timer::single_shot(Duration::from_millis(0), move || {
+                let Some(ui) = weak.upgrade() else { return };
+                let key: slint::SharedString = if dir > 0 { slint::platform::Key::Tab } else { slint::platform::Key::Backtab }.into();
+                ui.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text: key.clone() });
+                ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text: key });
+            });
+        });
+    }
     notes::serve_instance(instance_lock, ui.as_weak());
 
     // Video: mpv draws into this window's OpenGL surface before Slint draws the UI over it.

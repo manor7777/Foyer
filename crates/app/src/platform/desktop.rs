@@ -1,6 +1,10 @@
 //! Linux and macOS: enough to build and run the shared code for development and tests.
 use std::path::{Path, PathBuf};
 
+pub fn form_factor() -> super::FormFactor {
+    super::FormFactor::Desktop
+}
+
 pub const SUPPORTS_MATERIAL: bool = false;
 
 pub fn data_base() -> PathBuf {

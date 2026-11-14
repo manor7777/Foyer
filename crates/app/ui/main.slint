@@ -3,6 +3,13 @@ import { ScrollView, Spinner, Palette as SysPalette } from "std-widgets.slint";
 
 // ---------------------------------------------------------------- WinUI 3 style theme
 // Same names as the std widgets, so every screen picks up the look without changes.
+/// What kind of device this is, set from Rust at start-up. Touch phones/tablets get bigger tap targets;
+/// TVs get a D-pad (arrows move focus, Select activates) and larger everything.
+export global Device {
+    in property <bool> touch: false;
+    in property <bool> tv: false;
+}
+
 /// Hovering a poster fades the window background to that title's banner art (Settings > Appearance).
 export global Hover {
     in-out property <image> image;
@@ -17,7 +24,7 @@ export global Scale {
     in-out property <bool> auto: false;
     in-out property <length> window-w: 1400px;
     // Auto size shrinks cards (down to 70%) once the window is narrower than 1400px.
-    out property <float> factor: base * (auto ? clamp(window-w / 1400px, 0.7, 1.0) : 1.0);
+    out property <float> factor: base * (auto ? clamp(window-w / 1400px, 0.7, 1.0) : 1.0) * (Device.tv ? 1.25 : 1.0);
 }
 
 export global Palette {
@@ -55,7 +62,7 @@ component Button inherits Rectangle {
     in property <bool> primary: false;
     in property <bool> enabled: true;
     callback clicked();
-    height: 32px;
+    height: Device.touch ? 44px : 32px;
     border-radius: 4px;
     border-width: root.primary ? 0px : 1px;
     border-color: Palette.border;
@@ -74,6 +81,18 @@ component Button inherits Rectangle {
             font-weight: root.primary ? 600 : 400;
             vertical-alignment: center;
         }
+    }
+    fs := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (root.enabled && (e.text == Key.Return || e.text == " ")) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
     }
     ta := TouchArea {
         enabled: root.enabled;
@@ -166,7 +185,27 @@ component ToggleSwitch inherits Rectangle {
         y: (parent.height - self.height) / 2;
         animate x { duration: 120ms; }
     }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") {
+                root.checked = !root.checked;
+                root.toggled(root.checked);
+                return accept;
+            }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
+    }
     ta := TouchArea {
+        // a fingertip is bigger than the 44x22 switch
+        x: Device.touch ? -10px : 0px;
+        y: Device.touch ? -12px : 0px;
+        width: parent.width + (Device.touch ? 20px : 0px);
+        height: parent.height + (Device.touch ? 24px : 0px);
         clicked => {
             root.checked = !root.checked;
             root.toggled(root.checked);
@@ -179,7 +218,7 @@ component Dropdown inherits Rectangle {
     in-out property <int> current-index: 0;
     callback selected(string);
     min-width: 140px;
-    height: 32px;
+    height: Device.touch ? 44px : 32px;
     border-radius: 4px;
     border-width: 1px;
     border-color: Palette.border;
@@ -205,6 +244,26 @@ component Dropdown inherits Rectangle {
             opacity: 0.7;
         }
     }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") {
+                if (Device.tv) {
+                    // a remote can't pick from a popup list: Select steps to the next choice instead
+                    root.current-index = mod(root.current-index + 1, max(1, root.model.length));
+                    root.selected(root.model[root.current-index]);
+                } else {
+                    pop.show();
+                }
+                return accept;
+            }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
+    }
     ta := TouchArea {
         clicked => { pop.show(); }
     }
@@ -212,7 +271,7 @@ component Dropdown inherits Rectangle {
         x: 0px;
         y: root.height + 2px;
         width: max(root.width, 200px);
-        height: min(300px, root.model.length * 34px + 12px);
+        height: min(300px, root.model.length * (Device.touch ? 46px : 34px) + 12px);
         Rectangle {
             background: Palette.alternate-background;
             border-radius: 8px;
@@ -223,7 +282,7 @@ component Dropdown inherits Rectangle {
                     padding: 6px;
                     spacing: 2px;
                     for t[i] in root.model: Rectangle {
-                        height: 32px;
+                        height: Device.touch ? 44px : 32px;
                         border-radius: 4px;
                         background: (i == root.current-index || ra.has-hover) ? Palette.control-hover : transparent;
                         if i == root.current-index: Rectangle {
@@ -572,6 +631,17 @@ component IconButton inherits Rectangle {
         width: parent.width;
         height: parent.height;
     }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
+    }
     ta := TouchArea {
         clicked => { root.clicked(); }
     }
@@ -605,6 +675,17 @@ component Pill inherits Rectangle {
             overflow: elide;
             vertical-alignment: center;
         }
+    }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
     }
     ta := TouchArea {
         clicked => { root.clicked(); }
@@ -649,7 +730,7 @@ component MenuRow inherits Rectangle {
     in property <bool> selected: false;
     in property <image> icon;
     callback clicked();
-    height: 34px;
+    height: Device.touch ? 46px : 34px;
     border-radius: 6px;
     background: ta.has-hover ? #ffffff1f : transparent;
     HorizontalLayout {
@@ -671,6 +752,17 @@ component MenuRow inherits Rectangle {
             vertical-alignment: center;
             overflow: elide;
         }
+    }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
     }
     ta := TouchArea { clicked => { root.clicked(); } }
 }
@@ -796,6 +888,18 @@ component PillButton inherits Rectangle {
             vertical-alignment: center;
         }
     }
+    fs := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (root.enabled && (e.text == Key.Return || e.text == " ")) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
+    }
     ta := TouchArea {
         enabled: root.enabled;
         clicked => { root.clicked(); }
@@ -819,6 +923,17 @@ component RoundIcon inherits Rectangle {
         height: 20px;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
+    }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
     }
     ta := TouchArea { clicked => { root.clicked(); } }
 }
@@ -909,6 +1024,17 @@ component GlassArrow inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         transform-rotation: root.turn;
+    }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.border-radius;
+        border-width: fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
     }
     ta := TouchArea { clicked => { root.clicked(); } }
 }
@@ -1269,8 +1395,9 @@ component Heading inherits Text {
 export component AppWindow inherits Window {
     title: "Foyer";
     icon: @image-url("icons/app.png");
-    min-width: root.pip ? 240px : 600px;
-    min-height: root.pip ? 135px : 380px;
+    // Phones and TVs have a fixed window, so no desktop minimum there.
+    min-width: (Device.touch || Device.tv) ? 0px : (root.pip ? 240px : 600px);
+    min-height: (Device.touch || Device.tv) ? 0px : (root.pip ? 135px : 380px);
     preferred-width: 1180px;
     preferred-height: 720px;
     // opaque while playing so resize frames (fullscreen toggle) don't flash the backdrop through
@@ -1427,6 +1554,8 @@ export component AppWindow inherits Window {
     in property <[TrackRow]> sub-tracks;
     in-out property <bool> menu-hold: false;
     in-out property <bool> nav-open: false;
+    /// TV remote: move focus along the page (-1 back, +1 forward); Rust turns it into Shift+Tab / Tab.
+    callback dpad(int);
     in-out property <bool> nav-pinned: false;
     callback set-nav-pinned(bool);
     in-out property <bool> hover-backdrop: false;
@@ -1802,8 +1931,8 @@ export component AppWindow inherits Window {
                 if e.text == "f" || e.text == Key.F11 { root.full-screen = !root.full-screen; }
                 else if e.text == Key.Escape && root.full-screen { root.full-screen = false; }
                 else if e.text == Key.Escape && root.pip { root.pip = false; }
-                else if e.text == Key.Escape || e.text == Key.Backspace { root.player-key("quit"); }
-                else if e.text == " " { if root.skip-kind != 0 { root.player-key("skip"); } else { root.player-key("pause"); } }
+                else if e.text == Key.Escape || e.text == Key.Backspace || e.text == Key.Back { root.player-key("quit"); }
+                else if e.text == " " || e.text == Key.Return { if root.skip-kind != 0 { root.player-key("skip"); } else { root.player-key("pause"); } }
                 else if e.text == Key.LeftArrow { root.player-key("back10"); }
                 else if e.text == Key.RightArrow { root.player-key("fwd30"); }
                 else if e.text == Key.UpArrow { root.player-key("volup"); }
@@ -1820,9 +1949,13 @@ export component AppWindow inherits Window {
                 root.full-screen = !root.full-screen;
                 return accept;
             }
-            if (e.text == Key.Escape || e.text == Key.Backspace || (e.modifiers.alt && e.text == Key.LeftArrow)) && root.can-go-back && !root.full-player {
+            if (e.text == Key.Escape || e.text == Key.Backspace || e.text == Key.Back || (e.modifiers.alt && e.text == Key.LeftArrow)) && root.can-go-back && !root.full-player {
                 root.go-back();
                 return accept;
+            }
+            if Device.tv && !root.full-player {
+                if e.text == Key.RightArrow || e.text == Key.DownArrow { root.dpad(1); return accept; }
+                if e.text == Key.LeftArrow || e.text == Key.UpArrow { root.dpad(-1); return accept; }
             }
             return reject;
         }

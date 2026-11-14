@@ -1,5 +1,9 @@
 use std::path::{Path, PathBuf};
 
+pub fn form_factor() -> super::FormFactor {
+    super::FormFactor::Desktop
+}
+
 pub const SUPPORTS_MATERIAL: bool = true;
 
 pub fn data_base() -> PathBuf {
