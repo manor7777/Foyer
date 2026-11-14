@@ -48,8 +48,6 @@ embed-resource = "3"
 [package.metadata.android]
 package = "app.foyer.player"
 apk_name = "Foyer"
-# Set by CI from the workspace version (major*10000 + minor*100 + patch); Android only installs updates with a higher code.
-version_code = 1
 build_targets = ["aarch64-linux-android"]
 runtime_libs = "android/libs"
 

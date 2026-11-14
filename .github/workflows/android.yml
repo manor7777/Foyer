@@ -56,14 +56,6 @@ jobs:
             echo "::warning::ANDROID_LIBMPV_URL is not set: this APK has no video engine."
           fi
 
-      - name: Set the Android version code
-        run: |
-          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
-          IFS=. read -r maj min pat <<< "$version"
-          code=$((maj * 10000 + min * 100 + pat))
-          sed -i "s/^version_code = .*/version_code = $code/" crates/app/Cargo.toml
-          echo "version $version -> versionCode $code"
-
       - name: Signing key
         env:
           RELEASE: ${{ inputs.release }}
