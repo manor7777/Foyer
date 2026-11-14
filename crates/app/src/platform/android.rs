@@ -223,3 +223,6 @@ pub fn set_landscape(on: bool) {
         eprintln!("setRequestedOrientation failed: {e}");
     }
 }
+
+/// Windows registers its toast identity here; nothing to do elsewhere.
+pub fn register_app_identity() {}

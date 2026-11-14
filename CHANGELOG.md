@@ -2,6 +2,13 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.4
+
+### 🐞 Fixes
+
+- **Windows notifications say "Foyer".** Toasts showed up as coming from "Windows PowerShell"; Foyer now registers its own name and icon with Windows at start-up so they are labelled correctly.
+- **Notifications page on a phone.** The Mark all read / Clear all buttons sit under the title instead of being cut off, the title lines up with them, and each notification grows to fit its text instead of spilling out of its card. On a phone the hint says "tap to open" instead of "click to open".
+
 ## Foyer 0.26.3
 
 ### ✨ Highlights

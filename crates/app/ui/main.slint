@@ -2456,15 +2456,30 @@ export component AppWindow inherits Window {
                     alignment: start;
                     padding: 24px;
                     spacing: 10px;
+                    // Wide: title and buttons on one line. Narrow: the buttons go under the title.
                     HorizontalLayout {
                         spacing: 10px;
-                        Heading { text: "Notifications"; horizontal-stretch: 1; }
+                        Heading { text: "Notifications"; horizontal-stretch: 1; vertical-alignment: center; }
+                        if !root.narrow && root.unread-count > 0: PillButton {
+                            text: "Mark all read";
+                            icon: @image-url("icons/check.svg");
+                            clicked => { root.notes-mark-all-read(); }
+                        }
+                        if !root.narrow && root.notes.length > 0: PillButton {
+                            text: "Clear all";
+                            icon: @image-url("icons/delete.svg");
+                            clicked => { root.notes-clear(); }
+                        }
+                    }
+                    if root.narrow && root.notes.length > 0: HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
                         if root.unread-count > 0: PillButton {
                             text: "Mark all read";
                             icon: @image-url("icons/check.svg");
                             clicked => { root.notes-mark-all-read(); }
                         }
-                        if root.notes.length > 0: PillButton {
+                        PillButton {
                             text: "Clear all";
                             icon: @image-url("icons/delete.svg");
                             clicked => { root.notes-clear(); }
@@ -2476,8 +2491,11 @@ export component AppWindow inherits Window {
                         opacity: 0.6;
                         wrap: word-wrap;
                     }
+                    // Laid out by hand: a layout can't size a card from wrapped text, so the height is
+                    // computed from the wrapped texts at the width they are given.
                     for n in root.notes: Rectangle {
-                        height: nr-col.preferred-height + 24px;
+                        property <length> tw: self.width - 46px - (n.read ? 0px : 44px);
+                        height: 24px + nt.preferred-height + (n.body != "" ? 3px + nb.preferred-height : 0px) + 3px + nw.preferred-height;
                         border-radius: 10px;
                         background: n.read ? Palette.control-background.with-alpha(0.6) : Palette.control-background;
                         border-width: 1px;
@@ -2486,51 +2504,51 @@ export component AppWindow inherits Window {
                             mouse-cursor: pointer;
                             clicked => { root.note-click(n.id, n.item); }
                         }
-                        HorizontalLayout {
-                            padding: 12px;
-                            spacing: 12px;
-                            VerticalLayout {
-                                alignment: center;
-                                Rectangle {
-                                    width: 10px;
-                                    height: 10px;
-                                    border-radius: 5px;
-                                    background: n.read ? transparent : Palette.accent-background;
-                                }
-                            }
-                            nr-col := VerticalLayout {
-                                spacing: 3px;
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: n.title;
-                                    color: Palette.foreground;
-                                    font-size: 14px;
-                                    font-weight: n.read ? 400 : 700;
-                                    wrap: word-wrap;
-                                }
-                                if n.body != "": Text {
-                                    text: n.body;
-                                    color: Palette.foreground;
-                                    opacity: 0.7;
-                                    font-size: 12px;
-                                    wrap: word-wrap;
-                                }
-                                Text {
-                                    text: n.when + (n.item != "" ? "  ·  click to open" : "");
-                                    color: Palette.foreground;
-                                    opacity: 0.5;
-                                    font-size: 11px;
-                                }
-                            }
-                            if !n.read: VerticalLayout {
-                                alignment: center;
-                                IconButton {
-                                    icon: @image-url("icons/check.svg");
-                                    size: 32px;
-                                    tint: Palette.foreground;
-                                    clicked => { root.note-mark-read(n.id); }
-                                }
-                            }
+                        Rectangle {
+                            x: 12px;
+                            y: (parent.height - self.height) / 2;
+                            width: 10px;
+                            height: 10px;
+                            border-radius: 5px;
+                            background: n.read ? transparent : Palette.accent-background;
+                        }
+                        nt := Text {
+                            x: 34px;
+                            y: 12px;
+                            width: parent.tw;
+                            text: n.title;
+                            color: Palette.foreground;
+                            font-size: 14px;
+                            font-weight: n.read ? 400 : 700;
+                            wrap: word-wrap;
+                        }
+                        nb := Text {
+                            visible: n.body != "";
+                            x: 34px;
+                            y: nt.y + nt.preferred-height + 3px;
+                            width: parent.tw;
+                            text: n.body;
+                            color: Palette.foreground;
+                            opacity: 0.7;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        nw := Text {
+                            x: 34px;
+                            y: (n.body != "" ? nb.y + nb.preferred-height : nt.y + nt.preferred-height) + 3px;
+                            width: parent.tw;
+                            text: n.when + (n.item != "" ? (Device.desktop ? "  ·  click to open" : "  ·  tap to open") : "");
+                            color: Palette.foreground;
+                            opacity: 0.5;
+                            font-size: 11px;
+                        }
+                        if !n.read: IconButton {
+                            x: parent.width - self.width - 12px;
+                            y: (parent.height - self.height) / 2;
+                            icon: @image-url("icons/check.svg");
+                            size: 32px;
+                            tint: Palette.foreground;
+                            clicked => { root.note-mark-read(n.id); }
                         }
                     }
                 }

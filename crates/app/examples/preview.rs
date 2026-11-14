@@ -50,6 +50,16 @@ fn main() {
     if std::env::var("PREVIEW_ACCENT").is_ok() {
         ui.set_accent_mode(1);
     }
+    if page == "notifications" {
+        let mk = |id: &str, title: &str, body: &str, read: bool| foyer::NoteRow { id: id.into(), title: title.into(), body: body.into(), item: "x".into(), when: "Today 17:29".into(), read, ..Default::default() };
+        let rows = vec![
+            mk("1", "Update available", "Foyer 0.26.3 is ready to install (Settings → About).", false),
+            mk("2", "New episode", "Star Trek: Discovery S1:E7 is available.", false),
+            mk("3", "Request ready", "Avengers: Doomsday is now in your library.", true),
+        ];
+        ui.set_notes(slint::ModelRc::new(slint::VecModel::from(rows)));
+        ui.set_unread_count(2);
+    }
     if page == "sr-discover" {
         ui.set_sr_quota("Movies: unlimited  ·  Series: unlimited".into());
         ui.set_sr_user("Norman".into());

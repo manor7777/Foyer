@@ -3468,6 +3468,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
 /// Starts the app. Shared by the desktop `main` and the Android activity entry point.
 pub fn run() -> Result<(), slint::PlatformError> {
     foyer_core::set_data_base(platform::data_base());
+    platform::register_app_identity();
     // Android: new installs follow Material You when the phone has it (Windows keeps its own default).
     if cfg!(target_os = "android") && platform::system_accent().is_some() {
         foyer_core::set_default_accent_mode(0);

@@ -24,8 +24,35 @@ pub fn open_folder(dir: &Path) {
     let _ = std::process::Command::new("explorer").arg(dir).spawn();
 }
 
+/// Identity Windows shows on toasts. Without a registered one notify-rust borrows PowerShell's, so
+/// every Foyer notification said "Windows PowerShell".
+const APP_ID: &str = "Foyer.Foyer";
+
 pub fn system_notify(title: &str, body: &str) {
-    let _ = notify_rust::Notification::new().appname("Foyer").summary(title).body(body).show();
+    let _ = notify_rust::Notification::new().appname("Foyer").app_id(APP_ID).summary(title).body(body).show();
+}
+
+/// Registers Foyer's name and icon for toast notifications (HKCU, no admin needed). Safe to call on
+/// every start; runs in the background because it starts two short-lived `reg` processes.
+pub fn register_app_identity() {
+    std::thread::spawn(|| {
+        use std::os::windows::process::CommandExt;
+        let dir = foyer_core::data_dir();
+        let _ = std::fs::create_dir_all(&dir);
+        let icon = dir.join("app-icon.png");
+        if std::fs::metadata(&icon).map(|m| m.len() == 0).unwrap_or(true) {
+            let _ = std::fs::write(&icon, include_bytes!("../../assets/app.png"));
+        }
+        let key = format!("HKCU\\Software\\Classes\\AppUserModelId\\{APP_ID}");
+        let set = |name: &str, value: &str| {
+            let _ = std::process::Command::new("reg")
+                .args(["add", &key, "/v", name, "/t", "REG_SZ", "/d", value, "/f"])
+                .creation_flags(0x0800_0000)
+                .output();
+        };
+        set("DisplayName", "Foyer");
+        set("IconUri", &icon.to_string_lossy());
+    });
 }
 
 /// Window material: 0 solid, 1 Mica, 2 Acrylic (Windows 11; needs the transparent window).

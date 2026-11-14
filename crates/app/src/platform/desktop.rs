@@ -36,3 +36,6 @@ pub fn system_notify(title: &str, body: &str) {
 
 /// Phones turn to landscape while a video plays; nothing to do here.
 pub fn set_landscape(_on: bool) {}
+
+/// Windows registers its toast identity here; nothing to do elsewhere.
+pub fn register_app_identity() {}
