@@ -280,20 +280,18 @@ impl Ctx {
 
 // ---------------------------------------------------------------- tray icon
 
+#[cfg(windows)]
 thread_local! {
     static TRAY: std::cell::RefCell<Option<tray_icon::TrayIcon>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Brings the window back from the tray (or from minimised).
 pub fn show_window(ui: &AppWindow) {
-    use slint::winit_030::WinitWindowAccessor;
     let _ = ui.show();
-    ui.window().with_winit_window(|w| {
-        w.set_minimized(false);
-        w.focus_window();
-    });
+    platform::bring_to_front(ui.window());
 }
 
+#[cfg(windows)]
 /// Wires the tray's click / menu events to the window. Called once at startup.
 pub fn init_tray_events(weak: Weak<AppWindow>) {
     let open = {
@@ -366,6 +364,7 @@ pub fn serve_instance(listener: std::net::TcpListener, weak: Weak<AppWindow>) {
 }
 
 /// Shows or removes the tray icon. Must run on the UI thread.
+#[cfg(windows)]
 pub fn set_tray(on: bool) {
     TRAY.with(|t| {
         let mut t = t.borrow_mut();
@@ -394,3 +393,10 @@ pub fn set_tray(on: bool) {
         }
     });
 }
+
+/// No tray icon outside Windows (Android has its own notification area).
+#[cfg(not(windows))]
+pub fn init_tray_events(_weak: Weak<AppWindow>) {}
+
+#[cfg(not(windows))]
+pub fn set_tray(_on: bool) {}

@@ -1,6 +1,7 @@
 name: Release
 
-# Manual only: Actions > Release > Run workflow. The version comes from Cargo.toml
+# Manual only: Actions > Release > Run workflow. Builds Foyer.exe (Windows) and Foyer.apk (Android phone and
+# TV, one universal APK) and publishes both. The version comes from Cargo.toml
 # ([workspace.package] version); bump it and add a "## Foyer <version>" section to
 # CHANGELOG.md first, then run this.
 on:
@@ -15,11 +16,14 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  windows:
     runs-on: windows-latest
     defaults:
       run:
         shell: bash
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,10 +93,51 @@ jobs:
           openssl dgst -sha256 -sign "$RUNNER_TEMP/key.pem" -out Foyer.exe.sha256.sig Foyer.exe.sha256
           rm -f "$RUNNER_TEMP/key.pem"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            Foyer.exe
+            Foyer.exe.sha256
+            Foyer.exe.sha256.sig
+            notes.md
+          if-no-files-found: error
+
+  android:
+    uses: ./.github/workflows/android.yml
+    with:
+      release: true
+    secrets:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+
+  publish:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+      - uses: actions/download-artifact@v4
+        with:
+          name: Foyer-apk
+
+      - name: Sign the APK checksum (same scheme as the exe, for the future in-app Android updater)
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          { sha256sum Foyer.apk | awk '{print $1}'; echo "version=${{ needs.windows.outputs.version }}"; } > Foyer.apk.sha256
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > "$RUNNER_TEMP/key.pem"
+          openssl dgst -sha256 -sign "$RUNNER_TEMP/key.pem" -out Foyer.apk.sha256.sig Foyer.apk.sha256
+          rm -f "$RUNNER_TEMP/key.pem"
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.plan.outputs.tag }}" Foyer.exe Foyer.exe.sha256 Foyer.exe.sha256.sig \
-            --title "Foyer ${{ steps.plan.outputs.version }}" \
+          gh release create "${{ needs.windows.outputs.tag }}" \
+            Foyer.exe Foyer.exe.sha256 Foyer.exe.sha256.sig \
+            Foyer.apk Foyer.apk.sha256 Foyer.apk.sha256.sig \
+            --repo "${{ github.repository }}" \
+            --title "Foyer ${{ needs.windows.outputs.version }}" \
             --notes-file notes.md --target "$GITHUB_SHA" --latest

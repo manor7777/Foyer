@@ -1,0 +1,103 @@
+name: Android
+
+# Runs on every push and pull request to main (and the android branch) so a change that breaks the
+# Android build is caught straight away, and is called by the Release workflow to produce Foyer.apk.
+# One universal APK covers phones, tablets and Android TV / Google TV / Chromecast with Google TV.
+on:
+  push:
+    branches: [main, android]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        description: "Sign with the release keystore secrets (fails if they are missing)"
+        type: boolean
+        default: false
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test (shared code, Linux)
+        run: cargo test --locked --workspace
+
+      - name: Fetch libmpv for Android
+        env:
+          # Repository variable (Settings > Secrets and variables > Actions > Variables): URL of a zip
+          # holding arm64-v8a/libmpv.so (LGPL build). Without it the APK builds but cannot play video.
+          URL: ${{ vars.ANDROID_LIBMPV_URL }}
+        run: |
+          mkdir -p crates/app/android/libs/arm64-v8a
+          if [ -n "$URL" ]; then
+            curl -fsSL "$URL" -o libmpv.zip
+            unzip -q -o libmpv.zip -d crates/app/android/libs
+          else
+            echo "::warning::ANDROID_LIBMPV_URL is not set: this APK has no video engine."
+          fi
+
+      - name: Set the Android version code
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          IFS=. read -r maj min pat <<< "$version"
+          code=$((maj * 10000 + min * 100 + pat))
+          sed -i "s/^version_code = .*/version_code = $code/" crates/app/Cargo.toml
+          echo "version $version -> versionCode $code"
+
+      - name: Signing key
+        env:
+          RELEASE: ${{ inputs.release }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ "$RELEASE" = "true" ]; then
+            if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+              echo "::error::Release builds need the ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD repository secrets."
+              exit 1
+            fi
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "CARGO_APK_RELEASE_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          else
+            # Throwaway key: test builds only, never published.
+            keytool -genkeypair -keystore "$RUNNER_TEMP/ci.keystore" -storepass android -keypass android \
+              -alias ci -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Foyer CI test build"
+            echo "CARGO_APK_RELEASE_KEYSTORE=$RUNNER_TEMP/ci.keystore" >> "$GITHUB_ENV"
+            echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install cargo-apk
+        run: cargo install cargo-apk --locked
+
+      - name: Build APK
+        working-directory: crates/app
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME" ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          cargo apk build --release --lib
+
+      - name: Name the APK
+        run: cp target/release/apk/Foyer.apk Foyer.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Foyer-apk
+          path: Foyer.apk
+          if-no-files-found: error

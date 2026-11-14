@@ -1,6 +1,6 @@
 # Android and Android TV plan
 
-Status: idea, not started. Goal: one codebase, one release run that publishes `Foyer.exe` and `Foyer.apk`, with the same features on every platform.
+Status: in progress. Goal: one codebase, one release run that publishes `Foyer.exe` and `Foyer.apk`, with the same features on every platform.
 
 ## What carries over
 
@@ -40,3 +40,10 @@ Status: idea, not started. Goal: one codebase, one release run that publishes `F
 ## Testing
 
 None of this can be tested on a device from the development machine used so far. Each step needs a real phone or TV (or an emulator) to try it.
+## Progress
+
+- Done: OS-specific code sits behind `crates/app/src/platform` (Windows, desktop and Android backends). The app builds and tests pass on Linux.
+- Done: the app crate is a lib (`run()`, plus `android_main` on Android) and a thin desktop bin. The engine download and the exe updater are skipped on Android; the player loads a bundled `libmpv.so` and asks for MediaCodec.
+- Done: `.github/workflows/android.yml` builds a signed APK on every push and pull request; `release.yml` calls it so one run publishes `Foyer.exe` and `Foyer.apk`. It needs the secrets `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` (back the keystore up: losing it means installs cannot update) and, for video, the repository variable `ANDROID_LIBMPV_URL`.
+- Not run on a device yet.
+- Next: a libmpv.so build for arm64, then the first APK on a device; touch layouts; Android TV focus handling; Android updater, notifications and Material You accent; splitting `lib.rs` into a core crate.

@@ -216,13 +216,25 @@ fn dll_candidates() -> Vec<PathBuf> {
 
 /// True when a libmpv DLL is present (next to the app, or downloaded).
 pub fn available() -> bool {
+    if cfg!(target_os = "android") {
+        return true; // libmpv.so is packaged in the APK
+    }
     dll_candidates().iter().any(|p| p.exists())
+}
+
+/// Android loads by bare name: the system linker finds libmpv.so among the APK's native libraries.
+fn lib_candidates() -> Vec<PathBuf> {
+    if cfg!(target_os = "android") {
+        vec![PathBuf::from("libmpv.so")]
+    } else {
+        dll_candidates()
+    }
 }
 
 fn load_api() -> Result<Api, String> {
     let mut last = String::from("the video engine (libmpv) is not installed yet");
-    for p in dll_candidates() {
-        if !p.exists() {
+    for p in lib_candidates() {
+        if !cfg!(target_os = "android") && !p.exists() {
             continue;
         }
         // Leaked on purpose: never unloaded.
@@ -587,6 +599,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
         }
         if !opts.hw_decode {
             set("hwdec", "no");
+        } else if cfg!(target_os = "android") {
+            // MediaCodec; "mediacodec" renders straight to the GL surface, "-copy" is the safe fallback.
+            set("hwdec", if opts.hw_mode == 4 { "mediacodec" } else { "mediacodec-copy" });
         } else {
             match opts.hw_mode {
                 2 => set("hwdec", "dxva2-copy"),

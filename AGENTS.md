@@ -12,3 +12,11 @@ Rules:
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 - A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
 - When you commit and push, include the graphify-out/ files (cache, hook session files, graph updates) and AGENTS.md / CLAUDE.md changes too, so they never linger as uncommitted changes.
+
+## Android
+
+Foyer ships for Windows (`Foyer.exe`) and Android phones and TV (`Foyer.apk`, one universal APK) from this one codebase, and every release publishes both.
+
+- Keep every change Android-compatible. Anything specific to an operating system (file locations, registry, winit window calls, tray icon, toasts, installers, `.dll` loading, `std::process::Command` launching desktop tools) goes in `crates/app/src/platform/` (Windows, desktop and Android backends), never inline in `lib.rs`. Windows-only crates stay under `[target.'cfg(windows)'.dependencies]`.
+- New UI must work with touch and with a TV remote's D-pad (focusable, large enough), not only with a mouse and hover.
+- Before pushing, run `cargo check --workspace --all-targets` (Linux). The Android workflow runs on every push and pull request and builds the APK; if it fails, fix that before anything else. `docs/ANDROID-PLAN.md` tracks what is done and what is next.
