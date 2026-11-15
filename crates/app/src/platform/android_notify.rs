@@ -5,7 +5,8 @@
 //! while the process is alive, by noticing that one of our notifications disappeared just as the
 //! window got focus (`poll_note_tap`). Swiping a notification away does not count, because the
 //! window has no focus then.
-use super::{with_env, RichNote};
+use super::with_env;
+use crate::platform::RichNote;
 use jni::objects::{JObject, JObjectArray, JValue};
 use jni::JNIEnv;
 use std::sync::Mutex;
