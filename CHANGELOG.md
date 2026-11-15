@@ -2,6 +2,12 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.12
+
+Hotfix.
+
+- Fixed Report a problem freezing the app (Windows) or showing "not responding" (Android) when opened from Options on a library series, season or episode page. The dialog was waiting on a lock it already held. Opening it from a Seerr title page was unaffected.
+
 ## Foyer 0.26.11
 
 - Going back (Back button, gesture or the on-screen arrow) returns you to where you were on the page, instead of the top. This works on every page, including lists and detail pages that load their content a moment after opening. If you start scrolling first, Foyer leaves it alone.

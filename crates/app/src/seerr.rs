@@ -1481,7 +1481,9 @@ impl Ctx {
                     ui.set_sr_report_title(title.clone().into());
                     ui.set_sr_report_tv(kind == "tv");
                     ui.set_sr_report_text("".into());
-                    if let Some(d) = ctx2.st.lock().unwrap().sr.detail.clone() {
+                    // Copy it out first: holding the lock across `report_reset` (which locks again) deadlocks the UI.
+                    let detail = ctx2.st.lock().unwrap().sr.detail.clone();
+                    if let Some(d) = detail {
                         ctx2.report_reset(&d, season, &if episode > 0 { vec![episode] } else { Vec::new() });
                     }
                     ctx2.report_sync(&ui);
