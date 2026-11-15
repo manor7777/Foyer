@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.27.0
+
+- Rich notifications. New episodes, requests that are ready and updates now come with the poster, and clicking them takes you to the right place.
+  - **Windows:** modern toasts with the poster beside the text and working buttons: **Play** and **Open in library** for a film or episode, **Open settings** for an update, **View issue** for an issue. Clicking the toast itself opens the title. Buttons work while Foyer is running (it stays in the tray); a toast clicked after Foyer has quit just opens nothing.
+  - **Android:** the notification shows the poster, and tapping it opens Foyer on that title (or Settings for an update, or the issue). Android lets Foyer notice a tap while it is running in the background by watching the notification disappear as the app comes to the front, so a tap is picked up within about a second. No action buttons on Android yet.
+  - **In the app:** the banner shows the poster with Play and Open buttons, and the Alerts page shows a poster beside each alert that has one. Episodes use their series' poster.
+- Going back to a page now glides to where you were instead of jumping there.
+
 ## Foyer 0.26.12
 
 Hotfix.

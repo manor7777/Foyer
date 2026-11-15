@@ -65,9 +65,27 @@ fn main() {
     }
     if page == "notifications" {
         let mk = |id: &str, title: &str, body: &str, read: bool| foyer::NoteRow { id: id.into(), title: title.into(), body: body.into(), item: "x".into(), when: "Today 17:29".into(), read, ..Default::default() };
+        // A stand-in poster: a gradient block.
+        let poster = || {
+            let (w, h) = (92u32, 138u32);
+            let mut buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(w, h);
+            for (i, px) in buf.make_mut_slice().iter_mut().enumerate() {
+                let (x, y) = ((i as u32 % w) as u8, (i as u32 / w) as u8);
+                *px = slint::Rgba8Pixel { r: 40 + x, g: 90 + y / 2, b: 180, a: 255 };
+            }
+            slint::Image::from_rgba8(buf)
+        };
+        if std::env::var("PREVIEW_NOTE").is_ok() {
+            ui.set_note_title("New episode of Star Trek: Discovery".into());
+            ui.set_note_body("S1 E7 is ready to watch.".into());
+            ui.set_note_item("x".into());
+            ui.set_note_play("x".into());
+            ui.set_note_image(poster());
+            ui.set_note_open(true);
+        }
         let rows = vec![
             mk("1", "Update available", "Foyer 0.26.3 is ready to install (Settings → About).", false),
-            mk("2", "New episode", "Star Trek: Discovery S1:E7 is available.", false),
+            { let mut r = mk("2", "New episode", "Star Trek: Discovery S1:E7 is available.", false); r.image = poster(); r },
             mk("3", "Request ready", "Avengers: Doomsday is now in your library.", true),
         ];
         ui.set_notes(slint::ModelRc::new(slint::VecModel::from(rows)));

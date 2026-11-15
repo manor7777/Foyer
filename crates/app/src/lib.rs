@@ -816,8 +816,9 @@ impl Ctx {
         }
     }
 
-    /// Scrolls the page just opened back to `y` (negative = scrolled down) once its content is long
-    /// enough: lists and pictures load after the page appears. Gives up if the person scrolls first.
+    /// Scrolls the page just opened back to `y` (negative = scrolled down). Lists and pictures load
+    /// after the page appears, so it waits until the page is long enough, then glides there instead
+    /// of jumping. Gives up if the person scrolls first.
     fn restore_scroll_later(&self, y: f32) {
         thread_local! {
             static RESTORE: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
@@ -828,21 +829,32 @@ impl Ctx {
         }
         let weak = self.ui.clone();
         let tries = std::cell::Cell::new(0u32);
+        // Set once the page is ready: when the glide began and where it ends.
+        let glide: std::cell::Cell<Option<(Instant, f32)>> = std::cell::Cell::new(None);
         let timer = slint::Timer::default();
-        timer.start(slint::TimerMode::Repeated, Duration::from_millis(80), move || {
+        timer.start(slint::TimerMode::Repeated, Duration::from_millis(16), move || {
             let Some(ui) = weak.upgrade() else { return };
             let g = ui.global::<PageScroll>();
+            let stop = || RESTORE.with(|r| *r.borrow_mut() = None);
+            if let Some((t0, end)) = glide.get() {
+                // Ease out over 0.25 - 0.5 s, longer for longer distances.
+                let dur = (0.25 + end.abs() / 8000.0).clamp(0.25, 0.5);
+                let t = (t0.elapsed().as_secs_f32() / dur).min(1.0);
+                g.set_y(end * (1.0 - (1.0 - t).powi(3)));
+                if t >= 1.0 {
+                    stop();
+                }
+                return;
+            }
             tries.set(tries.get() + 1);
             if g.get_y() < -1.0 {
                 // The person scrolled before we got there: leave it.
-                RESTORE.with(|r| *r.borrow_mut() = None);
+                stop();
             } else if g.get_range() >= -y - 2.0 {
-                g.set_y(y);
-                RESTORE.with(|r| *r.borrow_mut() = None);
-            } else if tries.get() > 40 {
-                // Never got long enough: go as far as it does.
-                g.set_y(-g.get_range().max(0.0));
-                RESTORE.with(|r| *r.borrow_mut() = None);
+                glide.set(Some((Instant::now(), y)));
+            } else if tries.get() > 190 {
+                // Never got long enough (about 3 s): go as far as it does.
+                glide.set(Some((Instant::now(), -g.get_range().max(0.0))));
             }
         });
         RESTORE.with(|r| *r.borrow_mut() = Some(timer));
@@ -3867,6 +3879,12 @@ pub fn run() -> Result<(), slint::PlatformError> {
     ui.on_select_audio(move |i| c.select_audio(i));
     let c = ctx.clone();
     ui.on_select_detail_sub(move |i| c.select_detail_sub(i));
+    let c = ctx.clone();
+    ui.on_note_action(move |a| c.note_action(a.to_string()));
+    {
+        let c = ctx.clone();
+        platform::set_note_handler(Box::new(move |a| c.note_action(a)));
+    }
     let c = ctx.clone();
     ui.on_sign_out(move || c.sign_out());
     let c = ctx.clone();

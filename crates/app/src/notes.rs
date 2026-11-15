@@ -15,6 +15,11 @@ pub struct NoteRec {
     /// Unix seconds.
     pub time: i64,
     pub read: bool,
+    /// Poster to show beside it (a URL on the media server), and the item the Play button starts.
+    #[serde(default)]
+    pub image: String,
+    #[serde(default)]
+    pub play: String,
 }
 
 pub use foyer_core::Follow;
@@ -58,16 +63,31 @@ fn when_label(secs: i64) -> String {
 
 impl Ctx {
     /// Adds to the log (newest first). Safe from any thread; the UI refreshes itself.
-    pub fn record_note(&self, title: &str, body: &str, item: &str) {
-        {
+    pub fn record_note(&self, title: &str, body: &str, item: &str) -> u64 {
+        let id = {
             let mut s = self.st.lock().unwrap();
             let now = Local::now();
             let mut id = now.timestamp_millis() as u64;
             while s.notes.iter().any(|n| n.id == id) {
                 id += 1;
             }
-            s.notes.insert(0, NoteRec { id, title: title.into(), body: body.into(), item: item.into(), time: now.timestamp(), read: false });
+            s.notes.insert(0, NoteRec { id, title: title.into(), body: body.into(), item: item.into(), time: now.timestamp(), read: false, image: String::new(), play: String::new() });
             s.notes.truncate(MAX_NOTES);
+            save_notes(&s.notes);
+            id
+        };
+        self.refresh_notes();
+        id
+    }
+
+    /// Fills in the picture and Play target once they have been looked up.
+    pub fn note_set_rich(&self, id: u64, image: String, play: String) {
+        {
+            let mut s = self.st.lock().unwrap();
+            if let Some(n) = s.notes.iter_mut().find(|n| n.id == id) {
+                n.image = image;
+                n.play = play;
+            }
             save_notes(&s.notes);
         }
         self.refresh_notes();
@@ -83,21 +103,57 @@ impl Ctx {
     }
 
     pub fn apply_notes(&self, ui: &AppWindow) {
-        let s = self.st.lock().unwrap();
-        let rows: Vec<NoteRow> = s
-            .notes
-            .iter()
-            .map(|n| NoteRow {
-                id: n.id.to_string().into(),
-                title: n.title.clone().into(),
-                body: n.body.clone().into(),
-                when: when_label(n.time).into(),
-                item: n.item.clone().into(),
-                read: n.read,
-            })
-            .collect();
-        ui.set_unread_count(s.notes.iter().filter(|n| !n.read).count() as i32);
+        let (rows, pics): (Vec<NoteRow>, Vec<(u64, String)>) = {
+            let s = self.st.lock().unwrap();
+            let rows = s
+                .notes
+                .iter()
+                .map(|n| NoteRow {
+                    id: n.id.to_string().into(),
+                    title: n.title.clone().into(),
+                    body: n.body.clone().into(),
+                    when: when_label(n.time).into(),
+                    item: n.item.clone().into(),
+                    read: n.read,
+                    image: Image::default(),
+                    play: n.play.clone().into(),
+                })
+                .collect();
+            ui.set_unread_count(s.notes.iter().filter(|n| !n.read).count() as i32);
+            (rows, s.notes.iter().filter(|n| !n.image.is_empty()).take(30).map(|n| (n.id, n.image.clone())).collect())
+        };
         ui.set_notes(ModelRc::new(VecModel::from(rows)));
+        // Posters arrive a moment later (they are cached on disk after the first time).
+        if let Some((client, _)) = self.session() {
+            for (id, url) in pics {
+                let (ctx, client) = (self.clone(), client.clone());
+                self.rt.spawn(async move {
+                    let Ok(bytes) = cached_image(&client, &url).await else { return };
+                    let decoded = tokio::task::spawn_blocking(move || {
+                        let rgba = image::load_from_memory(&bytes).ok()?.to_rgba8();
+                        let (w, h) = rgba.dimensions();
+                        Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(rgba.as_raw(), w, h))
+                    })
+                    .await
+                    .ok()
+                    .flatten();
+                    let Some(buf) = decoded else { return };
+                    let _ = slint::invoke_from_event_loop(move || {
+                        let Some(ui) = ctx.ui.upgrade() else { return };
+                        let m = ui.get_notes();
+                        for i in 0..m.row_count() {
+                            if let Some(mut r) = m.row_data(i) {
+                                if r.id.as_str() == id.to_string() {
+                                    r.image = Image::from_rgba8(buf.clone());
+                                    m.set_row_data(i, r);
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+        }
     }
 
     /// Mutates the log on the UI thread, saves it and redraws.
@@ -138,13 +194,33 @@ impl Ctx {
         if !item.is_empty() {
             self.edit_notes(|n| n.iter_mut().filter(|x| x.item == item).for_each(|x| x.read = true));
         }
-        if let Some(issue) = item.strip_prefix("issue:") {
+        if item == "settings" {
+            self.navigate(Page::Settings, true);
+        } else if let Some(issue) = item.strip_prefix("issue:") {
             if let Ok(n) = issue.parse::<i64>() {
                 self.navigate(Page::SeerrIssue { id: n }, true);
             }
         } else if !item.is_empty() {
             self.navigate(Page::Detail { id: item.to_string() }, true);
         }
+    }
+
+    /// A notification was clicked, or one of its buttons ("open:ID", "play:ID", "settings"): bring the
+    /// window forward and do it. May be called from any thread.
+    pub fn note_action(&self, args: String) {
+        let ctx = self.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ctx.ui.upgrade() {
+                show_window(&ui);
+            }
+            match args.split_once(':') {
+                Some(("open", item)) => ctx.open_note_item(item),
+                Some(("play", id)) => ctx.play(id.to_string(), false, false),
+                _ if args == "settings" => ctx.open_note_item("settings"),
+                // Anything else (a bare target, e.g. the toast body) is a place to go.
+                _ => ctx.open_note_item(&args),
+            }
+        });
     }
 
     // ---------------------------------------------------------------- follow a series

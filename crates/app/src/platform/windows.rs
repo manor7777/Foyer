@@ -32,6 +32,75 @@ pub fn system_notify(title: &str, body: &str) {
     let _ = notify_rust::Notification::new().appname("Foyer").app_id(APP_ID).summary(title).body(body).show();
 }
 
+/// XML-escapes text for a toast.
+fn esc(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&apos;")
+}
+
+fn toast_xml(n: &super::RichNote) -> String {
+    let mut x = format!("<toast launch=\"{}\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">", esc(&n.target));
+    if let Some(img) = &n.image {
+        let src = format!("file:///{}", img.to_string_lossy().replace('\\', "/").replace(' ', "%20"));
+        x += &format!("<image placement=\"appLogoOverride\" hint-crop=\"none\" src=\"{}\"/>", esc(&src));
+    }
+    x += &format!("<text>{}</text><text>{}</text></binding></visual>", esc(&n.title), esc(&n.body));
+    if !n.actions.is_empty() {
+        x += "<actions>";
+        for (label, args) in n.actions.iter().take(4) {
+            x += &format!("<action content=\"{}\" arguments=\"{}\" activationType=\"foreground\"/>", esc(label), esc(args));
+        }
+        x += "</actions>";
+    }
+    x + "</toast>"
+}
+
+thread_local! {
+    /// Shown toasts are kept alive so their click handlers keep working.
+    static SHOWN: std::cell::RefCell<Vec<windows::UI::Notifications::ToastNotification>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// A modern toast: the picture beside the text, buttons that work, and a click on the toast itself
+/// goes to `target`. Clicks reach `set_note_handler` while Foyer is running (it stays in the tray).
+pub fn system_notify_rich(n: &super::RichNote) {
+    use windows::{
+        core::{Interface, HSTRING},
+        Data::Xml::Dom::XmlDocument,
+        Foundation::TypedEventHandler,
+        UI::Notifications::{ToastActivatedEventArgs, ToastNotification, ToastNotificationManager},
+    };
+    let xml = toast_xml(n);
+    let shown = (|| -> windows::core::Result<()> {
+        let doc = XmlDocument::new()?;
+        doc.LoadXml(&HSTRING::from(xml))?;
+        let toast = ToastNotification::CreateToastNotification(&doc)?;
+        let launch = n.target.clone();
+        toast.Activated(&TypedEventHandler::new(move |_, args: windows::core::Ref<'_, windows::core::IInspectable>| {
+            let pressed = args
+                .as_ref()
+                .and_then(|a| a.cast::<ToastActivatedEventArgs>().ok())
+                .and_then(|e| e.Arguments().ok())
+                .map(|h| h.to_string())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| launch.clone());
+            super::dispatch_note(pressed);
+            Ok(())
+        }))?;
+        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(APP_ID))?.Show(&toast)?;
+        SHOWN.with(|s| {
+            let mut s = s.borrow_mut();
+            s.push(toast);
+            if s.len() > 20 {
+                s.remove(0);
+            }
+        });
+        Ok(())
+    })();
+    if let Err(e) = shown {
+        eprintln!("toast failed, using a plain one: {e}");
+        system_notify(&n.title, &n.body);
+    }
+}
+
 /// Registers Foyer's name and icon for toast notifications (HKCU, no admin needed). Safe to call on
 /// every start; runs in the background because it starts two short-lived `reg` processes.
 pub fn register_app_identity() {

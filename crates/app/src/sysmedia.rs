@@ -45,6 +45,12 @@ impl Ctx {
     /// follow the system PiP window (it shrinks the app, so the UI must hide its controls).
     pub fn sysmedia_tick(&self, armed: &std::cell::Cell<Option<(bool, i32)>>) {
         let Some(ui) = self.ui.upgrade() else { return };
+        // Android: a notification was tapped (or started the app) - go where it points.
+        if self.session().is_some() {
+            if let Some(t) = platform::launch_note_target().or_else(platform::poll_note_tap) {
+                self.note_action(t);
+            }
+        }
         let active = ui.get_playing() && ui.get_player_started();
         let aspect = ui.get_video_aspect();
         if active {

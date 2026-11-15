@@ -285,7 +285,7 @@ impl Ctx {
                 if auto_install && !playing {
                     self.update_install_inner().await;
                 } else if !manual {
-                    self.notify_user("Update available".into(), format!("Foyer {v} is ready to install (Settings → About)."), None);
+                    self.notify_user("Update available".into(), format!("Foyer {v} is ready to install (Settings → About)."), Some("settings".into()));
                 }
             }
             Err(e) => {

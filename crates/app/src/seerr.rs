@@ -2115,32 +2115,108 @@ impl Ctx {
         });
     }
 
-    /// In-app banner plus (optionally) a Windows notification.
+    /// In-app banner plus (optionally) a system notification, both with the title's poster and, for
+    /// something you can watch, a Play button. `item` is a library item id, "issue:N" or "settings".
     pub fn notify_user(&self, title: String, body: String, item: Option<String>) {
         dlog(&format!("notification: {title} / {body}"));
-        self.record_note(&title, &body, item.as_deref().unwrap_or(""));
-        if self.st.lock().unwrap().cfg.notify_windows {
-            let (t, b) = (title.clone(), body.clone());
-            std::thread::spawn(move || {
-                crate::platform::system_notify(&t, &b);
+        let target = item.clone().unwrap_or_default();
+        let note_id = self.record_note(&title, &body, &target);
+        {
+            let ctx = self.clone();
+            let (title, body, target) = (title.clone(), body.clone(), target.clone());
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(ui) = ctx.ui.upgrade() else { return };
+                ui.set_note_title(title.clone().into());
+                ui.set_note_body(body.into());
+                ui.set_note_item(target.into());
+                ui.set_note_play("".into());
+                ui.set_note_image(Image::default());
+                ui.set_note_open(true);
+                let weak = ui.as_weak();
+                slint::Timer::single_shot(Duration::from_secs(12), move || {
+                    if let Some(ui) = weak.upgrade() {
+                        if ui.get_note_title().as_str() == title {
+                            ui.set_note_open(false);
+                        }
+                    }
+                });
             });
         }
+        // Look up the poster and whether it can be played, then show the picture and the system
+        // notification (which needs the picture).
         let ctx = self.clone();
-        let _ = slint::invoke_from_event_loop(move || {
-            let Some(ui) = ctx.ui.upgrade() else { return };
-            ui.set_note_title(title.clone().into());
-            ui.set_note_body(body.into());
-            ui.set_note_item(item.unwrap_or_default().into());
-            ui.set_note_open(true);
-            let weak = ui.as_weak();
-            slint::Timer::single_shot(Duration::from_secs(12), move || {
-                if let Some(ui) = weak.upgrade() {
-                    if ui.get_note_title().as_str() == title {
-                        ui.set_note_open(false);
+        self.rt.spawn(async move {
+            let (image_url, play) = ctx.note_look_up(&target).await;
+            let bytes = match (&image_url, ctx.session()) {
+                (Some(u), Some((client, _))) => cached_image(&client, u).await.ok(),
+                _ => None,
+            };
+            ctx.note_set_rich(note_id, image_url.clone().unwrap_or_default(), play.clone().unwrap_or_default());
+            if let Some(b) = bytes.clone() {
+                let ctx2 = ctx.clone();
+                let (title2, play2) = (title.clone(), play.clone().unwrap_or_default());
+                let decoded = tokio::task::spawn_blocking(move || {
+                    let rgba = image::load_from_memory(&b).ok()?.to_rgba8();
+                    let (w, h) = rgba.dimensions();
+                    Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(rgba.as_raw(), w, h))
+                })
+                .await
+                .ok()
+                .flatten();
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(ui) = ctx2.ui.upgrade() else { return };
+                    if ui.get_note_title().as_str() == title2 {
+                        if let Some(buf) = decoded {
+                            ui.set_note_image(Image::from_rgba8(buf));
+                        }
+                        ui.set_note_play(play2.into());
+                    }
+                });
+            }
+            if !ctx.st.lock().unwrap().cfg.notify_windows {
+                return;
+            }
+            // The picture as a file (Windows toasts take a path) and the buttons.
+            let image = bytes.as_ref().and_then(|b| {
+                let dir = data_dir().join("toast");
+                std::fs::create_dir_all(&dir).ok()?;
+                let ext = if b.starts_with(&[0x89, b'P', b'N', b'G']) { "png" } else { "jpg" };
+                let path = dir.join(format!("{note_id}.{ext}"));
+                std::fs::write(&path, b).ok()?;
+                Some(path)
+            });
+            let mut actions: Vec<(String, String)> = Vec::new();
+            if let Some(id) = &play {
+                actions.push(("Play".into(), format!("play:{id}")));
+            }
+            if !target.is_empty() {
+                actions.push((if target.starts_with("issue:") { "View issue" } else if target == "settings" { "Open settings" } else { "Open in library" }.into(), if target == "settings" { target.clone() } else { format!("open:{target}") }));
+            }
+            let rich = crate::platform::RichNote { id: note_id, title, body, image, image_bytes: bytes, target: if target.is_empty() { String::new() } else if target == "settings" { target.clone() } else { format!("open:{target}") }, actions };
+            let _ = tokio::task::spawn_blocking(move || crate::platform::system_notify_rich(&rich)).await;
+            // Old pictures are not needed once shown.
+            if let Ok(rd) = std::fs::read_dir(data_dir().join("toast")) {
+                let cutoff = std::time::SystemTime::now() - Duration::from_secs(3 * 86400);
+                for e in rd.flatten() {
+                    if e.metadata().and_then(|m| m.modified()).is_ok_and(|t| t < cutoff) {
+                        let _ = std::fs::remove_file(e.path());
                     }
                 }
-            });
+            }
         });
+    }
+
+    /// The poster URL for a notification's target, and the item to play (movies and episodes).
+    async fn note_look_up(&self, target: &str) -> (Option<String>, Option<String>) {
+        if target.is_empty() || target == "settings" || target.starts_with("issue:") {
+            return (None, None);
+        }
+        let Some((client, uid)) = self.session() else { return (None, None) };
+        let Ok(item) = client.item(&uid, target).await else { return (None, None) };
+        // An episode or season is announced with its series' poster, which is what you recognise.
+        let url = client.series_poster_url(&item, 400).or_else(|| client.image_url(&item, ImageKind::Primary, 400));
+        let play = matches!(item.kind.as_str(), "Movie" | "Episode").then(|| item.id.clone());
+        (url, play)
     }
 }
 

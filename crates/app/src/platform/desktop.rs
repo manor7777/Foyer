@@ -34,6 +34,11 @@ pub fn system_notify(title: &str, body: &str) {
     let _ = notify_rust::Notification::new().appname("Foyer").summary(title).body(body).show();
 }
 
+/// Linux (development only): a plain notification, no picture or buttons.
+pub fn system_notify_rich(n: &super::RichNote) {
+    system_notify(&n.title, &n.body);
+}
+
 /// Phones turn to landscape while a video plays; nothing to do here.
 pub fn set_landscape(_on: bool) {}
 

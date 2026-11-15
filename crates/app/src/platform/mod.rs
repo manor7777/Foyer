@@ -75,3 +75,44 @@ pub fn set_media_handler(_f: Box<dyn Fn(MediaAction) + Send>) {}
 pub fn media_update(_title: &str, _subtitle: &str, _playing: bool, _pos_ms: i64, _dur_ms: i64) {}
 #[cfg(not(target_os = "android"))]
 pub fn media_stop() {}
+
+/// A system notification with a picture and buttons. Windows shows the picture as a file and the
+/// buttons on the toast; Android shows the picture (bytes) and opens `target` when it is tapped.
+#[allow(dead_code)]
+pub struct RichNote {
+    pub id: u64,
+    pub title: String,
+    pub body: String,
+    pub image: Option<std::path::PathBuf>,
+    pub image_bytes: Option<Vec<u8>>,
+    /// What tapping the notification does, as a `note_action` string ("open:ID", "play:ID", ...).
+    pub target: String,
+    /// Buttons: (label, `note_action` string).
+    pub actions: Vec<(String, String)>,
+}
+
+type NoteHandler = Box<dyn Fn(String) + Send>;
+static NOTE_HANDLER: std::sync::Mutex<Option<NoteHandler>> = std::sync::Mutex::new(None);
+
+/// Called with the action string whenever a notification (or one of its buttons) is clicked.
+pub fn set_note_handler(f: NoteHandler) {
+    *NOTE_HANDLER.lock().unwrap() = Some(f);
+}
+
+#[cfg_attr(not(any(windows, target_os = "android")), allow(dead_code))]
+pub(crate) fn dispatch_note(args: String) {
+    if let Some(h) = NOTE_HANDLER.lock().unwrap().as_ref() {
+        h(args);
+    }
+}
+
+/// Android only: a notification that was tapped while the app was in the background, or the one that
+/// started the app. Nothing elsewhere (Windows reports clicks through `set_note_handler`).
+#[cfg(not(target_os = "android"))]
+pub fn poll_note_tap() -> Option<String> {
+    None
+}
+#[cfg(not(target_os = "android"))]
+pub fn launch_note_target() -> Option<String> {
+    None
+}

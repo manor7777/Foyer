@@ -10,6 +10,9 @@ use std::sync::OnceLock;
 #[path = "android_media.rs"]
 mod android_media;
 pub use android_media::*;
+#[path = "android_notify.rs"]
+mod android_notify;
+pub use android_notify::*;
 
 pub const SUPPORTS_MATERIAL: bool = false;
 
@@ -113,6 +116,7 @@ const CHANNEL: &str = "foyer";
 
 /// Shows an Android notification. On Android 13+ the first call asks for the notification
 /// permission instead (nothing is shown until it has been granted).
+#[allow(dead_code)]
 pub fn system_notify(title: &str, body: &str) {
     let result = with_env(|env, act| {
         let sdk = env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?.i()?;
