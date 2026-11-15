@@ -2,6 +2,11 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.26.11
+
+- Going back (Back button, gesture or the on-screen arrow) returns you to where you were on the page, instead of the top. This works on every page, including lists and detail pages that load their content a moment after opening. If you start scrolling first, Foyer leaves it alone.
+- Requests: the Request button no longer shows on a title that is already requested, in progress or available. A series still shows it while it has a season nobody has requested.
+
 ## Foyer 0.26.10
 
 - Report a problem (both platforms): clearly labelled drop-downs. Problem is multiple choice (Video, Audio, Subtitles, Other), Season is a drop-down of the show's real seasons, and Episodes is a multiple-choice list with Select all / Clear, so several bad episodes need one report, not one each. Seerr issues hold a single problem type and episode, so Foyer files one issue per ticked problem and episode and tells you how many it sent. The dialog is also centred on narrow screens.

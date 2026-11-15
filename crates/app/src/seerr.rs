@@ -673,7 +673,7 @@ impl Ctx {
                 status::MEDIA_PENDING => ("Requested".into(), 1),
                 _ => ("Not requested".into(), 0),
             };
-            let can_request = user.has(perm::REQUEST) && info.status != status::MEDIA_AVAILABLE;
+            let may_request = user.has(perm::REQUEST);
 
             // Seasons the person can still ask for.
             let mut seasons: Vec<SSeason> = Vec::new();
@@ -700,6 +700,14 @@ impl Ctx {
                     });
                 }
             }
+            // The button only shows when there is something left to ask for: a series with a season
+            // nobody has requested, or a film that is not requested, processing or available yet.
+            let can_request = may_request
+                && if kind == "tv" {
+                    seasons.iter().any(|x| x.requestable)
+                } else {
+                    !matches!(info.status, status::MEDIA_PENDING | status::MEDIA_PROCESSING | status::MEDIA_PARTIAL | status::MEDIA_AVAILABLE)
+                };
 
             let cast: Vec<CardData> = d
                 .credits

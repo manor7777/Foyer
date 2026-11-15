@@ -19,6 +19,14 @@ export struct PickRow {
     on: bool,
 }
 
+/// Where the current page is scrolled to. Every page's ScrollView is bound to it; going back to a page
+/// restores the position it was left at (see `restore_scroll` in lib.rs).
+export global PageScroll {
+    in-out property <length> y;
+    /// How far the current page can scroll (content height minus the visible height).
+    in-out property <length> range;
+}
+
 export global Hover {
     in-out property <image> image;
     in-out property <bool> active: false;
@@ -2972,6 +2980,8 @@ export component AppWindow inherits Window {
 
             // ---- home ----
             if page == "home": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -2998,6 +3008,8 @@ export component AppWindow inherits Window {
 
             // ---- notifications ----
             if page == "notifications": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -3178,6 +3190,8 @@ export component AppWindow inherits Window {
                     }
               }
               ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 vertical-stretch: 1;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -3217,6 +3231,8 @@ export component AppWindow inherits Window {
 
             // ---- search ----
             if page == "search": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -3306,6 +3322,8 @@ export component AppWindow inherits Window {
 
             // ---- server administration ----
             if page == "server": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -3546,6 +3564,8 @@ export component AppWindow inherits Window {
 
             // ---- settings ----
             if page == "settings": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 mouse-drag-pan-enabled: true;
                 // never wider than the screen: rows wrap instead of pushing the page off the edge
                 content-width: self.visible-width;
@@ -4222,6 +4242,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: discover ----
             if page == "sr-discover": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4318,6 +4340,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: a title ----
             if page == "sr-detail": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4432,6 +4456,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: all requests (and admin actions) ----
             if page == "sr-requests": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4575,6 +4601,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: "view all" for a discover row ----
             if page == "sr-browse": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4609,6 +4637,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: a cast member ----
             if page == "sr-person": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4694,6 +4724,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: watchlist ----
             if page == "sr-watchlist": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4737,6 +4769,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: issues ----
             if page == "sr-issues": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4839,6 +4873,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: one issue ----
             if page == "sr-issue": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -4960,6 +4996,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: users (admin) ----
             if page == "sr-users": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -5052,6 +5090,8 @@ export component AppWindow inherits Window {
 
             // ---- requests: edit one user (admin) ----
             if page == "sr-user": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {
@@ -5327,6 +5367,8 @@ export component AppWindow inherits Window {
 
             // ---- detail ----
             if page == "detail": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
                 content-width: self.visible-width;
                 mouse-drag-pan-enabled: true;
                 VerticalLayout {

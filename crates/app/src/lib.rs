@@ -461,6 +461,9 @@ struct State {
     user: Option<User>,
     cfg: Config,
     nav: Vec<Page>,
+    /// Scroll position each page in `nav` was left at, and the one to restore on the page being shown.
+    nav_scroll: Vec<f32>,
+    restore_scroll: Option<f32>,
     playing: bool,
     block_back_until: Instant,
     series_id: Option<String>,
@@ -728,14 +731,38 @@ impl Ctx {
 
     fn navigate(&self, page: Page, push: bool) {
         dlog(&format!("navigate {page:?} push={push}"));
-        {
+        let target_y = {
             let mut s = self.st.lock().unwrap();
-            if push {
+            let live = self.ui.upgrade().map_or(0.0, |ui| ui.global::<PageScroll>().get_y());
+            let target = if push {
+                // Leaving a page: remember where it was scrolled to, and start the new one at the top.
+                let top = s.nav.len().saturating_sub(1);
+                if !s.nav.is_empty() {
+                    let n = s.nav.len();
+                    s.nav_scroll.resize(n, 0.0);
+                    s.nav_scroll[top] = live;
+                }
                 s.nav.push(page.clone());
-            }
+                0.0
+            } else {
+                // Back to a page: where it was left. Reloading the same page: leave it where it is.
+                match s.restore_scroll.take() {
+                    Some(y) => y,
+                    None => f32::NAN,
+                }
+            };
+            let n = s.nav.len();
+            s.nav_scroll.truncate(n);
             if let Some(ui) = self.ui.upgrade() {
                 ui.set_can_go_back(s.nav.len() > 1);
             }
+            target
+        };
+        if !target_y.is_nan() {
+            if let Some(ui) = self.ui.upgrade() {
+                ui.global::<PageScroll>().set_y(0.0);
+            }
+            self.restore_scroll_later(target_y);
         }
         match page {
             Page::Home => self.show_home(),
@@ -781,11 +808,44 @@ impl Ctx {
                 return;
             }
             s.nav.pop();
+            s.restore_scroll = s.nav_scroll.get(s.nav.len().saturating_sub(1)).copied();
             s.nav.last().cloned()
         };
         if let Some(p) = page {
             self.navigate(p, false);
         }
+    }
+
+    /// Scrolls the page just opened back to `y` (negative = scrolled down) once its content is long
+    /// enough: lists and pictures load after the page appears. Gives up if the person scrolls first.
+    fn restore_scroll_later(&self, y: f32) {
+        thread_local! {
+            static RESTORE: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+        }
+        if y > -1.0 {
+            RESTORE.with(|r| *r.borrow_mut() = None);
+            return;
+        }
+        let weak = self.ui.clone();
+        let tries = std::cell::Cell::new(0u32);
+        let timer = slint::Timer::default();
+        timer.start(slint::TimerMode::Repeated, Duration::from_millis(80), move || {
+            let Some(ui) = weak.upgrade() else { return };
+            let g = ui.global::<PageScroll>();
+            tries.set(tries.get() + 1);
+            if g.get_y() < -1.0 {
+                // The person scrolled before we got there: leave it.
+                RESTORE.with(|r| *r.borrow_mut() = None);
+            } else if g.get_range() >= -y - 2.0 {
+                g.set_y(y);
+                RESTORE.with(|r| *r.borrow_mut() = None);
+            } else if tries.get() > 40 {
+                // Never got long enough: go as far as it does.
+                g.set_y(-g.get_range().max(0.0));
+                RESTORE.with(|r| *r.borrow_mut() = None);
+            }
+        });
+        RESTORE.with(|r| *r.borrow_mut() = Some(timer));
     }
 
     fn go_home(&self) {
@@ -3684,6 +3744,8 @@ pub fn run() -> Result<(), slint::PlatformError> {
                 cfg
             },
             nav: Vec::new(),
+            nav_scroll: Vec::new(),
+            restore_scroll: None,
             playing: false,
             block_back_until: Instant::now(),
             series_id: None,
