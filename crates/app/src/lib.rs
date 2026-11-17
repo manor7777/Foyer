@@ -13,6 +13,9 @@ slint::include_modules!();
 /// Set while the server can't be reached and Foyer shows only what is downloaded.
 static OFFLINE: AtomicBool = AtomicBool::new(false);
 
+/// Set after each frame is drawn; the picture-in-picture resize waits for it so resizes don't queue up unpainted.
+static FRAME_DRAWN: AtomicBool = AtomicBool::new(true);
+
 #[cfg(not(target_os = "android"))]
 mod engine;
 mod platform;
@@ -2720,11 +2723,16 @@ impl Ctx {
         let max_w = platform::monitor_area(w).map_or(i32::MAX, |m| m.2 as i32).max(min_w);
         let weak = self.ui.clone();
         let last = std::cell::Cell::new((w0, h0));
+        let applied = std::cell::Cell::new(Instant::now());
         let timer = slint::Timer::default();
         timer.start(slint::TimerMode::Repeated, Duration::from_millis(8), move || {
             let Some(ui) = weak.upgrade() else { return };
             if !platform::left_button_down() {
                 DRAG.with(|d| *d.borrow_mut() = None);
+                return;
+            }
+            // One resize per drawn frame: the next one waits until the last has been painted (but never for long).
+            if !FRAME_DRAWN.load(Ordering::SeqCst) && applied.get().elapsed() < Duration::from_millis(100) {
                 return;
             }
             let Some((cx, cy)) = platform::cursor_pos() else { return };
@@ -2742,6 +2750,8 @@ impl Ctx {
             }
             let x = if matches!(dir, 3 | 5 | 7) { p0.x + w0 - nw } else { p0.x };
             let y = if matches!(dir, 0 | 4 | 5) { p0.y + h0 - nh } else { p0.y };
+            FRAME_DRAWN.store(false, Ordering::SeqCst);
+            applied.set(Instant::now());
             platform::set_window_rect(ui.window(), x, y, nw, nh);
         });
         DRAG.with(|d| *d.borrow_mut() = Some(timer));
@@ -3868,6 +3878,9 @@ pub fn run() -> Result<(), slint::PlatformError> {
             let w = weak.lock().unwrap().clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = w.upgrade() {
+                    if ui.get_video_tex() {
+                        ui.set_mini_tick(ui.get_mini_tick().wrapping_add(1));
+                    }
                     ui.window().request_redraw();
                 }
             });
@@ -3900,7 +3913,10 @@ pub fn run() -> Result<(), slint::PlatformError> {
                     }
                 }
             }
-            slint::RenderingState::AfterRendering => s.report_swap(),
+            slint::RenderingState::AfterRendering => {
+                s.report_swap();
+                FRAME_DRAWN.store(true, Ordering::SeqCst);
+            }
             slint::RenderingState::RenderingTeardown => s.teardown(),
             _ => {}
         }) {

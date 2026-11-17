@@ -2175,6 +2175,9 @@ export component AppWindow inherits Window {
     // mpv is drawing into a texture (shown below as an image) rather than straight into the window
     out property <bool> video-tex: root.playing && (root.mini || root.mini-t > 0.001);
     in property <image> mini-frame;
+    /// Bumped for every new video frame. Slint caches the rounded, clipped mini player as a layer and cannot see
+    /// the video texture change, so something inside it must change to make it redraw.
+    in-out property <int> mini-tick;
     out property <length> mini-w: 384px;
     out property <length> mini-h: 216px;
     callback pip-changed(bool);
@@ -6747,6 +6750,8 @@ export component AppWindow inherits Window {
         border-color: #ffffff40;
         Image {
             source: root.mini-frame;
+            // a 0.01 px nudge each frame: invisible, but it marks the cached layer as stale
+            x: Math.mod(root.mini-tick, 2) * 0.01px;
             width: parent.width;
             height: parent.height;
             image-fit: contain;

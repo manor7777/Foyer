@@ -171,6 +171,7 @@ const PARAM_API_TYPE: c_int = 1;
 const PARAM_GL_INIT: c_int = 2;
 const PARAM_GL_FBO: c_int = 3;
 const PARAM_FLIP_Y: c_int = 4;
+const PARAM_BLOCK_FOR_TARGET_TIME: c_int = 12;
 
 #[derive(Clone, Copy)]
 struct Api {
@@ -485,9 +486,13 @@ impl Surface {
                     None => GlFbo { fbo: 0, w, h, internal_format: 0 },
                 };
                 let mut flip: c_int = if target.is_some() { 0 } else { 1 };
+                // By default mpv waits inside render for the frame's display time. In the small player that wait
+                // stalls the whole UI (drags, hovers, the page behind), so don't wait there.
+                let mut block: c_int = if target.is_some() { 0 } else { 1 };
                 let mut params = [
                     RenderParam { kind: PARAM_GL_FBO, data: &mut fbo as *mut GlFbo as *mut c_void },
                     RenderParam { kind: PARAM_FLIP_Y, data: &mut flip as *mut c_int as *mut c_void },
+                    RenderParam { kind: PARAM_BLOCK_FOR_TARGET_TIME, data: &mut block as *mut c_int as *mut c_void },
                     RenderParam { kind: 0, data: std::ptr::null_mut() },
                 ];
                 (api.render_render)(ctx, params.as_mut_ptr());
