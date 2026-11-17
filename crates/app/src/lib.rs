@@ -16,6 +16,61 @@ static OFFLINE: AtomicBool = AtomicBool::new(false);
 /// Set after each frame is drawn; the picture-in-picture resize waits for it so resizes don't queue up unpainted.
 static FRAME_DRAWN: AtomicBool = AtomicBool::new(true);
 
+/// Timing of the picture-in-picture drag (microseconds), logged once a second while dragging so the slow part can be found.
+struct Perf {
+    on: AtomicBool,
+    drag: AtomicBool,
+    frames: AtomicU64,
+    mpv_sum: AtomicU64,
+    mpv_max: AtomicU64,
+    draw_sum: AtomicU64,
+    draw_max: AtomicU64,
+    gap_sum: AtomicU64,
+    gap_max: AtomicU64,
+    steps: AtomicU64,
+    swp_sum: AtomicU64,
+    swp_max: AtomicU64,
+}
+static PERF: Perf = Perf {
+    on: AtomicBool::new(false),
+    drag: AtomicBool::new(false),
+    frames: AtomicU64::new(0),
+    mpv_sum: AtomicU64::new(0),
+    mpv_max: AtomicU64::new(0),
+    draw_sum: AtomicU64::new(0),
+    draw_max: AtomicU64::new(0),
+    gap_sum: AtomicU64::new(0),
+    gap_max: AtomicU64::new(0),
+    steps: AtomicU64::new(0),
+    swp_sum: AtomicU64::new(0),
+    swp_max: AtomicU64::new(0),
+};
+
+fn perf_add(sum: &AtomicU64, max: &AtomicU64, d: Duration) {
+    let us = d.as_micros() as u64;
+    sum.fetch_add(us, Ordering::Relaxed);
+    max.fetch_max(us, Ordering::Relaxed);
+}
+
+/// One line with the averages and worst cases since the last one, then starts over.
+fn perf_report() {
+    let g = |a: &AtomicU64| a.swap(0, Ordering::Relaxed);
+    let (frames, steps) = (g(&PERF.frames).max(1), g(&PERF.steps).max(1));
+    applog(&format!(
+        "video draw: {} frames, {} resize steps; ms avg/max: mpv render {:.1}/{:.1}, whole draw {:.1}/{:.1}, between frames {:.1}/{:.1}, SetWindowPos {:.1}/{:.1}",
+        frames,
+        steps,
+        g(&PERF.mpv_sum) as f64 / frames as f64 / 1000.0,
+        g(&PERF.mpv_max) as f64 / 1000.0,
+        g(&PERF.draw_sum) as f64 / frames as f64 / 1000.0,
+        g(&PERF.draw_max) as f64 / 1000.0,
+        g(&PERF.gap_sum) as f64 / frames as f64 / 1000.0,
+        g(&PERF.gap_max) as f64 / 1000.0,
+        g(&PERF.swp_sum) as f64 / steps as f64 / 1000.0,
+        g(&PERF.swp_max) as f64 / 1000.0,
+    ));
+}
+
 #[cfg(not(target_os = "android"))]
 mod engine;
 mod platform;
@@ -2725,9 +2780,12 @@ impl Ctx {
         let last = std::cell::Cell::new((w0, h0));
         let applied = std::cell::Cell::new(Instant::now());
         let timer = slint::Timer::default();
+        PERF.drag.store(true, Ordering::Relaxed);
         timer.start(slint::TimerMode::Repeated, Duration::from_millis(8), move || {
             let Some(ui) = weak.upgrade() else { return };
             if !platform::left_button_down() {
+                PERF.drag.store(false, Ordering::Relaxed);
+                perf_report();
                 DRAG.with(|d| *d.borrow_mut() = None);
                 return;
             }
@@ -2752,7 +2810,10 @@ impl Ctx {
             let y = if matches!(dir, 0 | 4 | 5) { p0.y + h0 - nh } else { p0.y };
             FRAME_DRAWN.store(false, Ordering::SeqCst);
             applied.set(Instant::now());
+            let t_swp = Instant::now();
             platform::set_window_rect(ui.window(), x, y, nw, nh);
+            PERF.steps.fetch_add(1, Ordering::Relaxed);
+            perf_add(&PERF.swp_sum, &PERF.swp_max, t_swp.elapsed());
         });
         DRAG.with(|d| *d.borrow_mut() = Some(timer));
     }
@@ -3889,16 +3950,24 @@ pub fn run() -> Result<(), slint::PlatformError> {
     {
         let (s, weak) = (surface.clone(), ui.as_weak());
         let last_tex = std::cell::Cell::new((0u32, 0i32, 0i32));
+        let (t_before, t_after, t_log) = (std::cell::Cell::new(Instant::now()), std::cell::Cell::new(Instant::now()), std::cell::Cell::new(Instant::now()));
         if let Err(e) = ui.window().set_rendering_notifier(move |state, api| match state {
             slint::RenderingState::BeforeRendering => {
+                t_before.set(Instant::now());
                 if let (slint::GraphicsAPI::NativeOpenGL { get_proc_address }, Some(ui)) = (api, weak.upgrade()) {
+                    PERF.on.store(PERF.drag.load(Ordering::Relaxed) || ui.get_video_tex(), Ordering::Relaxed);
                     let size = ui.window().size();
                     // In the in-app mini player the video goes into a texture the UI draws as an image.
                     let mini = ui.get_video_tex().then(|| {
                         let sf = ui.window().scale_factor();
                         ((ui.get_mini_w() * sf) as i32, (ui.get_mini_h() * sf) as i32)
                     });
-                    if let Some(tex) = s.render(*get_proc_address, size.width as i32, size.height as i32, mini) {
+                    let t_mpv = Instant::now();
+                    let rendered = s.render(*get_proc_address, size.width as i32, size.height as i32, mini);
+                    if PERF.on.load(Ordering::Relaxed) {
+                        perf_add(&PERF.mpv_sum, &PERF.mpv_max, t_mpv.elapsed());
+                    }
+                    if let Some(tex) = rendered {
                         let key = (tex, mini.map_or(0, |m| m.0), mini.map_or(0, |m| m.1));
                         if let (Some(id), true) = (std::num::NonZeroU32::new(tex), last_tex.replace(key) != key) {
                             // SAFETY: the texture belongs to this window's GL context and outlives the image
@@ -3916,6 +3985,16 @@ pub fn run() -> Result<(), slint::PlatformError> {
             slint::RenderingState::AfterRendering => {
                 s.report_swap();
                 FRAME_DRAWN.store(true, Ordering::SeqCst);
+                if PERF.on.load(Ordering::Relaxed) {
+                    PERF.frames.fetch_add(1, Ordering::Relaxed);
+                    perf_add(&PERF.draw_sum, &PERF.draw_max, t_before.get().elapsed());
+                    perf_add(&PERF.gap_sum, &PERF.gap_max, t_after.get().elapsed());
+                    if t_log.get().elapsed() > Duration::from_secs(1) {
+                        t_log.set(Instant::now());
+                        perf_report();
+                    }
+                }
+                t_after.set(Instant::now());
             }
             slint::RenderingState::RenderingTeardown => s.teardown(),
             _ => {}
