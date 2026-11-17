@@ -3,11 +3,11 @@
 //! No UI and no OS calls, so it is shared by every build.
 
 use serde_json::{json, Value};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::net::TcpStream;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_rustls::rustls::{self, client::danger::*, pki_types::*, DigitallySignedStruct, SignatureScheme};
 
@@ -26,139 +26,52 @@ pub struct Device {
 
 // ---------------------------------------------------------------- discovery (mDNS)
 
-fn read_name(buf: &[u8], mut pos: usize) -> Option<(String, usize)> {
-    let mut out = String::new();
-    let mut end = None;
-    for _ in 0..32 {
-        let len = *buf.get(pos)? as usize;
-        if len == 0 {
-            return Some((out, end.unwrap_or(pos + 1)));
-        }
-        if len & 0xC0 == 0xC0 {
-            let off = ((len & 0x3F) << 8) | *buf.get(pos + 1)? as usize;
-            end.get_or_insert(pos + 2);
-            pos = off;
-            continue;
-        }
-        out.push_str(std::str::from_utf8(buf.get(pos + 1..pos + 1 + len)?).ok()?);
-        out.push('.');
-        pos += 1 + len;
-    }
-    None
+/// Looks for Cast devices (Chromecasts, TVs with Cast built in) for `wait`. A proper mDNS client: it joins the
+/// multicast group on every network adapter, which is how Chromecasts answer (a lone question sent from a plain
+/// socket is often never answered, and was not on Android).
+pub async fn discover(wait: Duration) -> Vec<Device> {
+    tokio::task::spawn_blocking(move || browse(wait)).await.unwrap_or_default()
 }
 
-/// Devices named in one mDNS answer: (instance name, friendly name, port).
-fn parse_answers(buf: &[u8]) -> Vec<(String, String, u16)> {
-    let mut found = Vec::new();
-    let u16at = |p: usize| buf.get(p..p + 2).map(|b| u16::from_be_bytes([b[0], b[1]]) as usize);
-    let (Some(qd), Some(an), Some(ns), Some(ar)) = (u16at(4), u16at(6), u16at(8), u16at(10)) else { return found };
-    let mut pos = 12;
-    for _ in 0..qd {
-        let Some((_, p)) = read_name(buf, pos) else { return found };
-        pos = p + 4;
-    }
-    let mut names: Vec<(String, String)> = Vec::new(); // instance -> friendly name
-    let mut ports: Vec<(String, u16)> = Vec::new();
-    for _ in 0..an + ns + ar {
-        let Some((name, p)) = read_name(buf, pos) else { break };
-        let (Some(ty), Some(len)) = (u16at(p), u16at(p + 8)) else { break };
-        let data = p + 10;
-        if data + len > buf.len() {
-            break;
+fn browse(wait: Duration) -> Vec<Device> {
+    use mdns_sd::{ServiceDaemon, ServiceEvent};
+    let mdns = match ServiceDaemon::new() {
+        Ok(m) => m,
+        Err(e) => {
+            crate::log(&format!("cast: mDNS could not start: {e}"));
+            return Vec::new();
         }
-        match ty {
-            33 if len >= 6 => ports.push((name, u16at(data + 4).unwrap_or(8009) as u16)),
-            16 => {
-                let mut i = data;
-                while i < data + len {
-                    let l = buf[i] as usize;
-                    if let Some(kv) = buf.get(i + 1..i + 1 + l).and_then(|b| std::str::from_utf8(b).ok()) {
-                        if let Some(f) = kv.strip_prefix("fn=") {
-                            names.push((name.clone(), f.to_string()));
-                        }
-                    }
-                    i += 1 + l;
+    };
+    let rx = match mdns.browse("_googlecast._tcp.local.") {
+        Ok(r) => r,
+        Err(e) => {
+            crate::log(&format!("cast: mDNS browse failed: {e}"));
+            let _ = mdns.shutdown();
+            return Vec::new();
+        }
+    };
+    let mut devices: Vec<Device> = Vec::new();
+    let end = std::time::Instant::now() + wait;
+    while let Some(left) = end.checked_duration_since(std::time::Instant::now()) {
+        match rx.recv_timeout(left) {
+            Ok(ServiceEvent::ServiceResolved(info)) => {
+                let addrs: Vec<IpAddr> = info.get_addresses().iter().map(|a| a.to_ip_addr()).collect();
+                let Some(ip) = addrs.iter().find(|a| a.is_ipv4()).or(addrs.first()).copied() else { continue };
+                let name = info
+                    .get_property_val_str("fn")
+                    .map(str::to_string)
+                    .unwrap_or_else(|| info.get_fullname().split("._googlecast").next().unwrap_or("Chromecast").to_string());
+                let port = info.get_port();
+                if !devices.iter().any(|d| d.ip == ip && d.port == port) {
+                    devices.push(Device { name, ip, port });
                 }
             }
-            _ => {}
-        }
-        pos = data + len;
-    }
-    for (inst, port) in ports {
-        let fname = names.iter().find(|(n, _)| *n == inst).map(|(_, f)| f.clone()).unwrap_or_else(|| inst.split("._googlecast").next().unwrap_or("Chromecast").to_string());
-        found.push((inst, fname, port));
-    }
-    found
-}
-
-/// A socket whose multicast goes out of the adapter that owns `ip` (a PC with a VPN or virtual adapters would
-/// otherwise send the question out of the wrong one and never hear a Chromecast on the real network).
-fn socket_on(ip: Ipv4Addr) -> Option<UdpSocket> {
-    use socket2::{Domain, Protocol, Socket, Type};
-    let s = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).ok()?;
-    s.set_multicast_if_v4(&ip).ok()?;
-    s.set_multicast_ttl_v4(255).ok()?;
-    s.bind(&SocketAddr::new(IpAddr::V4(ip), 0).into()).ok()?;
-    s.set_nonblocking(true).ok()?;
-    UdpSocket::from_std(s.into()).ok()
-}
-
-/// Sends the question on one socket, then collects the answers for `wait`.
-async fn ask(sock: UdpSocket, wait: Duration) -> Vec<Device> {
-    let mut devices: Vec<Device> = Vec::new();
-    let mut q: Vec<u8> = vec![0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
-    for part in ["_googlecast", "_tcp", "local"] {
-        q.push(part.len() as u8);
-        q.extend_from_slice(part.as_bytes());
-    }
-    q.extend_from_slice(&[0, 0, 12, 0, 1]); // PTR, class IN
-    let dest = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(224, 0, 0, 251)), 5353);
-    let _ = sock.send_to(&q, dest).await;
-    let mut buf = [0u8; 4096];
-    let started = tokio::time::Instant::now();
-    let mut resent = false;
-    while let Some(left) = wait.checked_sub(started.elapsed()) {
-        if !resent && started.elapsed() > wait / 2 {
-            resent = true;
-            let _ = sock.send_to(&q, dest).await;
-        }
-        let Ok(Ok((n, from))) = tokio::time::timeout(left.min(Duration::from_millis(300)), sock.recv_from(&mut buf)).await else { continue };
-        for (_, name, port) in parse_answers(&buf[..n]) {
-            if !devices.iter().any(|d| d.ip == from.ip() && d.port == port) {
-                devices.push(Device { name, ip: from.ip(), port });
-            }
+            Ok(_) => {}
+            Err(_) => break,
         }
     }
-    devices
-}
-
-/// Asks the local network, on every adapter, for Cast devices and collects answers for `wait`.
-pub async fn discover(wait: Duration) -> Vec<Device> {
-    let ips: Vec<Ipv4Addr> = if_addrs::get_if_addrs()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|i| !i.is_loopback())
-        .filter_map(|i| match i.ip() {
-            IpAddr::V4(v4) if !v4.is_link_local() => Some(v4),
-            _ => None,
-        })
-        .collect();
-    let mut socks: Vec<UdpSocket> = ips.into_iter().filter_map(socket_on).collect();
-    if socks.is_empty() {
-        // Couldn't list the adapters: the system's default one.
-        if let Ok(s) = UdpSocket::bind("0.0.0.0:0").await {
-            socks.push(s);
-        }
-    }
-    let tasks: Vec<_> = socks.into_iter().map(|s| tokio::spawn(ask(s, wait))).collect();
-    let mut devices: Vec<Device> = Vec::new();
-    for t in tasks {
-        for d in t.await.unwrap_or_default() {
-            if !devices.iter().any(|x| x.ip == d.ip && x.port == d.port) {
-                devices.push(d);
-            }
-        }
-    }
+    let _ = mdns.shutdown();
+    crate::log(&format!("cast: found {} Cast device(s): {:?}", devices.len(), devices.iter().map(|d| d.name.as_str()).collect::<Vec<_>>()));
     devices
 }
 
@@ -395,37 +308,6 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// DNS name as length-prefixed labels.
-    fn name(n: &str) -> Vec<u8> {
-        let mut v: Vec<u8> = n.split('.').flat_map(|l| std::iter::once(l.len() as u8).chain(l.bytes())).collect();
-        v.push(0);
-        v
-    }
-
-    fn record(owner: &str, ty: u16, rdata: Vec<u8>) -> Vec<u8> {
-        let mut v = name(owner);
-        v.extend_from_slice(&ty.to_be_bytes());
-        v.extend_from_slice(&[0x80, 0x01, 0, 0, 0, 120]); // class IN (cache flush), TTL 120
-        v.extend_from_slice(&(rdata.len() as u16).to_be_bytes());
-        v.extend(rdata);
-        v
-    }
-
-    #[test]
-    fn reads_a_chromecast_announcement() {
-        let inst = "Chromecast-abc123._googlecast._tcp.local";
-        let mut srv = vec![0, 0, 0, 0, 0x1F, 0x49]; // priority, weight, port 8009
-        srv.extend(name("abc123.local"));
-        let txt = [&b"	id=abc123"[..], &b"fn=Living Room"[..]].concat();
-        let mut pkt = vec![0, 0, 0x84, 0, 0, 0, 0, 3, 0, 0, 0, 0]; // 3 answers, no questions
-        pkt.extend(record("_googlecast._tcp.local", 12, name(inst)));
-        pkt.extend(record(inst, 33, srv));
-        pkt.extend(record(inst, 16, txt));
-        let found = parse_answers(&pkt);
-        assert_eq!(found.len(), 1);
-        assert_eq!((found[0].1.as_str(), found[0].2), ("Living Room", 8009));
-    }
 
     #[test]
     fn frames_round_trip() {
