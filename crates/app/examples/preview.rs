@@ -63,6 +63,21 @@ fn main() {
         ui.set_player_pos(1680.0);
         ui.set_player_dur(2849.0);
     }
+    if page == "player" && std::env::var("PREVIEW_CAST").is_ok() {
+        use foyer::CastUi;
+        let g = ui.global::<CastUi>();
+        let t = |n: &str| foyer::CastTarget { name: n.into(), kind: "App on your server".into() };
+        g.set_targets(slint::ModelRc::new(slint::VecModel::from(vec![
+            t("Mandy - Chromecast (Emby for Android)"),
+            t("Windows PC (Emby Theater)"),
+            t("Chrome Windows (Emby Web)"),
+            t("DESKTOP-P7NMGHA (Emby Theater)"),
+            t("Arlo - iPad 2 (Emby for iOS)"),
+            t("XBOX (Emby Xbox)"),
+            t("Living room TV (Emby for Android TV)"),
+        ])));
+        g.set_open(true);
+    }
     if page == "downloads" {
         use foyer::DownloadsUi;
         let row = |t: &str, st: &str, p: f32, state: i32, off: bool| foyer::DownloadRow { id: "x".into(), title: t.into(), status: st.into(), progress: p, state, offline: off };

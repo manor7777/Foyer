@@ -7,7 +7,7 @@ use foyer_core::gcast;
 #[derive(Clone)]
 enum Target {
     /// Another app signed in to the same server.
-    Session { id: String, name: String },
+    Session { id: String, name: String, who: String },
     Chromecast(gcast::Device),
 }
 
@@ -18,11 +18,21 @@ impl Target {
             Target::Chromecast(d) => &d.name,
         }
     }
+
+    /// The second line in the picker: which app, and whose it is.
+    fn detail(&self) -> String {
+        match self {
+            Target::Session { who, .. } => who.clone(),
+            Target::Chromecast(_) => "Chromecast".into(),
+        }
+    }
 }
 
 /// What the picker is showing, and what it will cast.
 static PENDING: Mutex<Option<(String, f64)>> = Mutex::new(None);
 static TARGETS: Mutex<Vec<Target>> = Mutex::new(Vec::new());
+/// Which opening of the picker the results belong to.
+static CAST_GEN: AtomicU64 = AtomicU64::new(0);
 
 enum Active {
     Session { client: Client, id: String },
@@ -45,37 +55,56 @@ impl Ctx {
             g.set_searching(true);
             g.set_open(true);
         }
-        let ctx = self.clone();
+        let gen = CAST_GEN.fetch_add(1, Ordering::SeqCst) + 1;
         let session = self.session();
+        // Two sources, shown together: apps signed in to the server (fast), and standard Cast devices on the network
+        // (Chromecasts that have no apps of their own). Each adds its entries as soon as it has them.
+        {
+            let ctx = self.clone();
+            self.rt.spawn(async move {
+                let own = session.as_ref().map(|(c, _)| c.device_id().to_string()).unwrap_or_default();
+                let sessions = match &session {
+                    Some((c, _)) if c.kind() != emby_api::Kind::Plex => c.sessions().await.unwrap_or_default(),
+                    _ => Vec::new(),
+                };
+                let mut found: Vec<Target> = Vec::new();
+                for s in sessions.into_iter().filter(|s| s.supports_remote_control && s.device_id.as_deref() != Some(own.as_str())) {
+                    let name = s.device_name.clone().unwrap_or_else(|| "Device".into());
+                    // "Emby for Android · Mandy": the app, and the user signed in on it.
+                    let who = [s.client.clone(), s.user_name.clone()].into_iter().flatten().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(" · ");
+                    found.push(Target::Session { id: s.id, name, who });
+                }
+                ctx.cast_add(gen, found, false);
+            });
+        }
+        let ctx = self.clone();
         self.rt.spawn(async move {
-            let mut found: Vec<Target> = Vec::new();
-            let own = session.as_ref().map(|(c, _)| c.device_id().to_string()).unwrap_or_default();
-            let (sessions, devices) = tokio::join!(
-                async {
-                    match &session {
-                        Some((c, _)) if c.kind() != emby_api::Kind::Plex => c.sessions().await.unwrap_or_default(),
-                        _ => Vec::new(),
-                    }
-                },
-                gcast::discover(Duration::from_millis(1800))
-            );
-            for s in sessions.into_iter().filter(|s| s.supports_remote_control && s.device_id.as_deref() != Some(own.as_str())) {
-                let name = format!("{} ({})", s.device_name.clone().unwrap_or_else(|| "Device".into()), s.client.clone().unwrap_or_default());
-                found.push(Target::Session { id: s.id, name });
-            }
-            found.extend(devices.into_iter().map(Target::Chromecast));
-            let rows: Vec<CastTarget> = found
-                .iter()
-                .map(|t| CastTarget { name: t.name().into(), kind: if matches!(t, Target::Chromecast(_)) { "Chromecast" } else { "App on your server" }.into() })
-                .collect();
-            *TARGETS.lock().unwrap() = found;
-            let _ = slint::invoke_from_event_loop(move || {
-                if let Some(ui) = ctx.ui.upgrade() {
-                    let g = ui.global::<CastUi>();
-                    g.set_targets(ModelRc::new(VecModel::from(rows)));
+            platform::multicast_lock(true);
+            let devices = gcast::discover(Duration::from_millis(3500)).await;
+            platform::multicast_lock(false);
+            ctx.cast_add(gen, devices.into_iter().map(Target::Chromecast).collect(), true);
+        });
+    }
+
+    /// Adds entries to the picker (from either source), unless it has been reopened since. `last` ends "Looking…".
+    fn cast_add(&self, gen: u64, add: Vec<Target>, last: bool) {
+        if CAST_GEN.load(Ordering::SeqCst) != gen {
+            return;
+        }
+        let rows: Vec<CastTarget> = {
+            let mut t = TARGETS.lock().unwrap();
+            t.extend(add);
+            t.iter().map(|t| CastTarget { name: t.name().into(), kind: t.detail().into() }).collect()
+        };
+        let ctx = self.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ctx.ui.upgrade() {
+                let g = ui.global::<CastUi>();
+                g.set_targets(ModelRc::new(VecModel::from(rows)));
+                if last {
                     g.set_searching(false);
                 }
-            });
+            }
         });
     }
 

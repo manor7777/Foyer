@@ -85,6 +85,9 @@ required = false
 name = "android.permission.INTERNET"
 
 [[package.metadata.android.uses_permission]]
+name = "android.permission.CHANGE_WIFI_MULTICAST_STATE"
+
+[[package.metadata.android.uses_permission]]
 name = "android.permission.POST_NOTIFICATIONS"
 
 [[package.metadata.android.uses_permission]]

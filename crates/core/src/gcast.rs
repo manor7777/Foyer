@@ -91,10 +91,21 @@ fn parse_answers(buf: &[u8]) -> Vec<(String, String, u16)> {
     found
 }
 
-/// Asks the local network for Cast devices and collects answers for `wait`.
-pub async fn discover(wait: Duration) -> Vec<Device> {
+/// A socket whose multicast goes out of the adapter that owns `ip` (a PC with a VPN or virtual adapters would
+/// otherwise send the question out of the wrong one and never hear a Chromecast on the real network).
+fn socket_on(ip: Ipv4Addr) -> Option<UdpSocket> {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let s = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).ok()?;
+    s.set_multicast_if_v4(&ip).ok()?;
+    s.set_multicast_ttl_v4(255).ok()?;
+    s.bind(&SocketAddr::new(IpAddr::V4(ip), 0).into()).ok()?;
+    s.set_nonblocking(true).ok()?;
+    UdpSocket::from_std(s.into()).ok()
+}
+
+/// Sends the question on one socket, then collects the answers for `wait`.
+async fn ask(sock: UdpSocket, wait: Duration) -> Vec<Device> {
     let mut devices: Vec<Device> = Vec::new();
-    let Ok(sock) = UdpSocket::bind("0.0.0.0:0").await else { return devices };
     let mut q: Vec<u8> = vec![0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
     for part in ["_googlecast", "_tcp", "local"] {
         q.push(part.len() as u8);
@@ -115,6 +126,36 @@ pub async fn discover(wait: Duration) -> Vec<Device> {
         for (_, name, port) in parse_answers(&buf[..n]) {
             if !devices.iter().any(|d| d.ip == from.ip() && d.port == port) {
                 devices.push(Device { name, ip: from.ip(), port });
+            }
+        }
+    }
+    devices
+}
+
+/// Asks the local network, on every adapter, for Cast devices and collects answers for `wait`.
+pub async fn discover(wait: Duration) -> Vec<Device> {
+    let ips: Vec<Ipv4Addr> = if_addrs::get_if_addrs()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|i| !i.is_loopback())
+        .filter_map(|i| match i.ip() {
+            IpAddr::V4(v4) if !v4.is_link_local() => Some(v4),
+            _ => None,
+        })
+        .collect();
+    let mut socks: Vec<UdpSocket> = ips.into_iter().filter_map(socket_on).collect();
+    if socks.is_empty() {
+        // Couldn't list the adapters: the system's default one.
+        if let Ok(s) = UdpSocket::bind("0.0.0.0:0").await {
+            socks.push(s);
+        }
+    }
+    let tasks: Vec<_> = socks.into_iter().map(|s| tokio::spawn(ask(s, wait))).collect();
+    let mut devices: Vec<Device> = Vec::new();
+    for t in tasks {
+        for d in t.await.unwrap_or_default() {
+            if !devices.iter().any(|x| x.ip == d.ip && x.port == d.port) {
+                devices.push(d);
             }
         }
     }
@@ -354,6 +395,37 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// DNS name as length-prefixed labels.
+    fn name(n: &str) -> Vec<u8> {
+        let mut v: Vec<u8> = n.split('.').flat_map(|l| std::iter::once(l.len() as u8).chain(l.bytes())).collect();
+        v.push(0);
+        v
+    }
+
+    fn record(owner: &str, ty: u16, rdata: Vec<u8>) -> Vec<u8> {
+        let mut v = name(owner);
+        v.extend_from_slice(&ty.to_be_bytes());
+        v.extend_from_slice(&[0x80, 0x01, 0, 0, 0, 120]); // class IN (cache flush), TTL 120
+        v.extend_from_slice(&(rdata.len() as u16).to_be_bytes());
+        v.extend(rdata);
+        v
+    }
+
+    #[test]
+    fn reads_a_chromecast_announcement() {
+        let inst = "Chromecast-abc123._googlecast._tcp.local";
+        let mut srv = vec![0, 0, 0, 0, 0x1F, 0x49]; // priority, weight, port 8009
+        srv.extend(name("abc123.local"));
+        let txt = [&b"	id=abc123"[..], &b"fn=Living Room"[..]].concat();
+        let mut pkt = vec![0, 0, 0x84, 0, 0, 0, 0, 3, 0, 0, 0, 0]; // 3 answers, no questions
+        pkt.extend(record("_googlecast._tcp.local", 12, name(inst)));
+        pkt.extend(record(inst, 33, srv));
+        pkt.extend(record(inst, 16, txt));
+        let found = parse_answers(&pkt);
+        assert_eq!(found.len(), 1);
+        assert_eq!((found[0].1.as_str(), found[0].2), ("Living Room", 8009));
+    }
 
     #[test]
     fn frames_round_trip() {

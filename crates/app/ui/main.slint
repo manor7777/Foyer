@@ -43,6 +43,8 @@ export global Hover {
 export global Scale {
     in-out property <float> base: 1.0;
     in-out property <bool> auto: false;
+    /// Android: the system font size setting (1.0 = normal). Every text size is multiplied by it.
+    in-out property <float> text-scale: 1.0;
     in-out property <length> window-w: 1400px;
     in-out property <length> window-h: 900px;
     // Auto size shrinks cards (down to 70%) once the window is narrower than 1400px.
@@ -101,7 +103,7 @@ component Button inherits Rectangle {
             text: root.text;
             color: root.primary ? Palette.accent-foreground : Palette.foreground;
             opacity: root.enabled ? 1 : 0.5;
-            font-size: 13px;
+            font-size: 13px * Scale.text-scale;
             font-weight: root.primary ? 600 : 400;
             vertical-alignment: center;
         }
@@ -154,7 +156,7 @@ component LineEdit inherits FocusScope {
                     x: 0px;
                     width: parent.width;
                     height: parent.height;
-                    font-size: 13px;
+                    font-size: 13px * Scale.text-scale;
                     color: Palette.foreground;
                     vertical-alignment: center;
                     single-line: true;
@@ -169,7 +171,7 @@ component LineEdit inherits FocusScope {
                     text: root.placeholder-text;
                     color: Palette.foreground;
                     opacity: 0.5;
-                    font-size: 13px;
+                    font-size: 13px * Scale.text-scale;
                     vertical-alignment: center;
                     overflow: elide;
                 }
@@ -264,7 +266,7 @@ component Dropdown inherits Rectangle {
         Text {
             text: root.prefix + root.model[root.current-index];
             color: Palette.foreground;
-            font-size: 13px;
+            font-size: 13px * Scale.text-scale;
             vertical-alignment: center;
             overflow: elide;
             horizontal-stretch: 1;
@@ -332,7 +334,7 @@ component Dropdown inherits Rectangle {
                             width: parent.width - 20px;
                             text: t;
                             color: Palette.foreground;
-                            font-size: 13px;
+                            font-size: 13px * Scale.text-scale;
                             vertical-alignment: center;
                             overflow: elide;
                         }
@@ -370,7 +372,7 @@ component MultiSelect inherits Rectangle {
         Text {
             text: root.summary;
             color: Palette.foreground;
-            font-size: 13px;
+            font-size: 13px * Scale.text-scale;
             vertical-alignment: center;
             overflow: elide;
             horizontal-stretch: 1;
@@ -417,13 +419,13 @@ component MultiSelect inherits Rectangle {
                         Rectangle {
                             border-radius: 4px;
                             background: all-ta.has-hover ? Palette.control-hover : transparent;
-                            Text { text: "Select all"; color: Palette.accent-background; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            Text { text: "Select all"; color: Palette.accent-background; font-size: 13px * Scale.text-scale; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
                             all-ta := TouchArea { clicked => { root.set-all(true); } }
                         }
                         Rectangle {
                             border-radius: 4px;
                             background: none-ta.has-hover ? Palette.control-hover : transparent;
-                            Text { text: "Clear"; color: Palette.accent-background; font-size: 13px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                            Text { text: "Clear"; color: Palette.accent-background; font-size: 13px * Scale.text-scale; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
                             none-ta := TouchArea { clicked => { root.set-all(false); } }
                         }
                     }
@@ -443,7 +445,7 @@ component MultiSelect inherits Rectangle {
                             if r.on: Text {
                                 text: "✓";
                                 color: Palette.accent-foreground;
-                                font-size: 13px;
+                                font-size: 13px * Scale.text-scale;
                                 font-weight: 700;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -455,7 +457,7 @@ component MultiSelect inherits Rectangle {
                             height: parent.height;
                             text: r.label;
                             color: Palette.foreground;
-                            font-size: 13px;
+                            font-size: 13px * Scale.text-scale;
                             vertical-alignment: center;
                             overflow: elide;
                         }
@@ -506,7 +508,7 @@ component SettingRow inherits Rectangle {
         y: root.stacked ? 10px : (root.height - root.text-h) / 2;
         width: root.text-w;
         text: root.title;
-        font-size: 14px;
+        font-size: 14px * Scale.text-scale;
         color: Palette.foreground;
         overflow: elide;
     }
@@ -516,7 +518,7 @@ component SettingRow inherits Rectangle {
         width: root.text-w;
         visible: root.description != "";
         text: root.description;
-        font-size: 12px;
+        font-size: 12px * Scale.text-scale;
         color: Palette.foreground;
         opacity: 0.6;
         wrap: word-wrap;
@@ -542,7 +544,7 @@ component SettingRow inherits Rectangle {
 component SectionLabel inherits Text {
     color: Palette.foreground;
     opacity: 0.65;
-    font-size: 13px;
+    font-size: 13px * Scale.text-scale;
     font-weight: 600;
 }
 
@@ -564,7 +566,7 @@ component SettingsTab inherits Rectangle {
     background: root.selected ? Palette.accent-background : (ta.has-hover ? Palette.control-hover : Palette.control-background);
     lbl := Text {
         text: root.label;
-        font-size: 13px;
+        font-size: 13px * Scale.text-scale;
         font-weight: root.selected ? 600 : 400;
         color: root.selected ? Palette.accent-foreground : Palette.foreground;
         horizontal-alignment: center;
@@ -934,7 +936,7 @@ component Pill inherits Rectangle {
         if !root.compact: Text {
             text: root.label;
             color: white;
-            font-size: 12px;
+            font-size: 12px * Scale.text-scale;
             max-width: 130px;
             overflow: elide;
             vertical-alignment: center;
@@ -1012,7 +1014,7 @@ component MenuRow inherits Rectangle {
         Text {
             text: root.label;
             color: white;
-            font-size: 13px;
+            font-size: 13px * Scale.text-scale;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1053,7 +1055,7 @@ component TrackMenu inherits PopupWindow {
             Text {
                 text: root.heading;
                 color: #ffffffa0;
-                font-size: 12px;
+                font-size: 12px * Scale.text-scale;
                 font-weight: 700;
                 height: 26px;
                 vertical-alignment: center;
@@ -1065,7 +1067,7 @@ component TrackMenu inherits PopupWindow {
                     width: 46px;
                     border-radius: 6px;
                     background: sb.has-hover ? #ffffff30 : #ffffff18;
-                    Text { text: b.t; color: white; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
+                    Text { text: b.t; color: white; font-size: 13px * Scale.text-scale; horizontal-alignment: center; vertical-alignment: center; }
                     sb := TouchArea { clicked => { root.sync(b.d); } }
                 }
                 Rectangle {
@@ -1073,7 +1075,7 @@ component TrackMenu inherits PopupWindow {
                     Text {
                         text: "Sync " + (root.sync-value >= 0 ? "+" : "−") + abs(root.sync-value) + "s";
                         color: #ffffffc0;
-                        font-size: 12px;
+                        font-size: 12px * Scale.text-scale;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -1084,7 +1086,7 @@ component TrackMenu inherits PopupWindow {
                     width: 46px;
                     border-radius: 6px;
                     background: sb2.has-hover ? #ffffff30 : #ffffff18;
-                    Text { text: b.t; color: white; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
+                    Text { text: b.t; color: white; font-size: 13px * Scale.text-scale; horizontal-alignment: center; vertical-alignment: center; }
                     sb2 := TouchArea { clicked => { root.sync(b.d); } }
                 }
             }
@@ -1219,7 +1221,7 @@ component PillButton inherits Rectangle {
         Text {
             text: root.text;
             color: root.primary ? Palette.accent-foreground : Palette.foreground;
-            font-size: 14px;
+            font-size: 14px * Scale.text-scale;
             font-weight: 600;
             vertical-alignment: center;
         }
@@ -1287,7 +1289,7 @@ component LetterChip inherits Rectangle {
     Text {
         text: root.label;
         color: root.selected ? Palette.accent-foreground : Palette.foreground;
-        font-size: 12px;
+        font-size: 12px * Scale.text-scale;
         font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -1310,7 +1312,7 @@ component StatusChip inherits Rectangle {
         height: parent.height;
         text: root.text;
         color: Palette.foreground;
-        font-size: 12px;
+        font-size: 12px * Scale.text-scale;
         font-weight: 600;
         vertical-alignment: center;
     }
@@ -1344,7 +1346,7 @@ component QuotaChip inherits Rectangle {
         height: parent.height - 3px;
         text: root.text;
         color: root.out ? #e5484d : Palette.foreground;
-        font-size: 12px;
+        font-size: 12px * Scale.text-scale;
         font-weight: 600;
         vertical-alignment: center;
         overflow: elide;
@@ -1396,7 +1398,7 @@ component SeerrTabs inherits Rectangle {
                             text: name;
                             color: i == root.current ? Palette.accent-foreground : Palette.foreground;
                             font-weight: 600;
-                            font-size: 13px;
+                            font-size: 13px * Scale.text-scale;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -1550,7 +1552,7 @@ component CardMenuRow inherits Rectangle {
         Text {
             text: root.label;
             color: Palette.foreground;
-            font-size: 14px;
+            font-size: 14px * Scale.text-scale;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1737,7 +1739,7 @@ component CardView inherits Rectangle {
                     height: parent.height;
                     text: card.badge;
                     color: white;
-                    font-size: 11px;
+                    font-size: 11px * Scale.text-scale;
                     font-weight: 700;
                     vertical-alignment: center;
                 }
@@ -1760,7 +1762,7 @@ component CardView inherits Rectangle {
                     Text {
                         text: "NEXT SEASON";
                         color: Palette.accent-background;
-                        font-size: 12px;
+                        font-size: 12px * Scale.text-scale;
                         font-weight: 700;
                         horizontal-alignment: center;
                     }
@@ -1796,7 +1798,7 @@ component CardView inherits Rectangle {
                 Text {
                     text: "✓";
                     color: Palette.accent-foreground;
-                    font-size: 12px;
+                    font-size: 12px * Scale.text-scale;
                 }
             }
             if root.blurb: Rectangle {
@@ -1808,14 +1810,14 @@ component CardView inherits Rectangle {
                     Text {
                         text: card.title;
                         color: white;
-                        font-size: 13px;
+                        font-size: 13px * Scale.text-scale;
                         font-weight: 700;
                         wrap: word-wrap;
                     }
                     Text {
                         text: card.overview;
                         color: #ffffffdd;
-                        font-size: 11px;
+                        font-size: 11px * Scale.text-scale;
                         wrap: word-wrap;
                         overflow: elide;
                     }
@@ -1830,7 +1832,7 @@ component CardView inherits Rectangle {
         Text {
             text: card.title;
             color: Palette.foreground;
-            font-size: 13px;
+            font-size: 13px * Scale.text-scale;
             font-weight: 600;
             overflow: elide;
         }
@@ -1838,7 +1840,7 @@ component CardView inherits Rectangle {
             text: card.subtitle;
             color: Palette.foreground;
             opacity: 0.6;
-            font-size: 12px;
+            font-size: 12px * Scale.text-scale;
             overflow: elide;
         }
     }
@@ -1974,7 +1976,7 @@ component CardView inherits Rectangle {
         Text {
             text: root.asked ? "Requested" : "Request";
             color: root.asked ? Palette.foreground : Palette.accent-foreground;
-            font-size: 12px;
+            font-size: 12px * Scale.text-scale;
             font-weight: 700;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -2017,7 +2019,7 @@ component TabItem inherits Rectangle {
         }
         Text {
             text: root.label;
-            font-size: 11px;
+            font-size: 11px * Scale.text-scale;
             color: root.selected ? Palette.accent-background : Palette.foreground;
             opacity: root.selected ? 1.0 : 0.75;
             horizontal-alignment: center;
@@ -2034,7 +2036,7 @@ component TabItem inherits Rectangle {
         bd := Text {
             text: root.badge > 99 ? "99+" : root.badge;
             color: Palette.accent-foreground;
-            font-size: 10px;
+            font-size: 10px * Scale.text-scale;
             font-weight: 700;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -2098,7 +2100,7 @@ component NavItem inherits Rectangle {
         bd-text := Text {
             text: root.badge > 99 ? "99+" : root.badge;
             color: Palette.accent-foreground;
-            font-size: 10px;
+            font-size: 10px * Scale.text-scale;
             font-weight: 700;
             horizontal-alignment: center;
             vertical-alignment: center;
@@ -2116,7 +2118,7 @@ component NavItem inherits Rectangle {
 
 component Heading inherits Text {
     color: Palette.foreground;
-    font-size: 20px;
+    font-size: 20px * Scale.text-scale;
     font-weight: 600;
 }
 
@@ -2924,7 +2926,7 @@ export component AppWindow inherits Window {
                 }
                 Text {
                     text: "Foyer";
-                    font-size: 28px;
+                    font-size: 28px * Scale.text-scale;
                     font-weight: 700;
                     color: white;
                     horizontal-alignment: center;
@@ -2933,7 +2935,7 @@ export component AppWindow inherits Window {
                     text: "Sign in to your media server";
                     color: white;
                     opacity: 0.65;
-                    font-size: 13px;
+                    font-size: 13px * Scale.text-scale;
                     horizontal-alignment: center;
                 }
                 Rectangle { height: 6px; }
@@ -2954,7 +2956,7 @@ export component AppWindow inherits Window {
                         text: root.detect-note;
                         color: white;
                         opacity: 0.7;
-                        font-size: 12px;
+                        font-size: 12px * Scale.text-scale;
                         vertical-alignment: center;
                         horizontal-stretch: 1;
                         overflow: elide;
@@ -2964,7 +2966,7 @@ export component AppWindow inherits Window {
                     text: "Found on your network";
                     color: white;
                     opacity: 0.6;
-                    font-size: 12px;
+                    font-size: 12px * Scale.text-scale;
                 }
                 for s in discovered: Rectangle {
                     height: 34px;
@@ -2975,7 +2977,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: s;
                         color: white;
-                        font-size: 13px;
+                        font-size: 13px * Scale.text-scale;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -2990,14 +2992,14 @@ export component AppWindow inherits Window {
                 if login-error != "": Text {
                     text: login-error;
                     color: #ff7b7b;
-                    font-size: 13px;
+                    font-size: 13px * Scale.text-scale;
                     wrap: word-wrap;
                 }
                 if root.discover-note != "": Text {
                     text: root.discover-note;
                     color: white;
                     opacity: 0.7;
-                    font-size: 12px;
+                    font-size: 12px * Scale.text-scale;
                     wrap: word-wrap;
                 }
                 Rectangle { height: 4px; }
@@ -3023,7 +3025,7 @@ export component AppWindow inherits Window {
                             Text {
                                 text: root.discovering ? "Searching…" : "Find servers";
                                 color: white;
-                                font-size: 14px;
+                                font-size: 14px * Scale.text-scale;
                                 font-weight: 600;
                                 vertical-alignment: center;
                             }
@@ -3047,7 +3049,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: "Choose a Plex server";
                         color: white;
-                        font-size: 14px;
+                        font-size: 14px * Scale.text-scale;
                         font-weight: 600;
                         horizontal-alignment: center;
                     }
@@ -3060,7 +3062,7 @@ export component AppWindow inherits Window {
                         Text {
                             text: name;
                             color: white;
-                            font-size: 13px;
+                            font-size: 13px * Scale.text-scale;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -3070,20 +3072,20 @@ export component AppWindow inherits Window {
                         text: "Connecting…";
                         color: white;
                         opacity: 0.7;
-                        font-size: 12px;
+                        font-size: 12px * Scale.text-scale;
                         horizontal-alignment: center;
                     }
                     if login-error != "": Text {
                         text: login-error;
                         color: #ff7b7b;
-                        font-size: 13px;
+                        font-size: 13px * Scale.text-scale;
                         wrap: word-wrap;
                     }
                     Text {
                         text: "Back";
                         color: white;
                         opacity: 0.7;
-                        font-size: 13px;
+                        font-size: 13px * Scale.text-scale;
                         horizontal-alignment: center;
                         TouchArea { clicked => { root.cancel-plex-pick(); } }
                     }
@@ -3092,7 +3094,7 @@ export component AppWindow inherits Window {
                     text: "Cancel";
                     color: white;
                     opacity: 0.7;
-                    font-size: 13px;
+                    font-size: 13px * Scale.text-scale;
                     horizontal-alignment: center;
                     TouchArea { clicked => { root.go-home(); } }
                 }
@@ -3191,7 +3193,7 @@ export component AppWindow inherits Window {
                             width: parent.width - 32px - parent.btn-w;
                             text: d.title;
                             color: Palette.foreground;
-                            font-size: 14px;
+                            font-size: 14px * Scale.text-scale;
                             font-weight: 600;
                             overflow: elide;
                         }
@@ -3202,7 +3204,7 @@ export component AppWindow inherits Window {
                             text: (d.offline ? "Offline copy" : "File") + "  ·  " + d.status;
                             color: Palette.foreground;
                             opacity: 0.65;
-                            font-size: 12px;
+                            font-size: 12px * Scale.text-scale;
                             overflow: elide;
                         }
                         if d.state < 2: Rectangle {
@@ -3325,7 +3327,7 @@ export component AppWindow inherits Window {
                             width: parent.tw;
                             text: n.title;
                             color: Palette.foreground;
-                            font-size: 14px;
+                            font-size: 14px * Scale.text-scale;
                             font-weight: n.read ? 400 : 700;
                             wrap: word-wrap;
                         }
@@ -3337,7 +3339,7 @@ export component AppWindow inherits Window {
                             text: n.body;
                             color: Palette.foreground;
                             opacity: 0.7;
-                            font-size: 12px;
+                            font-size: 12px * Scale.text-scale;
                             wrap: word-wrap;
                         }
                         nw := Text {
@@ -3347,7 +3349,7 @@ export component AppWindow inherits Window {
                             text: n.when + (n.item != "" ? (Device.desktop ? "  ·  click to open" : "  ·  tap to open") : "");
                             color: Palette.foreground;
                             opacity: 0.5;
-                            font-size: 11px;
+                            font-size: 11px * Scale.text-scale;
                         }
                         if !n.read: IconButton {
                             x: parent.width - self.width - 12px;
@@ -3384,7 +3386,7 @@ export component AppWindow inherits Window {
                                 text: name;
                                 color: Palette.foreground;
                                 font-weight: i == root.fav-tab ? 700 : 400;
-                                font-size: 12px;
+                                font-size: 12px * Scale.text-scale;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
                             }
@@ -3581,7 +3583,7 @@ export component AppWindow inherits Window {
                     Panel {
                         Text {
                             text: root.server-info.name;
-                            font-size: 20px;
+                            font-size: 20px * Scale.text-scale;
                             font-weight: 700;
                             color: Palette.foreground;
                         }
@@ -3658,7 +3660,7 @@ export component AppWindow inherits Window {
                                     text: se.title;
                                     color: Palette.foreground;
                                     opacity: 0.7;
-                                    font-size: 12px;
+                                    font-size: 12px * Scale.text-scale;
                                     overflow: elide;
                                 }
                                 HorizontalLayout {
@@ -3681,7 +3683,7 @@ export component AppWindow inherits Window {
                                         text: (se.paused ? "Paused  " : "") + se.clock;
                                         color: Palette.foreground;
                                         opacity: 0.7;
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         vertical-alignment: center;
                                     }
                                 }
@@ -3748,7 +3750,7 @@ export component AppWindow inherits Window {
                             text: f.paths;
                             color: Palette.foreground;
                             opacity: 0.6;
-                            font-size: 12px;
+                            font-size: 12px * Scale.text-scale;
                             wrap: word-wrap;
                         }
                     }
@@ -3769,7 +3771,7 @@ export component AppWindow inherits Window {
                                     text: t.status;
                                     color: Palette.foreground;
                                     opacity: 0.6;
-                                    font-size: 12px;
+                                    font-size: 12px * Scale.text-scale;
                                     overflow: elide;
                                 }
                             }
@@ -3793,7 +3795,7 @@ export component AppWindow inherits Window {
                                 text: a.date;
                                 color: Palette.foreground;
                                 opacity: 0.5;
-                                font-size: 12px;
+                                font-size: 12px * Scale.text-scale;
                                 vertical-alignment: center;
                                 min-width: 130px;
                             }
@@ -3823,7 +3825,7 @@ export component AppWindow inherits Window {
                     alignment: start;
                     Text {
                         text: "Settings";
-                        font-size: 28px;
+                        font-size: 28px * Scale.text-scale;
                         font-weight: 600;
                         color: Palette.foreground;
                     }
@@ -4065,7 +4067,7 @@ export component AppWindow inherits Window {
                                     alignment: start;
                                     Text {
                                         text: Device.desktop ? "Windows colours" : "Colours";
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         color: Palette.foreground;
                                         opacity: 0.65;
                                     }
@@ -4095,7 +4097,7 @@ export component AppWindow inherits Window {
                                     alignment: start;
                                     Text {
                                         text: "Custom colour";
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         color: Palette.foreground;
                                         opacity: 0.65;
                                     }
@@ -4452,7 +4454,7 @@ export component AppWindow inherits Window {
                             spacing: 12px;
                             Text {
                                 text: "Connect to Seerr";
-                                font-size: 22px;
+                                font-size: 22px * Scale.text-scale;
                                 font-weight: 700;
                                 color: Palette.foreground;
                             }
@@ -4641,7 +4643,7 @@ export component AppWindow inherits Window {
                             alignment: start;
                             Text {
                                 text: root.sr-detail.title;
-                                font-size: 28px;
+                                font-size: 28px * Scale.text-scale;
                                 font-weight: 700;
                                 color: Palette.foreground;
                                 wrap: word-wrap;
@@ -4663,7 +4665,7 @@ export component AppWindow inherits Window {
                                 text: root.sr-detail.tagline;
                                 color: Palette.foreground;
                                 opacity: 0.7;
-                                font-size: 14px;
+                                font-size: 14px * Scale.text-scale;
                                 wrap: word-wrap;
                             }
                             HorizontalLayout {
@@ -4771,7 +4773,7 @@ export component AppWindow inherits Window {
                         text: root.sr-scope-note;
                         color: Palette.foreground;
                         opacity: 0.55;
-                        font-size: 12px;
+                        font-size: 12px * Scale.text-scale;
                     }
                     if root.sr-requests.length == 0 && !busy: Text {
                         text: "No requests here.";
@@ -4809,7 +4811,7 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: r.title;
                                     color: Palette.foreground;
-                                    font-size: 15px;
+                                    font-size: 15px * Scale.text-scale;
                                     font-weight: 700;
                                     overflow: elide;
                                 }
@@ -4817,7 +4819,7 @@ export component AppWindow inherits Window {
                                     text: r.subtitle;
                                     color: Palette.foreground;
                                     opacity: 0.65;
-                                    font-size: 12px;
+                                    font-size: 12px * Scale.text-scale;
                                     overflow: elide;
                                 }
                                 HorizontalLayout {
@@ -4931,7 +4933,7 @@ export component AppWindow inherits Window {
                             horizontal-stretch: 1;
                             Text {
                                 text: root.sr-person.name;
-                                font-size: 28px;
+                                font-size: 28px * Scale.text-scale;
                                 font-weight: 700;
                                 color: Palette.foreground;
                                 wrap: word-wrap;
@@ -5103,7 +5105,7 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: it.title;
                                     color: Palette.foreground;
-                                    font-size: 15px;
+                                    font-size: 15px * Scale.text-scale;
                                     font-weight: 700;
                                     overflow: elide;
                                 }
@@ -5111,7 +5113,7 @@ export component AppWindow inherits Window {
                                     text: it.subtitle;
                                     color: Palette.foreground;
                                     opacity: 0.65;
-                                    font-size: 12px;
+                                    font-size: 12px * Scale.text-scale;
                                     overflow: elide;
                                 }
                             }
@@ -5167,7 +5169,7 @@ export component AppWindow inherits Window {
                             horizontal-stretch: 1;
                             Text {
                                 text: root.sr-issue.title;
-                                font-size: 24px;
+                                font-size: 24px * Scale.text-scale;
                                 font-weight: 700;
                                 color: Palette.foreground;
                                 wrap: word-wrap;
@@ -5221,13 +5223,13 @@ export component AppWindow inherits Window {
                                     text: cm.who;
                                     color: Palette.accent-background;
                                     font-weight: 700;
-                                    font-size: 13px;
+                                    font-size: 13px * Scale.text-scale;
                                 }
                                 Text {
                                     text: cm.when;
                                     color: Palette.foreground;
                                     opacity: 0.5;
-                                    font-size: 12px;
+                                    font-size: 12px * Scale.text-scale;
                                 }
                             }
                             Text {
@@ -5289,7 +5291,7 @@ export component AppWindow inherits Window {
                         text: "Click a user to change their request limits and permissions.";
                         color: Palette.foreground;
                         opacity: 0.6;
-                        font-size: 12px;
+                        font-size: 12px * Scale.text-scale;
                     }
                     if root.sr-users.length == 0 && !busy: Text {
                         text: "No users.";
@@ -5316,7 +5318,7 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: u.initial;
                                     color: Palette.foreground;
-                                    font-size: 18px;
+                                    font-size: 18px * Scale.text-scale;
                                     font-weight: 700;
                                     horizontal-alignment: center;
                                     vertical-alignment: center;
@@ -5329,7 +5331,7 @@ export component AppWindow inherits Window {
                                 Text {
                                     text: u.name;
                                     color: Palette.foreground;
-                                    font-size: 15px;
+                                    font-size: 15px * Scale.text-scale;
                                     font-weight: 700;
                                     overflow: elide;
                                 }
@@ -5337,7 +5339,7 @@ export component AppWindow inherits Window {
                                     text: u.subtitle;
                                     color: Palette.foreground;
                                     opacity: 0.6;
-                                    font-size: 12px;
+                                    font-size: 12px * Scale.text-scale;
                                     overflow: elide;
                                 }
                             }
@@ -5373,7 +5375,7 @@ export component AppWindow inherits Window {
                             alignment: center;
                             Text {
                                 text: root.sr-ud-name;
-                                font-size: 24px;
+                                font-size: 24px * Scale.text-scale;
                                 font-weight: 700;
                                 color: Palette.foreground;
                             }
@@ -5548,7 +5550,7 @@ export component AppWindow inherits Window {
                                                 text: ch.number;
                                                 color: Palette.foreground;
                                                 opacity: 0.6;
-                                                font-size: 11px;
+                                                font-size: 11px * Scale.text-scale;
                                             }
                                             Text {
                                                 text: ch.name;
@@ -5579,7 +5581,7 @@ export component AppWindow inherits Window {
                                 text: m.label;
                                 color: Palette.foreground;
                                 opacity: 0.7;
-                                font-size: 12px;
+                                font-size: 12px * Scale.text-scale;
                                 vertical-alignment: center;
                             }
                         }
@@ -5611,14 +5613,14 @@ export component AppWindow inherits Window {
                                         text: p.title;
                                         color: Palette.foreground;
                                         font-weight: 600;
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         overflow: elide;
                                     }
                                     Text {
                                         text: p.sub;
                                         color: Palette.foreground;
                                         opacity: 0.6;
-                                        font-size: 11px;
+                                        font-size: 11px * Scale.text-scale;
                                         overflow: elide;
                                     }
                                 }
@@ -5685,12 +5687,12 @@ export component AppWindow inherits Window {
                             }
                             WrapText {
                                 text: detail.title;
-                                font-size: 28px;
+                                font-size: 28px * Scale.text-scale;
                                 font-weight: 700;
                             }
                             if detail.subtitle != "": Text {
                                 text: detail.subtitle;
-                                font-size: 16px;
+                                font-size: 16px * Scale.text-scale;
                                 color: Palette.foreground;
                                 opacity: detail.series-id != "" && subtitle-touch.has-hover ? 1 : 0.85;
                                 // "Series S1E2" links back to the series page too.
@@ -5719,7 +5721,7 @@ export component AppWindow inherits Window {
                                         height: parent.height;
                                         text: g;
                                         color: Palette.foreground;
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         vertical-alignment: center;
                                     }
                                     gta := TouchArea {
@@ -5730,7 +5732,7 @@ export component AppWindow inherits Window {
                             }
                             if detail.summary != "": WrapText {
                                 text: detail.summary;
-                                font-size: 12px;
+                                font-size: 12px * Scale.text-scale;
                                 text-opacity: 0.65;
                             }
                             // Play buttons first; with room, the watched / favourite / info icons and Options sit in the same row.
@@ -5883,7 +5885,7 @@ export component AppWindow inherits Window {
                                     text: detail.remaining;
                                     color: Palette.foreground;
                                     opacity: 0.7;
-                                    font-size: 13px;
+                                    font-size: 13px * Scale.text-scale;
                                     vertical-alignment: center;
                                 }
                             }
@@ -5924,13 +5926,13 @@ export component AppWindow inherits Window {
                                         color: r.head ? Palette.accent-background : Palette.foreground;
                                         opacity: r.head ? 1 : 0.6;
                                         font-weight: r.head ? 700 : 400;
-                                        font-size: 13px;
+                                        font-size: 13px * Scale.text-scale;
                                         overflow: elide;
                                     }
                                     Text {
                                         text: r.value;
                                         color: Palette.foreground;
-                                        font-size: 13px;
+                                        font-size: 13px * Scale.text-scale;
                                         wrap: word-wrap;
                                         horizontal-stretch: 1;
                                     }
@@ -6031,14 +6033,14 @@ export component AppWindow inherits Window {
                                         text: ep.subtitle;
                                         color: Palette.foreground;
                                         opacity: 0.6;
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         overflow: elide;
                                     }
                                     if ep.overview != "": Text {
                                         text: ep.overview;
                                         color: Palette.foreground;
                                         opacity: 0.75;
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         wrap: word-wrap;
                                         overflow: elide;
                                         height: 32px;
@@ -6098,7 +6100,7 @@ export component AppWindow inherits Window {
                 }
                 if root.nav-expanded: Text {
                     text: "Foyer";
-                    font-size: 15px;
+                    font-size: 15px * Scale.text-scale;
                     font-weight: 700;
                     color: Palette.foreground;
                     height: 34px;
@@ -6157,7 +6159,7 @@ export component AppWindow inherits Window {
                 Rectangle { height: 4px; }
                 if root.nav-expanded: Text {
                     text: "LIBRARIES";
-                    font-size: 11px;
+                    font-size: 11px * Scale.text-scale;
                     color: Palette.foreground;
                     opacity: 0.5;
                     horizontal-alignment: center;
@@ -6338,7 +6340,7 @@ export component AppWindow inherits Window {
         if root.show-clock && root.clock-text != "" && root.player-started: Text {
             text: root.clock-text;
             color: white;
-            font-size: 16px;
+            font-size: 16px * Scale.text-scale;
             font-weight: 600;
             opacity: root.clock-with-controls ? root.controls-op * 0.9 : (root.controls-op > 0 ? 0.9 : 0.7);
             horizontal-alignment: right;
@@ -6347,7 +6349,7 @@ export component AppWindow inherits Window {
             height: 40px;
             y: 14px;
             // 14 px bar padding, then (on desktop) two 40 px buttons and the 12 px gaps around them
-            x: parent.width - self.width - (root.controls-op > 0 ? (Device.desktop ? 170px : 66px) : 16px);
+            x: parent.width - self.width - (root.controls-op > 0 ? (Device.desktop ? 170px : (Device.touch ? 118px : 66px)) : 16px);
             animate x { duration: 160ms; easing: ease-out; }
         }
 
@@ -6409,7 +6411,7 @@ export component AppWindow inherits Window {
                 background: keep-ta.has-hover ? #ffffff30 : #00000099;
                 border-width: 1px;
                 border-color: #ffffff55;
-                Text { text: "Keep watching"; color: white; font-size: 14px; horizontal-alignment: center; vertical-alignment: center; }
+                Text { text: "Keep watching"; color: white; font-size: 14px * Scale.text-scale; horizontal-alignment: center; vertical-alignment: center; }
                 keep-ta := TouchArea { clicked => { root.player-key("keep"); } }
             }
             Rectangle {
@@ -6419,7 +6421,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.skip-kind == 1 ? "Skip intro" : "Play next  ·  Space";
                     color: Palette.accent-foreground;
-                    font-size: 14px;
+                    font-size: 14px * Scale.text-scale;
                     font-weight: 600;
                     horizontal-alignment: center;
                     vertical-alignment: center;
@@ -6447,7 +6449,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.player-title;
                     color: white;
-                    font-size: 18px;
+                    font-size: 18px * Scale.text-scale;
                     font-weight: 600;
                     vertical-alignment: center;
                     height: 40px;
@@ -6657,7 +6659,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: root.player-live ? "LIVE" : fmt(root.player-pos) + " / " + fmt(root.player-dur);
                         color: white;
-                        font-size: 13px;
+                        font-size: 13px * Scale.text-scale;
                         vertical-alignment: center;
                         horizontal-stretch: 1;
                     }
@@ -6822,7 +6824,9 @@ export component AppWindow inherits Window {
         TouchArea { }
         VerticalLayout {
             alignment: center;
-            Rectangle {
+            HorizontalLayout {
+              alignment: center;
+              Rectangle {
                 width: min(520px, root.width - 32px);
                 height: msg-col.preferred-height;
                 background: Palette.alternate-background;
@@ -6832,7 +6836,7 @@ export component AppWindow inherits Window {
                     spacing: 12px;
                     Text {
                         text: root.message-header;
-                        font-size: 22px;
+                        font-size: 22px * Scale.text-scale;
                         font-weight: 700;
                         color: Palette.foreground;
                         wrap: word-wrap;
@@ -6851,6 +6855,7 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+              }
             }
         }
     }
@@ -6861,7 +6866,9 @@ export component AppWindow inherits Window {
         TouchArea { clicked => { CastUi.open = false; } }
         VerticalLayout {
             alignment: center;
-            Rectangle {
+            HorizontalLayout {
+              alignment: center;
+              Rectangle {
                 width: min(480px, root.width - 32px);
                 height: cast-col.preferred-height;
                 background: Palette.alternate-background;
@@ -6872,7 +6879,7 @@ export component AppWindow inherits Window {
                     spacing: 10px;
                     Text {
                         text: "Cast to";
-                        font-size: 22px;
+                        font-size: 22px * Scale.text-scale;
                         font-weight: 700;
                         color: Palette.foreground;
                     }
@@ -6887,37 +6894,44 @@ export component AppWindow inherits Window {
                         opacity: 0.7;
                         wrap: word-wrap;
                     }
-                    for t[i] in CastUi.targets: Rectangle {
-                        height: 56px;
-                        border-radius: 8px;
-                        background: ct.has-hover ? Palette.control-hover : Palette.control-background;
-                        Image {
-                            x: 14px;
-                            y: (parent.height - self.height) / 2;
-                            width: 22px;
-                            height: 22px;
-                            source: @image-url("icons/cast.svg");
-                            colorize: Palette.foreground;
+                    ScrollView {
+                        height: min(CastUi.targets.length * 66px, root.height - 190px);
+                        mouse-drag-pan-enabled: true;
+                        VerticalLayout {
+                            spacing: 10px;
+                        for t[i] in CastUi.targets: Rectangle {
+                            height: 56px;
+                            border-radius: 8px;
+                            background: ct.has-hover ? Palette.control-hover : Palette.control-background;
+                            Image {
+                                x: 14px;
+                                y: (parent.height - self.height) / 2;
+                                width: 22px;
+                                height: 22px;
+                                source: @image-url("icons/cast.svg");
+                                colorize: Palette.foreground;
+                            }
+                            Text {
+                                x: 52px;
+                                y: 9px;
+                                width: parent.width - 62px;
+                                text: t.name;
+                                color: Palette.foreground;
+                                font-size: 14px * Scale.text-scale;
+                                overflow: elide;
+                            }
+                            Text {
+                                x: 52px;
+                                y: 30px;
+                                width: parent.width - 62px;
+                                text: t.kind;
+                                color: Palette.foreground;
+                                opacity: 0.6;
+                                font-size: 12px * Scale.text-scale;
+                            }
+                            ct := TouchArea { clicked => { CastUi.pick(i); } }
                         }
-                        Text {
-                            x: 52px;
-                            y: 9px;
-                            width: parent.width - 62px;
-                            text: t.name;
-                            color: Palette.foreground;
-                            font-size: 14px;
-                            overflow: elide;
                         }
-                        Text {
-                            x: 52px;
-                            y: 30px;
-                            width: parent.width - 62px;
-                            text: t.kind;
-                            color: Palette.foreground;
-                            opacity: 0.6;
-                            font-size: 12px;
-                        }
-                        ct := TouchArea { clicked => { CastUi.pick(i); } }
                     }
                     HorizontalLayout {
                         alignment: end;
@@ -6927,6 +6941,7 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+              }
             }
         }
     }
@@ -6957,7 +6972,7 @@ export component AppWindow inherits Window {
             height: parent.height;
             text: "Casting to " + CastUi.active;
             color: Palette.foreground;
-            font-size: 13px;
+            font-size: 13px * Scale.text-scale;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -7002,7 +7017,7 @@ export component AppWindow inherits Window {
             height: parent.height;
             text: "You're offline. Showing your downloads.";
             color: Palette.accent-foreground;
-            font-size: 13px;
+            font-size: 13px * Scale.text-scale;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -7079,7 +7094,7 @@ export component AppWindow inherits Window {
                     spacing: 10px;
                     Text {
                         text: "Find subtitles";
-                        font-size: 20px;
+                        font-size: 20px * Scale.text-scale;
                         font-weight: 700;
                         color: Palette.foreground;
                     }
@@ -7139,7 +7154,7 @@ export component AppWindow inherits Window {
                                         text: r.detail;
                                         color: Palette.foreground;
                                         opacity: 0.6;
-                                        font-size: 12px;
+                                        font-size: 12px * Scale.text-scale;
                                         overflow: elide;
                                     }
                                 }
@@ -7171,7 +7186,7 @@ export component AppWindow inherits Window {
                     spacing: 10px;
                     Text {
                         text: "Request seasons";
-                        font-size: 20px;
+                        font-size: 20px * Scale.text-scale;
                         font-weight: 700;
                         color: Palette.foreground;
                     }
@@ -7189,7 +7204,7 @@ export component AppWindow inherits Window {
                             text: root.sr-tv-left + (root.sr-tv-left == 1 ? " season" : " seasons") + " left to request";
                             color: Palette.accent-foreground;
                             font-weight: 700;
-                            font-size: 12px;
+                            font-size: 12px * Scale.text-scale;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -7211,14 +7226,14 @@ export component AppWindow inherits Window {
                                         Text {
                                             text: s.name;
                                             color: Palette.foreground;
-                                            font-size: 13px;
+                                            font-size: 13px * Scale.text-scale;
                                             overflow: elide;
                                         }
                                         Text {
                                             text: s.status;
                                             color: Palette.foreground;
                                             opacity: 0.6;
-                                            font-size: 11px;
+                                            font-size: 11px * Scale.text-scale;
                                         }
                                     }
                                     if s.requestable: ToggleSwitch {
@@ -7266,7 +7281,7 @@ export component AppWindow inherits Window {
                     spacing: 10px;
                     Text {
                         text: "Report a problem";
-                        font-size: 20px;
+                        font-size: 20px * Scale.text-scale;
                         font-weight: 700;
                         color: Palette.foreground;
                     }
@@ -7275,19 +7290,19 @@ export component AppWindow inherits Window {
                         color: Palette.foreground;
                         opacity: 0.7;
                     }
-                    Text { text: "Problem"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
+                    Text { text: "Problem"; font-size: 12px * Scale.text-scale; color: Palette.foreground; opacity: 0.7; }
                     MultiSelect {
                         rows: root.sr-report-kinds;
                         summary: root.sr-report-kinds-text;
                         toggled(i) => { root.sr-report-toggle-kind(i); }
                     }
-                    if root.sr-report-tv: Text { text: "Season"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
+                    if root.sr-report-tv: Text { text: "Season"; font-size: 12px * Scale.text-scale; color: Palette.foreground; opacity: 0.7; }
                     if root.sr-report-tv: Dropdown {
                         model: root.sr-report-seasons;
                         current-index: root.sr-report-season-index;
                         selected => { root.sr-report-pick-season(self.current-index); }
                     }
-                    if root.sr-report-tv && root.sr-report-eps.length > 0: Text { text: "Episodes"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
+                    if root.sr-report-tv && root.sr-report-eps.length > 0: Text { text: "Episodes"; font-size: 12px * Scale.text-scale; color: Palette.foreground; opacity: 0.7; }
                     if root.sr-report-tv && root.sr-report-eps.length > 0: MultiSelect {
                         rows: root.sr-report-eps;
                         summary: root.sr-report-eps-text;
@@ -7295,7 +7310,7 @@ export component AppWindow inherits Window {
                         toggled(i) => { root.sr-report-toggle-ep(i); }
                         set-all(on) => { root.sr-report-all-eps(on); }
                     }
-                    Text { text: "What is wrong?"; font-size: 12px; color: Palette.foreground; opacity: 0.7; }
+                    Text { text: "What is wrong?"; font-size: 12px * Scale.text-scale; color: Palette.foreground; opacity: 0.7; }
                     LineEdit {
                         placeholder-text: "Describe the problem";
                         text <=> root.sr-report-text;
@@ -7369,7 +7384,7 @@ export component AppWindow inherits Window {
                         Text {
                             text: root.note-title;
                             color: white;
-                            font-size: 14px;
+                            font-size: 14px * Scale.text-scale;
                             font-weight: 700;
                             wrap: word-wrap;
                             horizontal-stretch: 1;
@@ -7384,7 +7399,7 @@ export component AppWindow inherits Window {
                         text: root.note-body;
                         color: white;
                         opacity: 0.8;
-                        font-size: 13px;
+                        font-size: 13px * Scale.text-scale;
                         wrap: word-wrap;
                     }
                     if root.note-item != "": HorizontalLayout {
@@ -7423,7 +7438,7 @@ export component AppWindow inherits Window {
                     spacing: 12px;
                     Text {
                         text: root.confirm-kind == "Restart" ? "Restart the server?" : "Shut down the server?";
-                        font-size: 20px;
+                        font-size: 20px * Scale.text-scale;
                         font-weight: 700;
                         color: Palette.foreground;
                     }
@@ -7469,7 +7484,7 @@ export component AppWindow inherits Window {
                     spacing: 12px;
                     Text {
                         text: "Couldn't play this";
-                        font-size: 20px;
+                        font-size: 20px * Scale.text-scale;
                         font-weight: 600;
                         color: Palette.foreground;
                     }
@@ -7484,7 +7499,7 @@ export component AppWindow inherits Window {
                         wrap: word-wrap;
                         color: Palette.foreground;
                         opacity: 0.6;
-                        font-size: 12px;
+                        font-size: 12px * Scale.text-scale;
                     }
                     HorizontalLayout {
                         spacing: 8px;

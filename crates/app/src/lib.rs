@@ -4977,21 +4977,11 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     {
         let c = ctx.clone();
         let cursor_hidden = std::cell::Cell::new(false);
-        // Android: follow Settings > Display > Font size. Slint can't scale text alone, so the whole UI scale is
-        // multiplied by it. `base` is the device's own scale; the backend may reset it, which is noticed here.
-        let (base_scale, applied_scale) = (std::cell::Cell::new(0.0f32), std::cell::Cell::new(0.0f32));
         hide_timer.start(slint::TimerMode::Repeated, Duration::from_millis(400), move || {
             let Some(ui) = c.ui.upgrade() else { return };
+            // Android: follow Settings > Display > Font size (text only: the interface itself keeps its size).
             if cfg!(target_os = "android") {
-                let sf = ui.window().scale_factor();
-                if (sf - applied_scale.get()).abs() > 0.001 {
-                    base_scale.set(sf);
-                }
-                let want = base_scale.get() * platform::font_scale().clamp(0.8, 2.0);
-                applied_scale.set(want);
-                if (want - sf).abs() > 0.001 {
-                    ui.window().dispatch_event(slint::platform::WindowEvent::ScaleFactorChanged { scale_factor: want });
-                }
+                ui.global::<Scale>().set_text_scale(platform::font_scale().clamp(1.0, 1.5));
             }
             if ui.get_playing()
                 && ui.get_controls_shown()

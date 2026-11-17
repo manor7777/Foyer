@@ -280,3 +280,29 @@ pub fn font_scale() -> f32 {
     })
     .unwrap_or(1.0)
 }
+
+/// Wi-Fi drops multicast packets unless an app holds a multicast lock, so Cast devices (found with mDNS) stay
+/// invisible without one. Hold it while searching.
+pub fn multicast_lock(on: bool) {
+    static LOCK: std::sync::Mutex<Option<GlobalRef>> = std::sync::Mutex::new(None);
+    let res = with_env(|env, act| {
+        let mut held = LOCK.lock().unwrap();
+        if on {
+            if held.is_none() {
+                let svc = env.new_string("wifi")?;
+                let wifi = env.call_method(act, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[JValue::Object(&svc)])?.l()?;
+                let tag = env.new_string("foyer")?;
+                let lock = env.call_method(&wifi, "createMulticastLock", "(Ljava/lang/String;)Landroid/net/wifi/WifiManager$MulticastLock;", &[JValue::Object(&tag)])?.l()?;
+                env.call_method(&lock, "setReferenceCounted", "(Z)V", &[JValue::Bool(0)])?;
+                env.call_method(&lock, "acquire", "()V", &[])?;
+                *held = Some(env.new_global_ref(&lock)?);
+            }
+        } else if let Some(lock) = held.take() {
+            env.call_method(&lock, "release", "()V", &[])?;
+        }
+        Ok(())
+    });
+    if let Err(e) = res {
+        eprintln!("multicast lock failed: {e}");
+    }
+}

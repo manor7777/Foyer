@@ -2,9 +2,12 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
-## Foyer 0.28.4
+## Foyer 0.28.5
 
-- Android: fixed the garbled interface while a video is playing. Text drawn after the video had started (such as the clock or the cast list) came out with black boxes around the letters, and the pause/play button turned into a white square. Found with a phone connected over `adb`: the video decoder's drawing leaves graphics settings behind that the interface drawing then trips over. Foyer now saves those settings before the video is drawn and puts them back straight afterwards, and gives the video decoder the plain default settings it expects to start from (otherwise video frames came out as static). Windows is unchanged.
+- **Casting shows everything you can cast to.** The list now shows apps signed in to your server together with standard Google Cast devices (including older Chromecasts that have no apps of their own), each as soon as it answers. Server apps are listed with the app and the user signed in on it (for example "Emby for Android · Mandy"), so an administrator can see who a cast would go to. The search for Cast devices now asks on every network adapter (a VPN or virtual adapter could send the question to the wrong network and hear nothing), and on Android it holds the Wi-Fi multicast lock, without which the phone discards the answers. I could not test this against a real Chromecast here, so please say if none turn up.
+- Casting list: the panel is centred (it sat against the left edge), and the list scrolls when there are more devices than fit, with the Cancel button always on screen. The "Still watching?" and server-message dialogs had the same left-edge problem and are centred too. On phones the player's clock no longer sits underneath the cast button.
+- Android: **video no longer looks like static**, and the interface is no longer garbled while a video plays. Text drawn after the video had started (the clock, the cast list) came out with black boxes around the letters, and the pause/play button turned into a white square. Found with a phone connected over `adb`: the video decoder's drawing leaves graphics settings behind that the interface drawing trips over, and the interface leaves settings that corrupt the next video frame. Foyer now resets to the defaults before the video is drawn and puts the interface's settings back afterwards. Windows is unchanged.
+- Android: following the system font size (0.28.3) shrank the whole interface to about 80% on phones with a larger font setting, leaving black bands at the right and bottom. It now makes the text bigger and leaves the interface alone.
 
 ## Foyer 0.28.3
 

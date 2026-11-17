@@ -134,3 +134,6 @@ pub fn set_window_rect(_w: &slint::Window, _x: i32, _y: i32, _width: i32, _heigh
 pub fn font_scale() -> f32 {
     1.0
 }
+
+/// Android only: lets Wi-Fi multicast through while searching for Cast devices.
+pub fn multicast_lock(_on: bool) {}
