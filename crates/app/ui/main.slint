@@ -33,7 +33,10 @@ export global PageScroll {
 }
 
 export global Hover {
+    // Two layers so one backdrop cross-fades into the next; `front-b` picks the visible one.
     in-out property <image> image;
+    in-out property <image> image-b;
+    in-out property <bool> front-b: false;
     in-out property <bool> active: false;
     callback entered(string, string);
     callback left();
@@ -2789,15 +2792,25 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         image-fit: cover;
-        opacity: Hover.active && Hover.image.width > 0 ? 1.0 : 0.0;
-        animate opacity { duration: 220ms; easing: ease-out; }
+        opacity: Hover.active && !Hover.front-b ? 1.0 : 0.0;
+        animate opacity { duration: 350ms; easing: ease-in-out; }
+    }
+    if !root.full-player && root.hover-backdrop: Image {
+        source: Hover.image-b;
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        image-fit: cover;
+        opacity: Hover.active && Hover.front-b ? 1.0 : 0.0;
+        animate opacity { duration: 350ms; easing: ease-in-out; }
     }
     if !root.full-player && root.hover-backdrop: Rectangle {
         background: Palette.dark
             ? @linear-gradient(180deg, #0b0f1a99 0%, #0b0f1ad0 70%, #0b0f1aeb 100%)
             : @linear-gradient(180deg, #f3f5f9aa 0%, #f3f5f9e0 70%, #f3f5f9f0 100%);
-        opacity: Hover.active && Hover.image.width > 0 ? 1.0 : 0.0;
-        animate opacity { duration: 220ms; easing: ease-out; }
+        opacity: Hover.active ? 1.0 : 0.0;
+        animate opacity { duration: 350ms; easing: ease-in-out; }
     }
 
     // Detail pages: the backdrop fills the whole window, dimmed so text stays readable.

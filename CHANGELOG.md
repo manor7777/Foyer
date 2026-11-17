@@ -2,6 +2,10 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.6
+
+- **The poster-hover backdrop no longer flashes.** Moving the pointer quickly across posters used to flash a different full-screen backdrop for each one, dropping to the plain background in between. A backdrop now appears only once the pointer has rested on a poster for a moment, stays up briefly when you move to the next poster, and cross-fades into the next one instead of cutting. Only affects devices with a mouse; Android touch has no hover.
+
 ## Foyer 0.28.5
 
 - **Casting shows everything you can cast to.** The list now shows apps signed in to your server together with standard Google Cast devices (including older Chromecasts that have no apps of their own), each as soon as it answers. Server apps are listed with the app and the user signed in on it (for example "Emby for Android · Mandy"), so an administrator can see who a cast would go to. The search for Cast devices now asks on every network adapter (a VPN or virtual adapter could send the question to the wrong network and hear nothing), and on Android it holds the Wi-Fi multicast lock, without which the phone discards the answers. I could not test this against a real Chromecast here, so please say if none turn up.

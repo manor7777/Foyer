@@ -2663,34 +2663,43 @@ impl Ctx {
         }
     }
 
-    /// Poster hover: after a short pause, fetch the title's banner art and fade it in behind the page.
+    /// Poster hover: once the pointer rests on a poster, fetch the title's banner art and
+    /// cross-fade it in behind the page. Sweeping across posters starts nothing, and moving
+    /// from one poster to the next keeps the current backdrop until the next one is ready.
     fn hover_entered(&self, id: String, kind: String) {
         let my = HOVER_GEN.fetch_add(1, Ordering::SeqCst) + 1;
         if !self.st.lock().unwrap().cfg.hover_backdrop
             || !matches!(kind.as_str(), "Movie" | "Series" | "Season" | "Episode" | "BoxSet" | "Video" | "MusicVideo")
         {
+            self.hover_fade_out(my);
             return;
         }
         let Some((client, uid)) = self.session() else { return };
         let ctx = self.clone();
         self.rt.spawn(async move {
-            tokio::time::sleep(Duration::from_millis(150)).await;
+            tokio::time::sleep(Duration::from_millis(400)).await;
             if HOVER_GEN.load(Ordering::SeqCst) != my {
                 return;
             }
             // Series / movie banner, never the episode's own thumbnail.
-            let Ok(item) = client.item(&uid, &id).await else { return };
-            let Some(url) = client.image_url(&item, ImageKind::Backdrop, 1280) else { return };
-            let Ok(bytes) = client.fetch_bytes(&url).await else { return };
-            let decoded = tokio::task::spawn_blocking(move || {
-                let rgba = image::load_from_memory(&bytes).ok()?.to_rgba8();
-                let (w, h) = rgba.dimensions();
-                Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(rgba.as_raw(), w, h))
-            })
-            .await
-            .ok()
-            .flatten();
-            let Some(buf) = decoded else { return };
+            let buf = async {
+                let item = client.item(&uid, &id).await.ok()?;
+                let url = client.image_url(&item, ImageKind::Backdrop, 1280)?;
+                let bytes = client.fetch_bytes(&url).await.ok()?;
+                tokio::task::spawn_blocking(move || {
+                    let rgba = image::load_from_memory(&bytes).ok()?.to_rgba8();
+                    let (w, h) = rgba.dimensions();
+                    Some(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(rgba.as_raw(), w, h))
+                })
+                .await
+                .ok()
+                .flatten()
+            }
+            .await;
+            let Some(buf) = buf else {
+                ctx.hover_fade_out(my);
+                return;
+            };
             let weak = ctx.ui.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if HOVER_GEN.load(Ordering::SeqCst) != my {
@@ -2698,7 +2707,16 @@ impl Ctx {
                 }
                 if let Some(ui) = weak.upgrade() {
                     let h = ui.global::<Hover>();
-                    h.set_image(Image::from_rgba8(buf));
+                    let img = Image::from_rgba8(buf);
+                    if !h.get_active() {
+                        // Nothing showing: load into the front layer and fade it in.
+                        if h.get_front_b() { h.set_image_b(img) } else { h.set_image(img) }
+                    } else {
+                        // Cross-fade: load into the hidden layer and make it the front one.
+                        let b = !h.get_front_b();
+                        if b { h.set_image_b(img) } else { h.set_image(img) }
+                        h.set_front_b(b);
+                    }
                     h.set_active(true);
                 }
             });
@@ -2706,10 +2724,27 @@ impl Ctx {
     }
 
     fn hover_left(&self) {
-        HOVER_GEN.fetch_add(1, Ordering::SeqCst);
-        if let Some(ui) = self.ui.upgrade() {
-            ui.global::<Hover>().set_active(false);
-        }
+        let my = HOVER_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+        // Grace period: if the pointer lands on another poster, its hover takes over and the
+        // current backdrop stays up instead of flashing out and back in.
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            ctx.hover_fade_out(my);
+        });
+    }
+
+    /// Fades the backdrop out, unless a newer hover has happened since `my`.
+    fn hover_fade_out(&self, my: u64) {
+        let weak = self.ui.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if HOVER_GEN.load(Ordering::SeqCst) != my {
+                return;
+            }
+            if let Some(ui) = weak.upgrade() {
+                ui.global::<Hover>().set_active(false);
+            }
+        });
     }
 
     /// Picture-in-picture: shrink this window to a small borderless always-on-top video in the
