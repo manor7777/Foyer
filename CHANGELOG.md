@@ -9,6 +9,7 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 - Opening the app no longer flashes the login page before Home when you are already signed in.
 - The sidebar now highlights the library you are in (for example TV Shows) as well as the other sections.
 - New setting, **Only show the time with the controls**: hides the clock while you watch and shows it only when the player controls are visible (paused or hovered).
+- Windows mini player: smoother. The video is no longer redrawn when only the interface changes (dragging, hovering), and the graphics setup is done once instead of every frame. This could not be profiled with a real video here, so please say if it is still stuttery.
 
 ## Foyer 0.27.1
 

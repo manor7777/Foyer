@@ -309,6 +309,7 @@ struct SurfState {
     mpv: usize,    // mpv core handle, published by the player thread (0 = none)
     render: usize, // mpv render context, owned by the GL thread (0 = none)
     release: bool, // player asked the GL thread to free the render context
+    gl: Option<GlFns>, // resolved once per GL context
     mini: Option<MiniTex>, // off-screen target used while the video is shown as a small in-app image
 }
 
@@ -325,6 +326,7 @@ const GL_TEXTURE_2D: u32 = 0x0DE1;
 const GL_FRAMEBUFFER: u32 = 0x8D40;
 
 /// The few GL entry points needed to manage the off-screen target.
+#[derive(Clone, Copy)]
 struct GlFns {
     gen_tex: unsafe extern "system" fn(i32, *mut u32),
     del_tex: unsafe extern "system" fn(i32, *const u32),
@@ -402,7 +404,7 @@ impl Surface {
     /// `redraw` asks the host to repaint (called from any thread).
     pub fn new(redraw: impl Fn() + Send + Sync + 'static) -> Self {
         Surface(Arc::new(SurfaceInner {
-            state: Mutex::new(SurfState { api: None, mpv: 0, render: 0, release: false, mini: None }),
+            state: Mutex::new(SurfState { api: None, mpv: 0, render: 0, release: false, gl: None, mini: None }),
             redraw: Box::new(redraw),
         }))
     }
@@ -443,8 +445,13 @@ impl Surface {
             }
             if st.render != 0 {
                 let ctx = st.render as *mut c_void;
-                (api.render_update)(ctx);
-                let gl = GlFns::load(loader);
+                // Bit 0: mpv has a new video frame to draw.
+                let new_frame = (api.render_update)(ctx) & 1 != 0;
+                if st.gl.is_none() {
+                    st.gl = GlFns::load(loader);
+                }
+                let gl = st.gl;
+                let mut fresh = false;
                 // Off-screen target: (re)create it to match, or drop it when no longer wanted.
                 let mut target = None;
                 if let Some(gl) = &gl {
@@ -455,6 +462,7 @@ impl Surface {
                                     gl.free(m);
                                 }
                                 st.mini = Some(gl.create(mw.max(2), mh.max(2)));
+                                fresh = true;
                             }
                             target = st.mini;
                         }
@@ -464,6 +472,11 @@ impl Surface {
                         }
                         (None, None) => {}
                     }
+                }
+                // The small picture keeps its last frame, so redraws caused by the UI alone (dragging, hover) cost nothing.
+                if target.is_some() && !new_frame && !fresh {
+                    GL_LOADER.store(0, Ordering::Release);
+                    return target.map(|m| m.tex);
                 }
                 let mut prev_fbo = 0i32;
                 if let (Some(gl), Some(_)) = (&gl, target) {
@@ -510,6 +523,8 @@ impl Surface {
             }
             st.render = 0;
         }
+        st.gl = None;
+        st.mini = None;
     }
 
     fn publish(&self, api: Api, mpv: *mut c_void) {
