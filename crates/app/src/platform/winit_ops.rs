@@ -129,3 +129,8 @@ pub fn left_button_down() -> bool {
 }
 #[cfg(not(windows))]
 pub fn set_window_rect(_w: &slint::Window, _x: i32, _y: i32, _width: i32, _height: i32) {}
+
+/// Windows has its own display scaling, which the window already follows.
+pub fn font_scale() -> f32 {
+    1.0
+}

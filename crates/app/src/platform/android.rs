@@ -270,3 +270,13 @@ pub fn left_button_down() -> bool {
     false
 }
 pub fn set_window_rect(_w: &slint::Window, _x: i32, _y: i32, _width: i32, _height: i32) {}
+
+/// The system font size setting (1.0 = normal; Settings > Display > Font size).
+pub fn font_scale() -> f32 {
+    with_env(|env, act| {
+        let res = env.call_method(act, "getResources", "()Landroid/content/res/Resources;", &[])?.l()?;
+        let cfg = env.call_method(&res, "getConfiguration", "()Landroid/content/res/Configuration;", &[])?.l()?;
+        env.get_field(&cfg, "fontScale", "F")?.f()
+    })
+    .unwrap_or(1.0)
+}

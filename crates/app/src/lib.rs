@@ -59,7 +59,7 @@ fn perf_add(sum: &AtomicU64, max: &AtomicU64, d: Duration) {
 fn perf_report() {
     let g = |a: &AtomicU64| a.swap(0, Ordering::Relaxed);
     let (frames, steps) = (g(&PERF.frames).max(1), g(&PERF.steps).max(1));
-    applog(&format!(
+    dlog(&format!(
         "video draw: {} frames, {} resize steps; ms avg/max: mpv render {:.1}/{:.1}, whole draw {:.1}/{:.1}, between frames {:.1}/{:.1}, SetWindowPos {:.1}/{:.1}",
         frames,
         steps,
@@ -3928,16 +3928,18 @@ pub fn run() -> Result<(), slint::PlatformError> {
     // TV remote: arrows move focus along the page. Slint already moves focus on Tab / Shift+Tab, so
     // send those (after the current key event has finished, not from inside its handler).
     {
-        let weak = ui.as_weak();
-        ui.on_dpad(move |dir| {
-            let weak = weak.clone();
+        let step = |weak: Weak<AppWindow>, dir: i32| {
             slint::Timer::single_shot(Duration::from_millis(0), move || {
                 let Some(ui) = weak.upgrade() else { return };
                 let key: slint::SharedString = if dir > 0 { slint::platform::Key::Tab } else { slint::platform::Key::Backtab }.into();
                 ui.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text: key.clone() });
                 ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text: key });
             });
-        });
+        };
+        let weak = ui.as_weak();
+        ui.on_dpad(move |dir| step(weak.clone(), dir));
+        let weak = ui.as_weak();
+        ui.global::<DpadNav>().on_step(move |dir| step(weak.clone(), dir));
     }
     notes::serve_instance(instance_lock, ui.as_weak());
 
@@ -3964,7 +3966,8 @@ pub fn run() -> Result<(), slint::PlatformError> {
             slint::RenderingState::BeforeRendering => {
                 t_before.set(Instant::now());
                 if let (slint::GraphicsAPI::NativeOpenGL { get_proc_address }, Some(ui)) = (api, weak.upgrade()) {
-                    PERF.on.store(PERF.drag.load(Ordering::Relaxed) || ui.get_video_tex(), Ordering::Relaxed);
+                    // Timing is only collected with debug logging on (Settings > Advanced).
+                    PERF.on.store(DEBUG.load(Ordering::Relaxed) && (PERF.drag.load(Ordering::Relaxed) || ui.get_video_tex()), Ordering::Relaxed);
                     let size = ui.window().size();
                     // In the in-app mini player the video goes into a texture the UI draws as an image.
                     let mini = match PIP_TEX.load(Ordering::Relaxed) {
@@ -4094,11 +4097,18 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let c = ctx.clone();
     ui.on_go_home(move || c.go_home());
     let c = ctx.clone();
-    ui.on_search(move |t| {
-        let t = t.trim().to_string();
-        if !t.is_empty() {
-            c.do_search(t);
-        }
+    ui.on_search(move |typed| {
+        // The on-screen keyboard commits the word it is composing when it is dismissed, a moment after this
+        // fires, so search what the box holds then rather than what it held now.
+        let c = c.clone();
+        slint::Timer::single_shot(Duration::from_millis(200), move || {
+            let held = c.ui.upgrade().map(|ui| ui.get_search_text().to_string()).unwrap_or_default();
+            let t = if held.trim().is_empty() { typed.to_string() } else { held };
+            let t = t.trim().to_string();
+            if !t.is_empty() {
+                c.do_search(t);
+            }
+        });
     });
     let c = ctx.clone();
     ui.on_open_search(move || c.navigate(Page::Search(String::new()), true));
@@ -4967,8 +4977,22 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     {
         let c = ctx.clone();
         let cursor_hidden = std::cell::Cell::new(false);
+        // Android: follow Settings > Display > Font size. Slint can't scale text alone, so the whole UI scale is
+        // multiplied by it. `base` is the device's own scale; the backend may reset it, which is noticed here.
+        let (base_scale, applied_scale) = (std::cell::Cell::new(0.0f32), std::cell::Cell::new(0.0f32));
         hide_timer.start(slint::TimerMode::Repeated, Duration::from_millis(400), move || {
             let Some(ui) = c.ui.upgrade() else { return };
+            if cfg!(target_os = "android") {
+                let sf = ui.window().scale_factor();
+                if (sf - applied_scale.get()).abs() > 0.001 {
+                    base_scale.set(sf);
+                }
+                let want = base_scale.get() * platform::font_scale().clamp(0.8, 2.0);
+                applied_scale.set(want);
+                if (want - sf).abs() > 0.001 {
+                    ui.window().dispatch_event(slint::platform::WindowEvent::ScaleFactorChanged { scale_factor: want });
+                }
+            }
             if ui.get_playing()
                 && ui.get_controls_shown()
                 && !ui.get_menu_hold()

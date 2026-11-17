@@ -18,15 +18,15 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1794927306.631033,
-    "seen": 1794927409.9395077,
-    "ast_hash": "817872f912c943c06cf5f4d18cdbcc2e",
+    "mtime": 1794939133.3368194,
+    "seen": 1794939352.7572184,
+    "ast_hash": "28953ede795738ec544a82d8fe8095cd",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
-    "mtime": 1794928051.943679,
-    "seen": 1794928111.5107276,
-    "ast_hash": "791b337048aa8c2c163efd99ffffdc66",
+    "mtime": 1794936554.580559,
+    "seen": 1794939352.7572196,
+    "ast_hash": "e8300504962c796de1784afc87338df8",
     "semantic_hash": ""
   },
   "crates/app/build.rs": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794930748.2555099,
-    "seen": 1794930758.1102903,
-    "ast_hash": "39ff14d47784eaa99160afdf933be017",
+    "mtime": 1794939133.3003633,
+    "seen": 1794939352.7573974,
+    "ast_hash": "00741686860b2b640285659a9d65b004",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -144,15 +144,15 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794919530.5248325,
-    "seen": 1794922732.0121033,
-    "ast_hash": "cd7c5f1030484b9e9017af1e68d70561",
+    "mtime": 1794936601.3465085,
+    "seen": 1794939352.7574012,
+    "ast_hash": "6e74efbd1c79a87f20b0e063523bbe86",
     "semantic_hash": ""
   },
   "docs/ANDROID-PLAN.md": {
-    "mtime": 1794919530.5629225,
-    "seen": 1794922732.012106,
-    "ast_hash": "3470e464c884b34a1fe3df93224c93f4",
+    "mtime": 1794936601.3459795,
+    "seen": 1794939352.7574027,
+    "ast_hash": "7e9d82e2cd8d15f8acc33cb57d14e426",
     "semantic_hash": ""
   },
   "crates/app/assets/app-1024.png": {
@@ -456,15 +456,15 @@
     "semantic_hash": ""
   },
   ".github/workflows/android.yml": {
-    "mtime": 1794919530.50967,
-    "seen": 1794922732.0118058,
-    "ast_hash": "616659c85caf40d315646b81544efdc2",
+    "mtime": 1794936554.580559,
+    "seen": 1794939352.7572126,
+    "ast_hash": "a84f98a3cc94db320a532c7a56310ca9",
     "semantic_hash": ""
   },
   ".github/workflows/libmpv-android.yml": {
-    "mtime": 1794919530.5187888,
-    "seen": 1794922732.0118082,
-    "ast_hash": "20e3df5933381852d5cd53cc7296240c",
+    "mtime": 1794936554.579957,
+    "seen": 1794939352.7572148,
+    "ast_hash": "73565f8eb1abf4c2de8368a23555c26c",
     "semantic_hash": ""
   },
   "crates/app/android/java/app/foyer/player/Export.java": {
@@ -498,15 +498,15 @@
     "semantic_hash": ""
   },
   "crates/app/src/lib.rs": {
-    "mtime": 1794930570.4405272,
-    "seen": 1794930758.1100273,
-    "ast_hash": "2cf93bf2adc4b0b12d0b1a09b4920aaa",
+    "mtime": 1794939068.8450036,
+    "seen": 1794939352.7572374,
+    "ast_hash": "b46e2cf873bc89102b7e079e634cf52f",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android.rs": {
-    "mtime": 1794928051.9442077,
-    "seen": 1794928111.5107515,
-    "ast_hash": "f7b6969108c1ae47db667f7b89a4dfe8",
+    "mtime": 1794939068.8392758,
+    "seen": 1794939352.757243,
+    "ast_hash": "a1fb03d8fe3c2f95a0248aa2b6f1a3e5",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android_media.rs": {
@@ -540,9 +540,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/platform/winit_ops.rs": {
-    "mtime": 1794928051.9442077,
-    "seen": 1794928111.5107596,
-    "ast_hash": "64f0481c124c5efb8e66bf3ebf7e35f7",
+    "mtime": 1794939068.8398073,
+    "seen": 1794939352.7572508,
+    "ast_hash": "ae2007b3c36aa97cf25e64441a1585ae",
     "semantic_hash": ""
   },
   "crates/app/src/sysmedia.rs": {

@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.3
+
+- Android TV: the D-pad can now leave a text field. Up and Down inside the sign-in boxes (and any other text box) move to the previous or next control instead of moving the text cursor, so you can get from the server address to the user name, password and Sign in button.
+- Android: search now works with the on-screen keyboard. The keyboard keeps the word you are typing "in progress" until it is dismissed, so pressing Search or Enter searched the text without that last word, or nothing at all. Searching now hides the keyboard first, which finalises the word, and then searches what the box holds.
+- Android: Foyer follows the system font size (Settings > Display > Font size). Because the interface can't scale text on its own, the whole interface scales with it.
+- Android: the "Loading…" message in the player is centred on the visible screen.
+- The timing log used while tuning picture-in-picture is now only written when debug logging is turned on in Settings > Advanced.
+
 ## Foyer 0.28.2
 
 - Android: the APK now also contains a 32-bit ARM build (and the 32-bit video engine). Many Android TVs and set-top boxes run a 32-bit-only system even on a recent Android TV version, and refused to install Foyer with "This app isn't compatible with your TV". The one APK now installs on both 64-bit and 32-bit devices; it is larger because it carries both. If your TV still says it isn't compatible, tell me what `getprop ro.product.cpu.abilist` shows for it.
