@@ -2,6 +2,10 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.2
+
+- Android: the APK now also contains a 32-bit ARM build (and the 32-bit video engine). Many Android TVs and set-top boxes run a 32-bit-only system even on a recent Android TV version, and refused to install Foyer with "This app isn't compatible with your TV". The one APK now installs on both 64-bit and 32-bit devices; it is larger because it carries both. If your TV still says it isn't compatible, tell me what `getprop ro.product.cpu.abilist` shows for it.
+
 ## Foyer 0.28.1
 
 - Fixed the mouse pointer and player controls hiding while the cast device picker was open on Windows, which made it impossible to pick a device.

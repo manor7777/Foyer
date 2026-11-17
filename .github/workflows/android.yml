@@ -38,7 +38,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android
+          targets: aarch64-linux-android,armv7-linux-androideabi
 
       - uses: Swatinem/rust-cache@v2
 
@@ -51,42 +51,45 @@ jobs:
       - name: Fetch libmpv for Android
         env:
           GH_TOKEN: ${{ github.token }}
-          # Optional override: URL of a zip holding arm64-v8a/*.so (repository variable ANDROID_LIBMPV_URL).
+          # Optional override: URL of a zip holding arm64-v8a/*.so (the 64-bit engine only) (repository variable ANDROID_LIBMPV_URL).
           # Normally unset: the zip comes from this repo's `libmpv-android` release, built by libmpv-android.yml.
           OVERRIDE_URL: ${{ vars.ANDROID_LIBMPV_URL }}
           RELEASE: ${{ inputs.release }}
         run: |
-          mkdir -p crates/app/android/libs/arm64-v8a
+          mkdir -p crates/app/android/libs
+          # One zip per CPU type (arm64 = 64-bit, armv7 = 32-bit-only devices such as many Android TVs).
           fetch_from_release() {
-            gh release download libmpv-android --repo "$GITHUB_REPOSITORY" --pattern libmpv-android-arm64.zip --output libmpv.zip 2>/dev/null
+            gh release download libmpv-android --repo "$GITHUB_REPOSITORY" --pattern "libmpv-android-$1.zip" --output "libmpv-$1.zip" 2>/dev/null
           }
           fetch_from_run_artifact() {
             # Newest runs of the libmpv workflow first; the first one that still has its artifact wins.
             for id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow libmpv-android.yml --limit 15 --json databaseId --jq '.[].databaseId'); do
-              rm -rf libmpv-dl
-              if gh run download "$id" --repo "$GITHUB_REPOSITORY" --name libmpv-android-arm64 --dir libmpv-dl 2>/dev/null && [ -f libmpv-dl/libmpv-android-arm64.zip ]; then
-                mv libmpv-dl/libmpv-android-arm64.zip libmpv.zip
-                echo "Using the libmpv artifact from run $id"
+              rm -rf "libmpv-dl-$1"
+              if gh run download "$id" --repo "$GITHUB_REPOSITORY" --name "libmpv-android-$1" --dir "libmpv-dl-$1" 2>/dev/null && [ -f "libmpv-dl-$1/libmpv-android-$1.zip" ]; then
+                mv "libmpv-dl-$1/libmpv-android-$1.zip" "libmpv-$1.zip"
+                echo "Using the libmpv ($1) artifact from run $id"
                 return 0
               fi
             done
             return 1
           }
-          if [ -n "$OVERRIDE_URL" ]; then
-            curl -fsSL "$OVERRIDE_URL" -o libmpv.zip
-          else
-            fetch_from_release || fetch_from_run_artifact || {
-              if [ "$RELEASE" = "true" ]; then
-                echo "::error::No libmpv build found: run the 'libmpv for Android' workflow first. Refusing to release an APK with no video."
-                exit 1
-              fi
-              echo "::warning::No libmpv build found (run the 'libmpv for Android' workflow): this APK has no video engine."
-            }
-          fi
-          if [ -f libmpv.zip ]; then
-            unzip -q -o libmpv.zip -d crates/app/android/libs
-            ls -l crates/app/android/libs/arm64-v8a
-          fi
+          for cpu in arm64 armv7; do
+            if [ -n "$OVERRIDE_URL" ] && [ "$cpu" = arm64 ]; then
+              curl -fsSL "$OVERRIDE_URL" -o libmpv-arm64.zip
+            else
+              fetch_from_release "$cpu" || fetch_from_run_artifact "$cpu" || {
+                if [ "$RELEASE" = "true" ]; then
+                  echo "::error::No libmpv ($cpu) build found: run the 'libmpv for Android' workflow first. Refusing to release an APK without it."
+                  exit 1
+                fi
+                echo "::warning::No libmpv ($cpu) build found (run the 'libmpv for Android' workflow): this APK has no video engine for that CPU type."
+              }
+            fi
+            if [ -f "libmpv-$cpu.zip" ]; then
+              unzip -q -o "libmpv-$cpu.zip" -d crates/app/android/libs
+            fi
+          done
+          ls -l crates/app/android/libs/*
 
       - name: Signing key
         env:

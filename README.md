@@ -93,7 +93,7 @@ Releases are cut by hand: bump `version` in `Cargo.toml`, add a `## Foyer X.Y.Z`
 
 The APK is signed with an Android keystore kept in the repository secrets `ANDROID_KEYSTORE_BASE64` (the `.jks` file, base64-encoded) and `ANDROID_KEYSTORE_PASSWORD`. **Back that keystore up**: Android refuses to update an app signed with a different key.
 
-The Android video engine (an LGPL build of libmpv and FFmpeg for arm64) comes from the **libmpv for Android** workflow, which runs on its own and keeps the result as a build artifact. Re-run it to pick up newer engine versions; `SOURCES.txt` inside its output lists the exact source revisions.
+The Android video engine (an LGPL build of libmpv and FFmpeg for arm64 and 32-bit ARM) comes from the **libmpv for Android** workflow, which runs on its own and keeps the result as a build artifact. Re-run it to pick up newer engine versions; `SOURCES.txt` inside its output lists the exact source revisions.
 
 ## Licence
 

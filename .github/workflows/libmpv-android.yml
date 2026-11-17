@@ -1,6 +1,6 @@
 name: libmpv for Android
 
-# Builds an LGPL libmpv (with FFmpeg, MediaCodec decoding, libass) for Android arm64 from the
+# Builds an LGPL libmpv (with FFmpeg, MediaCodec decoding, libass) for Android arm64 and 32-bit ARM from the
 # mpv-android build scripts, and publishes it as the `libmpv-android` release that android.yml bundles
 # into the APK. Run it by hand (Actions > libmpv for Android) when you want newer engine versions; it
 # also runs when this file changes. Takes roughly 40-60 minutes.
@@ -24,6 +24,14 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 64-bit phones and TVs
+          - { name: arm64, arch: arm64, abi: arm64-v8a, ndk_triple: aarch64-linux-android }
+          # 32-bit-only devices (many Android TVs report "not compatible" without this one)
+          - { name: armv7, arch: armv7l, abi: armeabi-v7a, ndk_triple: arm-linux-androideabi }
     steps:
       - uses: actions/checkout@v4
 
@@ -66,26 +74,26 @@ jobs:
           ./include/download-sdk.sh
           ./include/download-deps.sh
 
-      - name: Build libmpv (arm64)
+      - name: Build libmpv (${{ matrix.abi }})
         working-directory: mpv-android/buildscripts
-        run: ./buildall.sh --arch arm64 mpv
+        run: ./buildall.sh --arch ${{ matrix.arch }} mpv
 
       - name: Collect the libraries
         run: |
-          prefix="mpv-android/buildscripts/prefix/arm64/lib"
+          prefix="mpv-android/buildscripts/prefix/${{ matrix.arch }}/lib"
           ls -l "$prefix" | head -60
-          mkdir -p out/arm64-v8a
+          mkdir -p out/${{ matrix.abi }}
           # Real files only (cp -L follows the soname symlinks FFmpeg creates).
           find "$prefix" -maxdepth 1 \( -name 'libmpv*.so*' -o -name 'libav*.so*' -o -name 'libsw*.so*' -o -name 'libpostproc*.so*' \) | while read -r f; do
-            cp -L "$f" "out/arm64-v8a/$(basename "$f")"
+            cp -L "$f" "out/${{ matrix.abi }}/$(basename "$f")"
           done
-          ls -l out/arm64-v8a
-          test -f out/arm64-v8a/libmpv.so || { echo "::error::libmpv.so was not produced"; exit 1; }
+          ls -l out/${{ matrix.abi }}
+          test -f out/${{ matrix.abi }}/libmpv.so || { echo "::error::libmpv.so was not produced"; exit 1; }
 
       - name: Check the libraries are LGPL and loadable
         run: |
           NDK_BIN="$(echo "$PWD"/mpv-android/buildscripts/sdk/android-ndk-*/toolchains/llvm/prebuilt/*/bin)"
-          cd out/arm64-v8a
+          cd out/${{ matrix.abi }}
           # FFmpeg embeds its configure line; a GPL or nonfree build says so.
           for f in libavutil*.so* libavcodec*.so*; do
             [ -f "$f" ] || continue
@@ -111,13 +119,13 @@ jobs:
       - name: Bundle libc++ if something needs it
         run: |
           if [ -f "$RUNNER_TEMP/missing.txt" ] && grep -q 'libc++_shared.so' "$RUNNER_TEMP/missing.txt"; then
-            cp "$(echo "$PWD"/mpv-android/buildscripts/sdk/android-ndk-*/toolchains/llvm/prebuilt/*/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so)" out/arm64-v8a/
+            cp "$(echo "$PWD"/mpv-android/buildscripts/sdk/android-ndk-*/toolchains/llvm/prebuilt/*/sysroot/usr/lib/${{ matrix.ndk_triple }}/libc++_shared.so)" out/${{ matrix.abi }}/
           fi
 
       - name: Record what went into it (LGPL source offer)
         run: |
           {
-            echo "libmpv for Android (arm64-v8a), built by .github/workflows/libmpv-android.yml in $GITHUB_REPOSITORY"
+            echo "libmpv for Android (${{ matrix.abi }}), built by .github/workflows/libmpv-android.yml in $GITHUB_REPOSITORY"
             echo "Built: $(date -u +%FT%TZ)"
             echo "License: LGPL (FFmpeg without --enable-gpl, mpv with -Dgpl=false), dynamically linked."
             echo
@@ -131,12 +139,12 @@ jobs:
             echo "Corresponding source for each component is available at the URLs and revisions above."
           } > out/SOURCES.txt
           cat out/SOURCES.txt
-          cd out && zip -r ../libmpv-android-arm64.zip .
+          cd out && zip -r ../libmpv-android-${{ matrix.name }}.zip .
 
       - uses: actions/upload-artifact@v4
         with:
-          name: libmpv-android-arm64
-          path: libmpv-android-arm64.zip
+          name: libmpv-android-${{ matrix.name }}
+          path: libmpv-android-${{ matrix.name }}.zip
           if-no-files-found: error
           retention-days: 90
 
@@ -147,11 +155,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view libmpv-android >/dev/null 2>&1; then
-            gh release upload libmpv-android libmpv-android-arm64.zip --clobber
-          else
-            gh release create libmpv-android libmpv-android-arm64.zip \
-              --prerelease --target "$GITHUB_SHA" \
-              --title "libmpv for Android (LGPL, arm64)" \
-              --notes "Engine libraries bundled into Foyer.apk. Built by the 'libmpv for Android' workflow; SOURCES.txt inside the zip lists the exact source revisions. Not a Foyer release."
-          fi
+          # The arm64 and 32-bit jobs run side by side: whichever is first creates the release, both then upload.
+          gh release view libmpv-android >/dev/null 2>&1 || gh release create libmpv-android \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "libmpv for Android (LGPL)" \
+            --notes "Engine libraries bundled into Foyer.apk (one zip per CPU type). Built by the 'libmpv for Android' workflow; SOURCES.txt inside each zip lists the exact source revisions. Not a Foyer release." || true
+          gh release upload libmpv-android libmpv-android-${{ matrix.name }}.zip --clobber

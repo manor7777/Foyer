@@ -52,6 +52,6 @@ Everything below is built by CI on every push; none of it has been run on a real
 - Known gaps / next:
   - First run on a real phone and TV (expect fixes: safe-area insets, layouts below ~400 px wide, popup menus on a remote, the player controls overlay by remote).
   - Directional (up/down) focus movement is linear (Tab order); a row-aware grid navigation would feel better on TV.
-  - Material You accent, Android Picture-in-Picture, background notifications, 32-bit ARM and x86 builds.
+  - Material You accent, Android Picture-in-Picture, background notifications, x86 builds (32-bit ARM is done).
   - Much of `lib.rs` (about 4,500 lines) is still UI glue that could move into the core crate.
   - Picture-in-picture on Android needs `android:supportsPictureInPicture` on the activity, which cargo-apk 0.26-era manifests cannot express; it needs a custom manifest or a different packaging step. Until then the mini player and window-shrink PiP are desktop-only.

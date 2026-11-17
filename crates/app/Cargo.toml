@@ -53,7 +53,7 @@ embed-resource = "3"
 [package.metadata.android]
 package = "app.foyer.player"
 apk_name = "Foyer"
-build_targets = ["aarch64-linux-android"]
+build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
 runtime_libs = "android/libs"
 resources = "android/res"
 
