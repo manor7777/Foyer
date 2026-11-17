@@ -9,6 +9,8 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 - Opening the app no longer flashes the login page before Home when you are already signed in.
 - The sidebar now highlights the library you are in (for example TV Shows) as well as the other sections.
 - New setting, **Only show the time with the controls**: hides the clock while you watch and shows it only when the player controls are visible (paused or hovered).
+- **Downloads** (Emby and Jellyfin, for users with "Allow media downloading" on the server). A title's Options menu and the press-and-hold / right-click menu on a poster now offer **Download for offline play** (kept inside Foyer, plays with no server) and **Download as file** (saved to Downloads/Foyer). On a season or series they download every episode. The new **Downloads** page in the sidebar shows progress and lets you cancel, play, remove or (on Windows) open the folder. You get a notification when a download finishes or fails (one for the whole batch for a season or series).
+- **Offline mode.** If the server can't be reached and you have offline copies, Foyer stays signed in, shows an "You're offline" banner with **Try again**, greys out the sidebar sections that need the server, and shows your downloads, which play normally. Playback progress isn't sent to the server while offline. Titles with an offline copy play from disk even when you are online.
 - Windows mini player: smoother. The video is no longer redrawn when only the interface changes (dragging, hovering), and the graphics setup is done once instead of every frame. This could not be profiled with a real video here, so please say if it is still stuttery.
 
 ## Foyer 0.27.1

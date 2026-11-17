@@ -582,7 +582,30 @@ export struct Card {
 }
 
 /// State and actions for the press-and-hold / right-click menu on a poster.
+export struct DownloadRow {
+    id: string,
+    title: string,
+    status: string,
+    progress: float,
+    /// 0 waiting, 1 downloading, 2 finished, 3 failed
+    state: int,
+    offline: bool,
+}
+
+/// Downloads: what the server lets this user do, and the list shown on the Downloads page.
+export global DownloadsUi {
+    in-out property <bool> allowed;
+    in-out property <bool> any;
+    in-out property <[DownloadRow]> rows;
+    callback start(string, bool); // id (item, season or series), keep for offline play?
+    callback cancel(string, bool);
+    callback remove(string, bool);
+    callback play(string);
+    callback open-folder(string);
+}
+
 export global CardMenu {
+    in-out property <bool> downloaded;
     in-out property <bool> played;
     in-out property <bool> favorite;
     in-out property <Card> card;
@@ -1513,12 +1536,14 @@ component DetailMenu inherits Rectangle {
     in property <string> cw-label;
     in property <bool> can-cw-season: false;
     in property <bool> can-report: false;
+    in property <bool> can-download: false;
+    in property <string> item-id;
     callback follow();
     callback hide();
     callback cw(bool);
     callback report();
     property <length> row-h: Device.touch ? 50px : 36px;
-    property <int> rows: (root.can-follow ? 1 : 0) + (root.can-hide ? 1 : 0) + (root.can-cw ? 1 : 0) + (root.can-cw-season ? 1 : 0) + (root.can-report ? 1 : 0);
+    property <int> rows: (root.can-follow ? 1 : 0) + (root.can-hide ? 1 : 0) + (root.can-cw ? 1 : 0) + (root.can-cw-season ? 1 : 0) + (root.can-report ? 1 : 0) + (root.can-download ? 2 : 0);
     height: 40px;
     width: btn.preferred-width;
     btn := PillButton {
@@ -1564,6 +1589,16 @@ component DetailMenu inherits Rectangle {
                     icon: @image-url("icons/close.svg");
                     clicked => { root.cw(true); }
                 }
+                if root.can-download: CardMenuRow {
+                    label: "Download for offline play";
+                    icon: @image-url("icons/download.svg");
+                    clicked => { DownloadsUi.start(root.item-id, true); }
+                }
+                if root.can-download: CardMenuRow {
+                    label: "Download as file";
+                    icon: @image-url("icons/download.svg");
+                    clicked => { DownloadsUi.start(root.item-id, false); }
+                }
                 if root.can-report: CardMenuRow {
                     label: "Report a problem";
                     icon: @image-url("icons/warning.svg");
@@ -1591,9 +1626,10 @@ component CardView inherits Rectangle {
     property <bool> menu-ok: root.card.kind != "Person" && root.card.kind != "person" && root.card.kind != "LiveTvView" && root.card.kind != "TvChannel" && !root.card.next-season && root.card.id != "";
     property <bool> can-play: !root.sr && (root.card.kind == "Movie" || root.card.kind == "Episode" || root.card.kind == "Video");
     property <bool> can-follow: root.followable && root.card.kind == "Series";
+    property <bool> can-dl: !root.sr && DownloadsUi.allowed && (root.card.kind == "Movie" || root.card.kind == "Episode" || root.card.kind == "Video" || root.card.kind == "Series" || root.card.kind == "Season" || root.card.kind == "BoxSet");
     property <bool> in-cw: !root.sr && root.card.progress > 0 && root.card.progress < 1;
     property <bool> can-request: root.sr && root.card.badge == "" && !root.asked;
-    property <int> rows: root.sr ? (1 + (root.can-request ? 1 : 0)) : (1 + (root.can-play ? 1 : 0) + 2 + (root.can-follow ? 1 : 0) + (root.in-cw ? 1 : 0));
+    property <int> rows: root.sr ? (1 + (root.can-request ? 1 : 0)) : (1 + (root.can-play ? 1 : 0) + 2 + (root.can-follow ? 1 : 0) + (root.in-cw ? 1 : 0) + (root.can-dl ? 2 : 0));
     property <length> menu-w: 240px;
     property <length> menu-h: root.rows * (Device.touch ? 50px : 36px) + 16px + 2px * root.rows;
     property <length> menu-x: 0px;
@@ -1841,6 +1877,19 @@ component CardView inherits Rectangle {
                     on: CardMenu.favorite;
                     clicked => { CardMenu.flag(root.card.id, true, !CardMenu.favorite); }
                 }
+                if root.can-dl: CardMenuRow {
+                    label: CardMenu.downloaded ? "Downloaded (remove)" : "Download for offline play";
+                    icon: @image-url("icons/download.svg");
+                    on: CardMenu.downloaded;
+                    clicked => {
+                        if (CardMenu.downloaded) { DownloadsUi.remove(root.card.id, true); } else { DownloadsUi.start(root.card.id, true); }
+                    }
+                }
+                if root.can-dl: CardMenuRow {
+                    label: "Download as file";
+                    icon: @image-url("icons/download.svg");
+                    clicked => { DownloadsUi.start(root.card.id, false); }
+                }
                 if root.can-follow: CardMenuRow {
                     label: root.card.followed ? "Stop following" : "Follow for new episodes";
                     icon: @image-url("icons/bell.svg");
@@ -2084,6 +2133,10 @@ export component AppWindow inherits Window {
     in property <bool> busy: false;
     /// A saved sign-in is being checked: show nothing rather than flash the login page.
     in property <bool> restoring: false;
+    /// The server can't be reached: only downloads are shown.
+    in-out property <bool> offline: false;
+    callback open-downloads();
+    callback retry-online();
     /// The library whose page is open, so the sidebar can highlight it.
     in property <string> current-lib;
     in property <string> user-name;
@@ -3061,6 +3114,90 @@ export component AppWindow inherits Window {
             }
 
             // ---- notifications ----
+            // ---- downloads ----
+            if page == "downloads": ScrollView {
+                content-y <=> PageScroll.y;
+                changed content-height => { PageScroll.range = self.content-height - self.height; }
+                content-width: self.visible-width;
+                mouse-drag-pan-enabled: true;
+                VerticalLayout {
+                    alignment: start;
+                    padding: 24px;
+                    spacing: 10px;
+                    Heading { text: "Downloads"; }
+                    if DownloadsUi.rows.length == 0: Text {
+                        text: "Nothing downloaded yet. Use a title's Options menu (or press and hold / right-click a poster) to download it for offline play or as a file.";
+                        color: Palette.foreground;
+                        opacity: 0.6;
+                        wrap: word-wrap;
+                    }
+                    for d in DownloadsUi.rows: Rectangle {
+                        height: 76px;
+                        border-radius: 10px;
+                        background: Palette.control-background;
+                        border-width: 1px;
+                        border-color: Palette.border;
+                        property <length> btn-w: (d.state == 2 && (d.offline || Device.desktop) ? 44px : 0px) + 44px + 12px;
+                        Text {
+                            x: 16px;
+                            y: 12px;
+                            width: parent.width - 32px - parent.btn-w;
+                            text: d.title;
+                            color: Palette.foreground;
+                            font-size: 14px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                        Text {
+                            x: 16px;
+                            y: 36px;
+                            width: parent.width - 32px - parent.btn-w;
+                            text: (d.offline ? "Offline copy" : "File") + "  ·  " + d.status;
+                            color: Palette.foreground;
+                            opacity: 0.65;
+                            font-size: 12px;
+                            overflow: elide;
+                        }
+                        if d.state < 2: Rectangle {
+                            x: 16px;
+                            y: parent.height - 14px;
+                            width: parent.width - 32px;
+                            height: 4px;
+                            border-radius: 2px;
+                            background: Palette.foreground.with-alpha(0.15);
+                            Rectangle {
+                                width: parent.width * d.progress;
+                                border-radius: 2px;
+                                background: Palette.accent-background;
+                            }
+                        }
+                        HorizontalLayout {
+                            x: parent.width - self.preferred-width - 12px;
+                            y: (parent.height - 44px) / 2;
+                            spacing: 4px;
+                            if d.state == 2 && d.offline: IconButton {
+                                icon: @image-url("icons/play.svg");
+                                size: 40px;
+                                tint: Palette.foreground;
+                                clicked => { DownloadsUi.play(d.id); }
+                            }
+                            if d.state == 2 && !d.offline && Device.desktop: IconButton {
+                                icon: @image-url("icons/library.svg");
+                                size: 40px;
+                                tint: Palette.foreground;
+                                clicked => { DownloadsUi.open-folder(d.id); }
+                            }
+                            IconButton {
+                                icon: d.state < 2 ? @image-url("icons/close.svg") : @image-url("icons/delete.svg");
+                                size: 40px;
+                                tint: Palette.foreground;
+                                clicked => { if (d.state < 2) { DownloadsUi.cancel(d.id, d.offline); } else { DownloadsUi.remove(d.id, d.offline); } }
+                            }
+                        }
+                    }
+                }
+            }
+
             if page == "notifications": ScrollView {
                 content-y <=> PageScroll.y;
                 changed content-height => { PageScroll.range = self.content-height - self.height; }
@@ -5587,6 +5724,8 @@ export component AppWindow inherits Window {
                                     cw-label: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
                                     can-cw-season: detail.kind == "Season" || detail.kind == "Episode";
                                     can-report: root.sr-connected && root.sr-can-report;
+                                    can-download: DownloadsUi.allowed && (detail.kind == "Movie" || detail.kind == "Episode" || detail.kind == "Series" || detail.kind == "Season" || detail.kind == "BoxSet" || detail.kind == "Video");
+                                    item-id: detail.id;
                                     follow => { root.toggle-follow(); }
                                     hide => { root.hide-item(); }
                                     cw(season) => { root.cw-hide(season); }
@@ -5625,6 +5764,8 @@ export component AppWindow inherits Window {
                                     cw-label: detail.kind == "Movie" ? "Remove from Continue Watching" : "Remove series from Continue Watching";
                                     can-cw-season: detail.kind == "Season" || detail.kind == "Episode";
                                     can-report: root.sr-connected && root.sr-can-report;
+                                    can-download: DownloadsUi.allowed && (detail.kind == "Movie" || detail.kind == "Episode" || detail.kind == "Series" || detail.kind == "Season" || detail.kind == "BoxSet" || detail.kind == "Video");
+                                    item-id: detail.id;
                                     follow => { root.toggle-follow(); }
                                     hide => { root.hide-item(); }
                                     cw(season) => { root.cw-hide(season); }
@@ -5917,6 +6058,7 @@ export component AppWindow inherits Window {
                 NavItem {
                     compact: !root.nav-expanded;
                     label: "Home";
+                    enabled: !root.offline;
                     icon: @image-url("icons/home.svg");
                     selected: root.page == "home";
                     clicked => {
@@ -5927,6 +6069,7 @@ export component AppWindow inherits Window {
                 NavItem {
                     compact: !root.nav-expanded;
                     label: "Search";
+                    enabled: !root.offline;
                     icon: @image-url("icons/search.svg");
                     selected: root.page == "search";
                     clicked => {
@@ -5937,6 +6080,7 @@ export component AppWindow inherits Window {
                 NavItem {
                     compact: !root.nav-expanded;
                     label: "Favourites";
+                    enabled: !root.offline;
                     icon: @image-url("icons/heart.svg");
                     selected: root.page == "grid" && root.fav-tabs.length > 0;
                     clicked => {
@@ -5947,6 +6091,7 @@ export component AppWindow inherits Window {
                 if root.seerr-on: NavItem {
                     compact: !root.nav-expanded;
                     label: "Requests";
+                    enabled: !root.offline;
                     icon: @image-url("icons/requests.svg");
                     selected: root.in-seerr;
                     clicked => {
@@ -5972,6 +6117,7 @@ export component AppWindow inherits Window {
                             spacing: 4px;
                             for lib in libraries: NavItem {
                                 compact: !root.nav-expanded;
+                                enabled: !root.offline;
                                 label: lib.title;
                                 selected: lib.subtitle == "livetv" ? root.page == "livetv" : root.current-lib == lib.id;
                                 icon: lib.subtitle == "livetv" ? @image-url("icons/live-tv.svg") : @image-url("icons/library.svg");
@@ -6023,9 +6169,20 @@ export component AppWindow inherits Window {
                         root.open-notifications();
                     }
                 }
+                if DownloadsUi.allowed || DownloadsUi.any: NavItem {
+                    compact: !root.nav-expanded;
+                    label: "Downloads";
+                    icon: @image-url("icons/download.svg");
+                    selected: root.page == "downloads";
+                    clicked => {
+                        root.nav-open = false;
+                        root.open-downloads();
+                    }
+                }
                 if root.is-admin: NavItem {
                     compact: !root.nav-expanded;
                     label: "Server";
+                    enabled: !root.offline;
                     icon: @image-url("icons/server.svg");
                     selected: root.page == "server";
                     clicked => {
@@ -6634,9 +6791,47 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ---------------- offline banner ----------------
+    if root.offline && root.page != "login": Rectangle {
+        y: root.height - self.height - (root.bottom-nav ? 96px : 16px);
+        x: (root.width - self.width) / 2;
+        width: min(560px, root.width - 32px);
+        height: 48px;
+        background: Palette.accent-background;
+        border-radius: 24px;
+        drop-shadow-blur: 12px;
+        drop-shadow-color: #00000080;
+        Image {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            width: 20px;
+            height: 20px;
+            source: @image-url("icons/cloud-off.svg");
+            colorize: Palette.accent-foreground;
+        }
+        Text {
+            x: 46px;
+            width: parent.width - 46px - 110px;
+            height: parent.height;
+            text: "You're offline. Showing your downloads.";
+            color: Palette.accent-foreground;
+            font-size: 13px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        PillButton {
+            x: parent.width - 106px;
+            y: 6px;
+            width: 100px;
+            height: 36px;
+            text: "Try again";
+            clicked => { root.retry-online(); }
+        }
+    }
+
     // ---------------- toast ----------------
     if toast != "": Rectangle {
-        y: root.height - self.height - (root.bottom-nav ? 96px : 32px);
+        y: root.height - self.height - (root.bottom-nav ? 96px : 32px) - (root.offline ? 60px : 0px);
         x: (root.width - self.width) / 2;
         width: min(560px, root.width - 32px);
         height: toast-text.preferred-height + 24px;

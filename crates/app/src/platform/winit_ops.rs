@@ -70,3 +70,16 @@ pub fn drag_resize(w: &slint::Window, dir: i32) {
         let _ = win.drag_resize_window(d);
     });
 }
+
+/// Moves a finished download into the user's Downloads\Foyer folder. Returns where it went.
+pub fn save_to_downloads(src: &std::path::Path, name: &str) -> Result<String, String> {
+    let home = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).ok_or("no home folder")?;
+    let dir = std::path::PathBuf::from(home).join("Downloads").join("Foyer");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let dest = dir.join(name);
+    if std::fs::rename(src, &dest).is_err() {
+        std::fs::copy(src, &dest).map_err(|e| e.to_string())?;
+        let _ = std::fs::remove_file(src);
+    }
+    Ok(dest.to_string_lossy().into_owned())
+}

@@ -63,6 +63,22 @@ fn main() {
         ui.set_player_pos(1680.0);
         ui.set_player_dur(2849.0);
     }
+    if page == "downloads" {
+        use foyer::DownloadsUi;
+        let row = |t: &str, st: &str, p: f32, state: i32, off: bool| foyer::DownloadRow { id: "x".into(), title: t.into(), status: st.into(), progress: p, state, offline: off };
+        let g = ui.global::<DownloadsUi>();
+        g.set_allowed(true);
+        g.set_any(true);
+        g.set_rows(slint::ModelRc::new(slint::VecModel::from(vec![
+            row("Star Trek: Discovery S1:E7 Magic to Make the Sanest Man Go Mad", "42% · 610 MB of 1.4 GB", 0.42, 1, true),
+            row("Avengers: Doomsday", "Ready to watch offline · 3.2 GB", 1.0, 2, true),
+            row("Dune: Part Two", "Saved to Downloads/Foyer/Dune.mkv", 1.0, 2, false),
+            row("Severance S2:E3 Who Is Alive?", "Failed: Interrupted", 0.0, 3, true),
+        ])));
+        if std::env::var("PREVIEW_OFFLINE").is_ok() {
+            ui.set_offline(true);
+        }
+    }
     if page == "notifications" {
         let mk = |id: &str, title: &str, body: &str, read: bool| foyer::NoteRow { id: id.into(), title: title.into(), body: body.into(), item: "x".into(), when: "Today 17:29".into(), read, ..Default::default() };
         // A stand-in poster: a gradient block.

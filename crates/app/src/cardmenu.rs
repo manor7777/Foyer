@@ -9,6 +9,9 @@ impl Ctx {
     /// so the labels are right even if the card on screen is stale.
     pub fn card_menu_open(&self, id: String) {
         let Some((client, uid)) = self.session() else { return };
+        if let Some(ui) = self.ui.upgrade() {
+            ui.global::<CardMenu>().set_downloaded(self.dl_has(&id));
+        }
         let weak = self.ui.clone();
         self.rt.spawn(async move {
             let Ok(item) = client.item(&uid, &id).await else { return };

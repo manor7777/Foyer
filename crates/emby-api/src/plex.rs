@@ -344,7 +344,7 @@ impl Client {
     /// Checks a saved server token still works. The name is filled in by the caller (kept from sign-in).
     pub(crate) async fn plex_validate(&self, user_id: &str) -> Result<User> {
         self.pget("/library/sections", &[]).await?;
-        Ok(User { id: user_id.to_string(), name: String::new(), policy: Some(Policy { is_administrator: self.plex_is_owner().await }) })
+        Ok(User { id: user_id.to_string(), name: String::new(), policy: Some(Policy { is_administrator: self.plex_is_owner().await, ..Default::default() }) })
     }
 
     // ---- browsing

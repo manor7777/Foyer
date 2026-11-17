@@ -254,3 +254,10 @@ pub fn export_logs(dir: &Path) -> Result<String, String> {
     }
     Ok("Saved to the Downloads/Foyer folder on this device.".into())
 }
+
+/// Moves a finished download into the public Downloads/Foyer folder.
+pub fn save_to_downloads(src: &Path, name: &str) -> Result<String, String> {
+    android_media::save_to_downloads(&src.to_string_lossy(), name)?;
+    let _ = std::fs::remove_file(src);
+    Ok("Downloads/Foyer".into())
+}

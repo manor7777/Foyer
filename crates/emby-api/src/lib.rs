@@ -177,12 +177,18 @@ impl User {
     pub fn is_admin(&self) -> bool {
         self.policy.as_ref().is_some_and(|p| p.is_administrator)
     }
+
+    /// The server's "Allow media downloading" permission for this user.
+    pub fn can_download(&self) -> bool {
+        self.policy.as_ref().is_some_and(|p| p.enable_content_downloading)
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "PascalCase", default)]
 pub struct Policy {
     pub is_administrator: bool,
+    pub enable_content_downloading: bool,
 }
 
 // ---- server administration types
@@ -757,6 +763,40 @@ impl Client {
             return self.plex_item(id).await;
         }
         self.get(&format!("/Users/{uid}/Items/{id}"), &[("Fields", FIELDS)]).await
+    }
+
+    /// The item exactly as the server sends it, so a download can keep it for offline browsing.
+    pub async fn item_raw(&self, uid: &str, id: &str) -> Result<serde_json::Value> {
+        self.get(&format!("/Users/{uid}/Items/{id}"), &[("Fields", FIELDS)]).await
+    }
+
+    /// URL of the original file (Emby / Jellyfin only).
+    pub fn download_url(&self, item_id: &str) -> Option<String> {
+        if self.kind == Kind::Plex {
+            return None;
+        }
+        Some(format!("{}{}/Items/{}/Download?api_key={}&DeviceId={}", self.base, self.pfx(), item_id, self.token.as_deref()?, self.device_id))
+    }
+
+    /// Streams `url` into `path`, calling `progress(done, total)` as it goes. Stops early (and
+    /// removes the partial file) when `cancelled()` turns true.
+    pub async fn download_to(&self, url: &str, path: &std::path::Path, progress: impl Fn(u64, u64), cancelled: impl Fn() -> bool) -> Result<bool> {
+        use std::io::Write;
+        let mut resp = self.http.get(url).timeout(Duration::from_secs(12 * 3600)).send().await?.error_for_status()?;
+        let total = resp.content_length().unwrap_or(0);
+        let mut file = std::fs::File::create(path)?;
+        let mut done = 0u64;
+        while let Some(chunk) = resp.chunk().await? {
+            if cancelled() {
+                drop(file);
+                let _ = std::fs::remove_file(path);
+                return Ok(false);
+            }
+            file.write_all(&chunk)?;
+            done += chunk.len() as u64;
+            progress(done, total);
+        }
+        Ok(true)
     }
 
     // ---- server administration (admin users)

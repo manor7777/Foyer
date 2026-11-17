@@ -10,6 +10,9 @@ use tokio::sync::Semaphore;
 
 slint::include_modules!();
 
+/// Set while the server can't be reached and Foyer shows only what is downloaded.
+static OFFLINE: AtomicBool = AtomicBool::new(false);
+
 #[cfg(not(target_os = "android"))]
 mod engine;
 mod platform;
@@ -18,6 +21,7 @@ mod seerr;
 mod notes;
 mod hide;
 mod cardmenu;
+mod downloads;
 mod sysmedia;
 #[cfg(windows)]
 mod media;
@@ -454,6 +458,7 @@ enum Page {
     SeerrUsers,
     SeerrUser { id: i64 },
     Notifications,
+    Downloads,
 }
 
 struct State {
@@ -596,6 +601,28 @@ impl Ctx {
         }
     }
 
+    /// The server can't be reached: stay signed in and show the downloads.
+    fn enter_offline(&self, ui: &AppWindow) {
+        OFFLINE.store(true, Ordering::SeqCst);
+        let name = self.st.lock().unwrap().cfg.user_name.clone();
+        ui.set_offline(true);
+        ui.set_busy(false);
+        ui.set_restoring(false);
+        ui.set_user_name(name.into());
+        self.sync_servers(ui);
+        self.st.lock().unwrap().nav.clear();
+        self.navigate(Page::Downloads, true);
+    }
+
+    /// A client for playing downloaded files when there is no session.
+    fn offline_session(&self) -> Option<(Client, String)> {
+        if !OFFLINE.load(Ordering::SeqCst) {
+            return None;
+        }
+        let s = self.st.lock().unwrap();
+        Some((Client::new(&s.cfg.server, s.cfg.device_id.clone()).with_kind(s.cfg.kind).with_token(s.cfg.token.clone()), s.cfg.user_id.clone()))
+    }
+
     /// A small message at the bottom of the window that goes away by itself.
     fn show_toast(&self, ui: &AppWindow, msg: String) {
         ui.set_toast(msg.into());
@@ -612,6 +639,12 @@ impl Ctx {
             emby_api::Error::Http(e) => e.status().map(|s| s.as_u16()),
             _ => None,
         };
+        let network = matches!(&err, emby_api::Error::Http(e) if e.status().is_none());
+        if network && downloads::any_offline() && !OFFLINE.load(Ordering::SeqCst) {
+            let ctx = self.clone();
+            self.post(my, move |ui| ctx.enter_offline(ui));
+            return;
+        }
         if status != Some(401) {
             // Not a sign-out: the item moved or the server hiccuped. Stay signed in and go home.
             let msg = if status == Some(404) {
@@ -757,6 +790,8 @@ impl Ctx {
     // ---- navigation
 
     fn navigate(&self, page: Page, push: bool) {
+        // Offline there is nothing to browse but downloads (and settings).
+        let page = if OFFLINE.load(Ordering::SeqCst) && !matches!(page, Page::Downloads | Page::Settings | Page::Notifications) { Page::Downloads } else { page };
         dlog(&format!("navigate {page:?} push={push}"));
         let target_y = {
             let mut s = self.st.lock().unwrap();
@@ -829,6 +864,7 @@ impl Ctx {
             }
             Page::SeerrUser { id } => self.show_sr_user(id),
             Page::Notifications => self.show_notifications(),
+            Page::Downloads => self.show_downloads(),
         }
     }
 
@@ -2218,6 +2254,9 @@ impl Ctx {
         let _ = server;
         self.start_remote();
         self.refresh_posters();
+        OFFLINE.store(false, Ordering::SeqCst);
+        ui.set_offline(false);
+        ui.global::<DownloadsUi>().set_allowed(user.can_download());
         ui.set_is_admin(user.is_admin());
         ui.set_user_name(user.name.into());
         ui.set_login_error("".into());
@@ -2308,7 +2347,7 @@ impl Ctx {
                 ui.set_busy(false);
                 match res {
                     Ok((client, owner)) => {
-                        user.policy = Some(emby_api::Policy { is_administrator: owner });
+                        user.policy = Some(emby_api::Policy { is_administrator: owner, ..Default::default() });
                         ui.set_plex_picking(false);
                         ctx.st.lock().unwrap().plex_pending = None;
                         ctx.after_login(&ui, client, user, "");
@@ -2364,9 +2403,18 @@ impl Ctx {
                         }
                         ctx.after_login(&ui, client, u, &cfg.server)
                     }
-                    Err(_) => {
-                        ctx.show_login(&ui);
-                        ui.set_login_error("Couldn't sign in to that server. Check it's online, or sign in again.".into());
+                    Err(e) => {
+                        let network = matches!(&e, emby_api::Error::Http(h) if h.status().is_none());
+                        if network && downloads::any_offline() {
+                            if OFFLINE.load(Ordering::SeqCst) {
+                                ctx.show_toast(&ui, "Still can't reach the server.".into());
+                            } else {
+                                ctx.enter_offline(&ui);
+                            }
+                        } else {
+                            ctx.show_login(&ui);
+                            ui.set_login_error("Couldn't sign in to that server. Check it's online, or sign in again.".into());
+                        }
                     }
                 }
             });
@@ -2865,7 +2913,7 @@ impl Ctx {
     }
 
     fn start_playback(&self, source: Source, title_hint: String) {
-        let Some((client, uid)) = self.session() else { return };
+        let Some((client, uid)) = self.session().or_else(|| self.offline_session()) else { return };
         {
             let mut s = self.st.lock().unwrap();
             if s.playing {
@@ -3315,6 +3363,9 @@ fn spawn_reporter(
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Rep>();
     let h = rt.spawn(async move {
         while let Some(m) = rx.recv().await {
+            if OFFLINE.load(Ordering::SeqCst) {
+                continue;
+            }
             let _ = tokio::time::timeout(Duration::from_secs(8), async {
                 let (label, res) = match m {
                     Rep::Start(t) => (format!("start pos={t}"), client.report_start(&item, &source, &session, t, method).await),
@@ -3447,15 +3498,24 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     let mut audio_pos: Option<i64> = None;
     let (item_id, source_id, url, title, start, live_stream, item, method) = match src {
         Source::Item { id, resume, quality, from } => {
-            let item = match rt.block_on(client.item(uid, id)) {
-                Ok(i) => i,
-                Err(e) => return PlayResult::Failed(format!("Couldn't load the item: {e}")),
+            // A downloaded copy plays from disk (no server needed).
+            let local = downloads::offline_path(id).and_then(|p| downloads::offline_item(id).map(|i| (p, i)));
+            let (local_path, local_item) = match local {
+                Some((p, i)) => (Some(p), Some(i)),
+                None => (None, None),
+            };
+            let item = match local_item {
+                Some(i) => i,
+                None => match rt.block_on(client.item(uid, id)) {
+                    Ok(i) => i,
+                    Err(e) => return PlayResult::Failed(format!("Couldn't load the item: {e}")),
+                },
             };
             let source = item.media_sources.first().map(|s| s.id.clone()).unwrap_or_else(|| item.id.clone());
             // Auto = direct play unless a speed test shows the file won't fit through the link.
             let src_bps = item.media_sources.iter().find(|m| m.id == source).or(item.media_sources.first()).and_then(|m| m.bitrate);
-            let measured = if *quality == Quality::Auto && src_bps.is_some() { env.bandwidth(rt, client) } else { None };
-            let (preset, resolved) = decide(*quality, src_bps, measured);
+            let measured = if *quality == Quality::Auto && src_bps.is_some() && local_path.is_none() { env.bandwidth(rt, client) } else { None };
+            let (preset, resolved) = if local_path.is_some() { decide(Quality::Direct, src_bps, None) } else { decide(*quality, src_bps, measured) };
             // The dropdown's pick for this item, else English, else whatever the file defaults to.
             let streams = audio_streams(&item);
             let pos = match &*AUDIO_PICK.lock().unwrap() {
@@ -3465,9 +3525,12 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             .unwrap_or_else(|| default_audio(&streams));
             let audio_index = streams.get(pos).map(|s| s.index);
             audio_pos = (!streams.is_empty()).then_some(pos as i64 + 1);
-            let url = match client.stream_url(&item.id, &source, &session, preset.map(|i| (PRESETS[i].bps, PRESETS[i].height)), audio_index) {
-                Ok(u) => u,
-                Err(e) => return PlayResult::Failed(e.to_string()),
+            let url = match &local_path {
+                Some(p) => p.to_string_lossy().into_owned(),
+                None => match client.stream_url(&item.id, &source, &session, preset.map(|i| (PRESETS[i].bps, PRESETS[i].height)), audio_index) {
+                    Ok(u) => u,
+                    Err(e) => return PlayResult::Failed(e.to_string()),
+                },
             };
             if preset.is_some() {
                 audio_pos = None;
@@ -3475,6 +3538,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             env.push_quality(*quality, &resolved);
             let start = match from {
                 Some(p) => *p,
+                None if *resume && OFFLINE.load(Ordering::SeqCst) => item.resume_ticks() as f64 / TICKS_PER_SEC as f64,
                 None if *resume => rt.block_on(client.saved_position(uid, &item)) as f64 / TICKS_PER_SEC as f64,
                 None => 0.0,
             };
@@ -3501,7 +3565,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     // The episode after this one (for the "Play next" prompt and for autoplay).
     let (prev_ep, next_ep): (Option<String>, Option<String>) = item
         .as_ref()
-        .filter(|i| i.kind == "Episode")
+        .filter(|i| i.kind == "Episode" && !OFFLINE.load(Ordering::SeqCst))
         .and_then(|item| {
             let series = item.series_id.as_ref()?;
             // Whole series, so the last episode of a season links on to the next season.
@@ -3552,7 +3616,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
                     Some((pid, pick)) if *pid == item.id => *pick,
                     _ => default_sub(&subs, &SUB_PREF.lock().unwrap()).checked_sub(1).and_then(|p| subs.get(p)).map(|s| s.index),
                 };
-                for st in src.media_streams.iter().filter(|m| m.kind == "Subtitle" && (m.is_external || m.is_text_subtitle_stream)) {
+                for st in src.media_streams.iter().filter(|m| m.kind == "Subtitle" && (m.is_external || m.is_text_subtitle_stream) && !OFFLINE.load(Ordering::SeqCst)) {
                     if let Some(url) = client.subtitle_url(&item.id, &src.id, st) {
                         decoupled |= !st.is_external;
                         ext_subs.push(player::ExtSub {
@@ -3935,6 +3999,24 @@ pub fn run() -> Result<(), slint::PlatformError> {
     }
     let c = ctx.clone();
     ui.on_sign_out(move || c.sign_out());
+    let c = ctx.clone();
+    {
+        let d = ui.global::<DownloadsUi>();
+        let c1 = c.clone();
+        d.on_start(move |id, offline| c1.dl_start(id.to_string(), offline));
+        let c2 = c.clone();
+        d.on_cancel(move |id, offline| c2.dl_cancel(id.to_string(), offline));
+        let c3 = c.clone();
+        d.on_remove(move |id, offline| c3.dl_remove(id.to_string(), offline));
+        let c4 = c.clone();
+        d.on_play(move |id| c4.play(id.to_string(), true, false));
+        let c5 = c.clone();
+        d.on_open_folder(move |id| c5.dl_open_folder(id.to_string()));
+        let c6 = c.clone();
+        ui.on_open_downloads(move || c6.navigate(Page::Downloads, true));
+        let c7 = c.clone();
+        ui.on_retry_online(move || c7.try_saved_login());
+    }
     ui.global::<SettingsUi>().on_matches(|q, hay| fuzzy_match(q.as_str(), hay.as_str()));
     let c = ctx.clone();
     ui.on_switch_server(move || c.switch_server());
@@ -4790,6 +4872,8 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     }
 
     load_posters(ui.as_weak());
+    downloads::load();
+    ctx.dl_sync_ui();
     ctx.try_saved_login();
     let result = slint::run_event_loop_until_quit();
     // Remove the tray icon explicitly; otherwise Windows can leave a dead one behind.
