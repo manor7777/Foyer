@@ -2,10 +2,13 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.7
+
+- Casting: Google Cast devices (Chromecasts, and TVs with Google Cast built in such as some Samsung models) were not being found on some phones even though Emby's own cast menu listed them. Foyer now searches with a proper mDNS client that joins the multicast group on every network adapter, which is how Chromecasts announce themselves. The previous search sent one question and listened for a direct reply, which many Chromecasts never send. What the search finds (or that it found none) is now written to the log, so a phone that still shows no Cast device can say why.
+
 ## Foyer 0.28.6
 
 - **The poster-hover backdrop no longer flashes.** Moving the pointer quickly across posters used to flash a different full-screen backdrop for each one, dropping to the plain background in between. A backdrop now appears only once the pointer has rested on a poster for a moment, stays up briefly when you move to the next poster, and cross-fades into the next one instead of cutting. Only affects devices with a mouse; Android touch has no hover.
-- Casting: Google Cast devices (Chromecasts, and TVs with Google Cast built in) were not being found on some phones even though Emby's own cast menu listed them. Foyer now searches with a proper mDNS client that joins the multicast group on every network adapter, which is how Chromecasts announce themselves. The previous search sent one question and listened for a direct reply, which many Chromecasts never send. What the search finds (or that it found none) is now written to the log, so a phone that still shows no Cast device can say why.
 
 ## Foyer 0.28.5
 
