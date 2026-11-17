@@ -596,13 +596,40 @@ impl Ctx {
         }
     }
 
-    fn fail(&self, my: u64, err: emby_api::Error) {
-        let msg = match &err {
-            emby_api::Error::Http(e) if e.status().is_some_and(|s| s.as_u16() == 401) => {
-                "Your session expired. Please sign in again.".to_string()
+    /// A small message at the bottom of the window that goes away by itself.
+    fn show_toast(&self, ui: &AppWindow, msg: String) {
+        ui.set_toast(msg.into());
+        let weak = self.ui.clone();
+        slint::Timer::single_shot(Duration::from_secs(5), move || {
+            if let Some(ui) = weak.upgrade() {
+                ui.set_toast("".into());
             }
-            e => format!("Couldn't load from the server: {e}"),
+        });
+    }
+
+    fn fail(&self, my: u64, err: emby_api::Error) {
+        let status = match &err {
+            emby_api::Error::Http(e) => e.status().map(|s| s.as_u16()),
+            _ => None,
         };
+        if status != Some(401) {
+            // Not a sign-out: the item moved or the server hiccuped. Stay signed in and go home.
+            let msg = if status == Some(404) {
+                "That item is no longer on the server (it may have been updated).".to_string()
+            } else {
+                format!("Couldn't load from the server: {err}")
+            };
+            let ctx = self.clone();
+            self.post(my, move |ui| {
+                ui.set_busy(false);
+                ctx.show_toast(ui, msg);
+                if !matches!(ctx.st.lock().unwrap().nav.last(), Some(Page::Home)) {
+                    ctx.go_home();
+                }
+            });
+            return;
+        }
+        let msg = "Your session expired. Please sign in again.".to_string();
         let ctx = self.clone();
         self.post(my, move |ui| {
             ui.set_busy(false);
@@ -755,6 +782,10 @@ impl Ctx {
             s.nav_scroll.truncate(n);
             if let Some(ui) = self.ui.upgrade() {
                 ui.set_can_go_back(s.nav.len() > 1);
+                ui.set_current_lib(match s.nav.last() {
+                    Some(Page::Library { id, .. }) => id.as_str().into(),
+                    _ => "".into(),
+                });
             }
             target
         };
@@ -1470,6 +1501,7 @@ impl Ctx {
         ui.set_autoplay_next(s.cfg.autoplay_next);
         ui.set_show_clock(s.cfg.show_clock);
         ui.set_clock_24h(s.cfg.clock_24h);
+        ui.set_clock_with_controls(s.cfg.clock_with_controls);
         ui.set_auto_skip_intro(s.cfg.auto_skip_intro);
         ui.set_rewind_secs(s.cfg.rewind_secs);
         ui.set_forward_secs(s.cfg.forward_secs);
@@ -2314,6 +2346,7 @@ impl Ctx {
         }
         if let Some(ui) = self.ui.upgrade() {
             ui.set_busy(true);
+            ui.set_restoring(true);
         }
         let ctx = self.clone();
         self.rt.spawn(async move {
@@ -2322,6 +2355,7 @@ impl Ctx {
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(ui) = ctx.ui.upgrade() else { return };
                 ui.set_busy(false);
+                ui.set_restoring(false);
                 // A network error keeps you on the login page without discarding the token.
                 match res {
                     Ok(mut u) => {
@@ -2972,6 +3006,20 @@ impl Ctx {
             });
         });
     }
+}
+
+/// Settings search: every word typed must appear in the text, or (for 3+ letters) be a loose
+/// in-order match inside one word, so "subtitel" or "hwdec" still find their setting.
+fn fuzzy_match(query: &str, hay: &str) -> bool {
+    let hay = hay.to_lowercase();
+    query.to_lowercase().split_whitespace().all(|t| {
+        hay.contains(t)
+            || (t.chars().count() >= 3
+                && hay.split(|c: char| !c.is_alphanumeric()).any(|w| {
+                    let mut it = w.chars();
+                    t.chars().all(|c| it.any(|x| x == c))
+                }))
+    })
 }
 
 fn rgb_of(c: slint::Color) -> u32 {
@@ -3887,6 +3935,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
     }
     let c = ctx.clone();
     ui.on_sign_out(move || c.sign_out());
+    ui.global::<SettingsUi>().on_matches(|q, hay| fuzzy_match(q.as_str(), hay.as_str()));
     let c = ctx.clone();
     ui.on_switch_server(move || c.switch_server());
     let c = ctx.clone();
@@ -4329,6 +4378,8 @@ pub fn run() -> Result<(), slint::PlatformError> {
     ui.on_set_autoplay(move |v| c.update_cfg(|cfg| cfg.autoplay_next = v));
     let c = ctx.clone();
     ui.on_set_show_clock(move |v| c.update_cfg(|cfg| cfg.show_clock = v));
+    let c = ctx.clone();
+    ui.on_set_clock_with_controls(move |v| c.update_cfg(|cfg| cfg.clock_with_controls = v));
     let c = ctx.clone();
     ui.on_set_clock_24h(move |v| {
         c.update_cfg(|cfg| cfg.clock_24h = v);

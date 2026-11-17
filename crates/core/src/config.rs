@@ -71,6 +71,9 @@ pub struct Config {
     /// Show the time of day in the player's top-right corner.
     #[serde(default = "yes")]
     pub show_clock: bool,
+    /// Show the clock only while the player controls are showing (paused or hovered).
+    #[serde(default)]
+    pub clock_with_controls: bool,
     /// 24-hour clock instead of 12-hour (e.g. 17:05 rather than 5:05pm).
     #[serde(default)]
     pub clock_24h: bool,
@@ -242,6 +245,7 @@ impl Default for Config {
             autoplay_next: true,
             show_clock: true,
             clock_24h: false,
+            clock_with_controls: false,
             hw_decode: true,
             auto_skip_intro: false,
             rewind_secs: default_rewind_secs(),

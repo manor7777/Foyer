@@ -455,10 +455,19 @@ component MultiSelect inherits Rectangle {
     }
 }
 
+
+/// Settings search and tabs. Rows hide themselves when a search doesn't match them.
+export global SettingsUi {
+    in-out property <string> query;
+    in-out property <int> tab: 0;
+    pure callback matches(string, string) -> bool;
+    public pure function shows(t: int) -> bool { return self.query != "" || self.tab == t; }
+}
+
 component SettingCard inherits Rectangle {
-    background: Palette.control-background;
+    background: SettingsUi.query == "" ? Palette.control-background : transparent;
     border-radius: 8px;
-    border-width: 1px;
+    border-width: SettingsUi.query == "" ? 1px : 0px;
     border-color: Palette.border;
     VerticalLayout {
         @children
@@ -472,11 +481,14 @@ component SettingRow inherits Rectangle {
     /// Narrow screens (phones in portrait): the control goes under the text instead of beside it.
     property <bool> stacked: Scale.window-w < 600px;
     property <length> pad: 16px;
+    property <bool> hit: SettingsUi.query == "" || SettingsUi.matches(SettingsUi.query, root.title + " " + root.description);
+    visible: root.hit;
+    max-height: root.hit ? 100000px : 0px;
     // Laid out by hand: a layout can't size a row from wrapped text, so the row's height is computed
     // from the wrapped text's own height at the width it is given.
     property <length> text-w: root.stacked ? root.width - 2 * root.pad : root.width - 2 * root.pad - ctl.preferred-width - 16px;
     property <length> text-h: ttl.preferred-height + (root.description != "" ? 2px + dsc.preferred-height : 0px);
-    min-height: max(60px, 20px + root.text-h + (root.stacked ? 8px + ctl.preferred-height : 0px));
+    min-height: root.hit ? max(60px, 20px + root.text-h + (root.stacked ? 8px + ctl.preferred-height : 0px)) : 0px;
     ttl := Text {
         x: root.pad;
         y: root.stacked ? 10px : (root.height - root.text-h) / 2;
@@ -521,6 +533,34 @@ component SectionLabel inherits Text {
     font-size: 13px;
     font-weight: 600;
 }
+
+component SettingGroup inherits VerticalLayout {
+    in property <string> label;
+    spacing: 8px;
+    padding-bottom: 10px;
+    if SettingsUi.query == "": SectionLabel { text: root.label; }
+    SettingCard { @children }
+}
+
+component SettingsTab inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback clicked();
+    width: lbl.preferred-width + 28px;
+    height: 36px;
+    border-radius: 18px;
+    background: root.selected ? Palette.accent-background : (ta.has-hover ? Palette.control-hover : Palette.control-background);
+    lbl := Text {
+        text: root.label;
+        font-size: 13px;
+        font-weight: root.selected ? 600 : 400;
+        color: root.selected ? Palette.accent-foreground : Palette.foreground;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
 
 export struct Card {
     id: string,
@@ -2042,6 +2082,10 @@ export component AppWindow inherits Window {
     // state
     in-out property <string> page: "login"; // login | home | grid | detail
     in property <bool> busy: false;
+    /// A saved sign-in is being checked: show nothing rather than flash the login page.
+    in property <bool> restoring: false;
+    /// The library whose page is open, so the sidebar can highlight it.
+    in property <string> current-lib;
     in property <string> user-name;
     in property <string> login-error;
     in-out property <string> play-error;
@@ -2442,6 +2486,8 @@ export component AppWindow inherits Window {
     in-out property <bool> autoplay-next: true;
     in-out property <bool> show-clock: true;
     in-out property <bool> clock-24h: false;
+    in-out property <bool> clock-with-controls: false;
+    callback set-clock-with-controls(bool);
     callback set-show-clock(bool);
     callback set-clock-24h(bool);
     in-out property <bool> hw-decode: true;
@@ -2553,7 +2599,7 @@ export component AppWindow inherits Window {
     // quick fade between pages: drop the opacity on change, a one-shot timer then fades it back up
     property <float> page-op: 1.0;
     animate page-op { duration: 150ms; easing: ease-out; }
-    changed page => { if Device.desktop { root.page-op = 0.2; page-fade.running = true; } }
+    changed page => { if root.page != "settings" { SettingsUi.query = ""; } if Device.desktop { root.page-op = 0.2; page-fade.running = true; } }
     page-fade := Timer {
         interval: 16ms;
         running: false;
@@ -2686,7 +2732,7 @@ export component AppWindow inherits Window {
     }
 
     // ---------------- login ----------------
-    if page == "login": Rectangle {
+    if page == "login" && !restoring: Rectangle {
         background: #0b0f1a;
 
         // Poster wall: your own library's films and shows (cached after each sign-in); generated
@@ -3597,9 +3643,25 @@ export component AppWindow inherits Window {
                         font-weight: 600;
                         color: Palette.foreground;
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Playback"; }
-                    SettingCard {
+                    LineEdit {
+                        placeholder-text: "Search settings";
+                        text <=> SettingsUi.query;
+                    }
+                    if SettingsUi.query == "": Flickable {
+                        height: 44px;
+                        content-width: tabrow.preferred-width;
+                        interactive: true;
+                        tabrow := HorizontalLayout {
+                            spacing: 6px;
+                            for name[i] in ["Playback", "Library", "Appearance", "Requests", "Accounts", "Advanced", "About"]: SettingsTab {
+                                label: name;
+                                selected: SettingsUi.tab == i;
+                                clicked => { SettingsUi.tab = i; }
+                            }
+                        }
+                    }
+                    if SettingsUi.shows(0): SettingGroup {
+                        label: "Playback";
                         SettingRow {
                             title: "Default quality";
                             description: "Used for every video until you change it. Original plays the file as-is; Auto switches to a lower quality only when your connection can't keep up.";
@@ -3624,6 +3686,14 @@ export component AppWindow inherits Window {
                             ToggleSwitch {
                                 checked <=> root.show-clock;
                                 toggled(c) => { root.set-show-clock(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Only show the time with the controls";
+                            description: "Hides the clock while you watch. It appears with the controls when you pause or move the mouse.";
+                            ToggleSwitch {
+                                checked <=> root.clock-with-controls;
+                                toggled(c) => { root.set-clock-with-controls(c); }
                             }
                         }
                         SettingRow {
@@ -3707,9 +3777,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Subtitles"; }
-                    SettingCard {
+                    if SettingsUi.shows(0): SettingGroup {
+                        label: "Subtitles";
                         SettingRow {
                             title: "Default search language";
                             description: "The language used first when you search your server for subtitles.";
@@ -3722,9 +3791,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Library"; }
-                    SettingCard {
+                    if SettingsUi.shows(1): SettingGroup {
+                        label: "Library";
                         SettingRow {
                             title: "Hide spoilers";
                             description: "Hides the description of episodes you haven't watched yet.";
@@ -3751,9 +3819,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Appearance"; }
-                    SettingCard {
+                    if SettingsUi.shows(2): SettingGroup {
+                        label: "Appearance";
                         SettingRow {
                             title: "Keep sidebar open";
                             description: "Always show the sidebar with labels. Otherwise it grows and shrinks smoothly with the window width.";
@@ -3798,7 +3865,7 @@ export component AppWindow inherits Window {
                                 selected => { root.set-accent-mode(self.current-index); }
                             }
                         }
-                        if root.accent-mode == 1: acc := Rectangle {
+                        if root.accent-mode == 1 && SettingsUi.query == "": acc := Rectangle {
                             // swatches beside the custom picker, or stacked above it when the screen is narrow
                             property <bool> stack: Scale.window-w < 700px;
                             property <length> sw: self.stack ? 26px : 30px;
@@ -3931,9 +3998,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Hidden titles"; }
-                    SettingCard {
+                    if SettingsUi.shows(1): SettingGroup {
+                        label: "Hidden titles";
                         if root.hidden-rows.length == 0: SettingRow {
                             title: "Nothing hidden";
                             description: "Use Hide or Remove from Continue Watching on a title's page.";
@@ -3948,8 +4014,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    SectionLabel { text: "Home screen"; }
-                    SettingCard {
+                    if SettingsUi.shows(1): SettingGroup {
+                        label: "Home screen";
                         for r[i] in root.home-rows: SettingRow {
                             title: r.title;
                             description: r.description;
@@ -3974,9 +4040,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Requests (Seerr)"; }
-                    SettingCard {
+                    if SettingsUi.shows(3): SettingGroup {
+                        label: "Requests (Seerr)";
                         SettingRow {
                             title: "Enable Requests";
                             description: "Adds a Requests section for discovering and requesting titles through Overseerr or Jellyseerr. Turn it off to hide it everywhere.";
@@ -3998,11 +4063,10 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
                     if root.seerr-on: VerticalLayout {
                         spacing: 8px;
-                        SectionLabel { text: "Alerts"; }
-                        SettingCard {
+                        if SettingsUi.shows(3): SettingGroup {
+                            label: "Alerts";
                             SettingRow {
                                 title: "Tell me when my requests arrive";
                                 description: "Checks your library for titles you requested and notifies you. Works while Foyer is open.";
@@ -4072,10 +4136,9 @@ export component AppWindow inherits Window {
                                 }
                             }
                         }
-                        Rectangle { height: 6px; }
                     }
-                    SectionLabel { text: "Advanced"; }
-                    SettingCard {
+                    if SettingsUi.shows(5): SettingGroup {
+                        label: "Advanced";
                         SettingRow {
                             title: "Extensive debug logging";
                             description: "Writes detailed diagnostics (network timings, player, audio and video stats, and mpv's own log) to your Foyer logs folder. Turn it on if you hit problems like crackly audio, then share the files. Passwords, tokens and cookies are never written.";
@@ -4103,9 +4166,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Servers"; }
-                    SettingCard {
+                    if SettingsUi.shows(4): SettingGroup {
+                        label: "Servers";
                         SettingRow {
                             title: "Multiple servers";
                             description: "Keep several servers signed in and switch between them from the sidebar.";
@@ -4135,9 +4197,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "Account"; }
-                    SettingCard {
+                    if SettingsUi.shows(4): SettingGroup {
+                        label: "Account";
                         SettingRow {
                             title: root.user-name;
                             description: root.server-text;
@@ -4152,9 +4213,8 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    Rectangle { height: 6px; }
-                    SectionLabel { text: "About"; }
-                    SettingCard {
+                    if SettingsUi.shows(6): SettingGroup {
+                        label: "About";
                         SettingRow {
                             title: "Foyer " + root.app-version;
                             description: root.update-status == "" ? "A native Rust media client. Playback by mpv." : root.update-status;
@@ -5913,6 +5973,7 @@ export component AppWindow inherits Window {
                             for lib in libraries: NavItem {
                                 compact: !root.nav-expanded;
                                 label: lib.title;
+                                selected: lib.subtitle == "livetv" ? root.page == "livetv" : root.current-lib == lib.id;
                                 icon: lib.subtitle == "livetv" ? @image-url("icons/live-tv.svg") : @image-url("icons/library.svg");
                                 clicked => {
                                     root.nav-open = false;
@@ -6065,7 +6126,7 @@ export component AppWindow inherits Window {
             color: white;
             font-size: 16px;
             font-weight: 600;
-            opacity: root.controls-op > 0 ? 0.9 : 0.7;
+            opacity: root.clock-with-controls ? root.controls-op * 0.9 : (root.controls-op > 0 ? 0.9 : 0.7);
             horizontal-alignment: right;
             vertical-alignment: center;
             width: 96px;
@@ -6570,6 +6631,26 @@ export component AppWindow inherits Window {
                     }
                 }
             }
+        }
+    }
+
+    // ---------------- toast ----------------
+    if toast != "": Rectangle {
+        y: root.height - self.height - (root.bottom-nav ? 96px : 32px);
+        x: (root.width - self.width) / 2;
+        width: min(560px, root.width - 32px);
+        height: toast-text.preferred-height + 24px;
+        background: Palette.alternate-background;
+        border-radius: 8px;
+        drop-shadow-blur: 12px;
+        drop-shadow-color: #00000080;
+        toast-text := Text {
+            x: 16px;
+            width: parent.width - 32px;
+            text: root.toast;
+            color: Palette.foreground;
+            wrap: word-wrap;
+            vertical-alignment: center;
         }
     }
 

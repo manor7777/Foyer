@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.0
+
+- Fixed being signed out when a file on the server changes while you are watching it. If the title can no longer be found when you leave the player, Foyer now shows a short message at the bottom of the window and takes you to Home, still signed in. Only a genuinely expired sign-in goes back to the login page.
+- Settings are split into tabs (Playback, Library, Appearance, Requests, Accounts, Advanced, About) and there is a search box at the top that finds settings by name or description, forgiving small slips.
+- Opening the app no longer flashes the login page before Home when you are already signed in.
+- The sidebar now highlights the library you are in (for example TV Shows) as well as the other sections.
+- New setting, **Only show the time with the controls**: hides the clock while you watch and shows it only when the player controls are visible (paused or hovered).
+
 ## Foyer 0.27.1
 
 - Requesting a series: no season is ticked for you any more, and if your account has a series request limit the request window shows how many seasons you have left. You can no longer tick more seasons than that, which stops requests failing when you picked more than you were allowed.
