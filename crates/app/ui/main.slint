@@ -2168,12 +2168,24 @@ export component AppWindow inherits Window {
     in-out property <bool> mini: false;
     // Picture-in-picture: the whole window becomes a small always-on-top video.
     in-out property <bool> pip: false;
-    property <float> mini-t: root.mini && root.playing ? 1.0 : 0.0;
+    /// The shrink animation starts a moment after `mini` flips: the pages behind take ~140 ms to build at that point,
+    /// and an animation that has already run half its course by the first frame looks like a jump.
+    property <bool> mini-go: false;
+    property <float> mini-t: root.mini && root.mini-go && root.playing ? 1.0 : 0.0;
+    changed mini => { if !root.mini { root.mini-go = false; } }
+    Timer {
+        interval: 200ms;
+        running: root.mini && root.playing && !root.mini-go;
+        triggered => { root.mini-go = true; }
+    }
     animate mini-t { duration: 280ms; easing: ease-in-out; }
     // the full player (and pip) show only once the mini image has grown back to full size
     out property <bool> full-player: root.playing && !root.mini && root.mini-t < 0.001;
     // mpv is drawing into a texture (shown below as an image) rather than straight into the window
-    out property <bool> video-tex: root.playing && (root.mini || root.mini-t > 0.001);
+    /// Picture-in-picture is being resized: the video goes through a fixed-size texture, because mpv takes ~30 ms to
+    /// redraw straight into a window whose size changes every frame.
+    in-out property <bool> pip-tex: false;
+    out property <bool> video-tex: root.playing && (root.mini || root.mini-t > 0.001 || root.pip-tex);
     in property <image> mini-frame;
     /// Bumped for every new video frame. Slint caches the rounded, clipped mini player as a layer and cannot see
     /// the video texture change, so something inside it must change to make it redraw.

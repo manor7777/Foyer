@@ -16,6 +16,9 @@ static OFFLINE: AtomicBool = AtomicBool::new(false);
 /// Set after each frame is drawn; the picture-in-picture resize waits for it so resizes don't queue up unpainted.
 static FRAME_DRAWN: AtomicBool = AtomicBool::new(true);
 
+/// Size (width << 32 | height, physical pixels) of the texture the video is drawn into during a picture-in-picture resize; 0 = not resizing.
+static PIP_TEX: AtomicU64 = AtomicU64::new(0);
+
 /// Timing of the picture-in-picture drag (microseconds), logged once a second while dragging so the slow part can be found.
 struct Perf {
     on: AtomicBool,
@@ -2776,6 +2779,10 @@ impl Ctx {
         let aspect = ui.get_video_aspect().max(0.2);
         let min_w = (240.0 * w.scale_factor()) as i32;
         let max_w = platform::monitor_area(w).map_or(i32::MAX, |m| m.2 as i32).max(min_w);
+        // Fixed-size video target for the whole drag (see PIP_TEX), big enough that it stays sharp.
+        let tw = w0.max((1280.0 * w.scale_factor()) as i32).min(max_w.max(w0));
+        PIP_TEX.store(((tw as u64) << 32) | (tw as f32 / aspect).round() as u64, Ordering::Relaxed);
+        ui.set_pip_tex(true);
         let weak = self.ui.clone();
         let last = std::cell::Cell::new((w0, h0));
         let applied = std::cell::Cell::new(Instant::now());
@@ -2786,6 +2793,8 @@ impl Ctx {
             if !platform::left_button_down() {
                 PERF.drag.store(false, Ordering::Relaxed);
                 perf_report();
+                PIP_TEX.store(0, Ordering::Relaxed);
+                ui.set_pip_tex(false);
                 DRAG.with(|d| *d.borrow_mut() = None);
                 return;
             }
@@ -3958,10 +3967,13 @@ pub fn run() -> Result<(), slint::PlatformError> {
                     PERF.on.store(PERF.drag.load(Ordering::Relaxed) || ui.get_video_tex(), Ordering::Relaxed);
                     let size = ui.window().size();
                     // In the in-app mini player the video goes into a texture the UI draws as an image.
-                    let mini = ui.get_video_tex().then(|| {
-                        let sf = ui.window().scale_factor();
-                        ((ui.get_mini_w() * sf) as i32, (ui.get_mini_h() * sf) as i32)
-                    });
+                    let mini = match PIP_TEX.load(Ordering::Relaxed) {
+                        0 => ui.get_video_tex().then(|| {
+                            let sf = ui.window().scale_factor();
+                            ((ui.get_mini_w() * sf) as i32, (ui.get_mini_h() * sf) as i32)
+                        }),
+                        v => Some(((v >> 32) as i32, (v & 0xffff_ffff) as i32)),
+                    };
                     let t_mpv = Instant::now();
                     let rendered = s.render(*get_proc_address, size.width as i32, size.height as i32, mini);
                     if PERF.on.load(Ordering::Relaxed) {

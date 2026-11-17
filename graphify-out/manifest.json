@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794929175.2331781,
-    "seen": 1794929183.8305883,
-    "ast_hash": "c219e26c05142c4671bfdaca32c8b1a8",
+    "mtime": 1794930748.2555099,
+    "seen": 1794930758.1102903,
+    "ast_hash": "39ff14d47784eaa99160afdf933be017",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -498,9 +498,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/lib.rs": {
-    "mtime": 1794929080.685389,
-    "seen": 1794929183.830408,
-    "ast_hash": "5048b99d11a98d51e11e676b30389016",
+    "mtime": 1794930570.4405272,
+    "seen": 1794930758.1100273,
+    "ast_hash": "2cf93bf2adc4b0b12d0b1a09b4920aaa",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android.rs": {
