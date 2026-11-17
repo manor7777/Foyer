@@ -137,7 +137,15 @@ impl Ctx {
                         let source = item.media_sources.first().map(|s| s.id.clone()).unwrap_or_else(|| item.id.clone());
                         // A Chromecast can't play most original files, so ask the server for a 1080p H.264 stream.
                         let play_session = uuid::Uuid::new_v4().simple().to_string();
-                        let url = client.stream_url(&item.id, &source, &play_session, Some((12_000_000, 1080)), None).map_err(|e| e.to_string())?;
+                        // Same audio choice as playing here: the detail page's pick, else English, else the file's default.
+                        let streams = audio_streams(&item);
+                        let pos = match &*AUDIO_PICK.lock().unwrap() {
+                            Some((pid, idx)) if *pid == item.id => streams.iter().position(|s| s.index == *idx),
+                            _ => None,
+                        }
+                        .unwrap_or_else(|| default_audio(&streams));
+                        let audio_index = streams.get(pos).map(|s| s.index);
+                        let url = client.stream_url(&item.id, &source, &play_session, Some((12_000_000, 1080)), audio_index).map_err(|e| e.to_string())?;
                         let title = match item.kind.as_str() {
                             "Episode" => format!("{} {} {}", item.series_name.clone().unwrap_or_default(), episode_tag(&item), item.name),
                             _ => item.name.clone(),
@@ -206,6 +214,40 @@ impl Ctx {
         if let Some(ui) = self.ui.upgrade() {
             ui.global::<CastUi>().set_paused(paused);
         }
+    }
+
+    /// A command from the server's dashboard while a Cast device is playing: pass it on. False if nothing is being cast.
+    pub fn cast_remote(&self, ev: &emby_api::remote::RemoteEvent) -> bool {
+        use emby_api::remote::RemoteEvent as E;
+        let (pos, paused) = {
+            let a = ACTIVE.lock().unwrap();
+            let Some((Active::Chromecast(c), paused)) = a.as_ref() else { return false };
+            (c.status().pos, *paused)
+        };
+        let ctx = self.clone();
+        let (rew, fwd) = {
+            let st = self.st.lock().unwrap();
+            (st.cfg.rewind_secs.max(1) as f64, st.cfg.forward_secs.max(1) as f64)
+        };
+        let ev = ev.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            let seek = |s: f64| {
+                if let Some((Active::Chromecast(c), _)) = ACTIVE.lock().unwrap().as_ref() {
+                    c.send(gcast::Cmd::Seek(s.max(0.0)));
+                }
+            };
+            match ev {
+                E::Pause if !paused => ctx.cast_toggle_pause(),
+                E::Unpause if paused => ctx.cast_toggle_pause(),
+                E::PlayPause => ctx.cast_toggle_pause(),
+                E::Stop => ctx.cast_stop(),
+                E::SeekTicks(t) => seek(t as f64 / TICKS_PER_SEC as f64),
+                E::Rewind => seek(pos - rew),
+                E::FastForward => seek(pos + fwd),
+                _ => {}
+            }
+        });
+        true
     }
 
     pub fn cast_stop(&self) {

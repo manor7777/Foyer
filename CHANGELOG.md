@@ -7,6 +7,12 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 - Casting to a Cast device now shows the title, a backdrop picture and "Casting from Foyer" on the TV. (A Foyer logo on the receiver itself would need Foyer registered as a Cast app with Google; this is the most the standard receiver allows.)
 - Casting to a Cast device or TV now shows up on the server: Foyer reports the playback (start, progress every few seconds, pause, stop) to Emby/Jellyfin/Plex, so the session appears under Now Playing with the right user, and your position is remembered. The TV still streams straight from the server; the phone only controls it.
 
+## Foyer 0.28.9
+
+- Casting to a Cast device now plays the audio track chosen on the title's page (else English, else the file's default) instead of the file's default track.
+- The server dashboard's Pause / Stop / seek buttons now control a Cast device while Foyer is casting to it (they did nothing before).
+- On Android the server now lists the device as "Android device" instead of "Windows PC".
+
 ## Foyer 0.28.7
 
 - Casting: Google Cast devices (Chromecasts, and TVs with Google Cast built in such as some Samsung models) were not being found on some phones even though Emby's own cast menu listed them. Foyer now searches with a proper mDNS client that joins the multicast group on every network adapter, which is how Chromecasts announce themselves. The previous search sent one question and listened for a direct reply, which many Chromecasts never send. What the search finds (or that it found none) is now written to the log, so a phone that still shows no Cast device can say why.

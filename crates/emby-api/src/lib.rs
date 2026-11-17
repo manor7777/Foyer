@@ -568,7 +568,7 @@ impl Client {
     }
 
     fn auth_header(&self) -> String {
-        let device = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Windows PC".into());
+        let device = std::env::var("COMPUTERNAME").unwrap_or_else(|_| if cfg!(target_os = "android") { "Android device" } else { "Windows PC" }.into());
         let mut h = format!(
             "MediaBrowser Client=\"{CLIENT_NAME}\", Device=\"{device}\", DeviceId=\"{}\", Version=\"{CLIENT_VERSION}\"",
             self.device_id

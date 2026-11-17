@@ -2571,6 +2571,10 @@ impl Ctx {
     fn handle_remote(&self, ev: emby_api::remote::RemoteEvent) {
         use emby_api::remote::RemoteEvent as E;
         use player::Control as K;
+        // Casting to a Cast device: the dashboard's buttons control the device, not a local player.
+        if self.cast_remote(&ev) {
+            return;
+        }
         let send = |k: K| {
             if let Some(tx) = &self.st.lock().unwrap().player_tx {
                 let _ = tx.send(k);

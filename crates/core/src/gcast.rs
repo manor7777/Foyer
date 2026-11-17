@@ -298,6 +298,7 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
                                 if let Some(t) = m["currentTime"].as_f64() {
                                     g.pos = t;
                                 }
+                                crate::log(&format!("cast: device says {} {}", m["playerState"], m["idleReason"]));
                                 match m["playerState"].as_str() {
                                     Some("PAUSED") => g.paused = true,
                                     Some("PLAYING") | Some("BUFFERING") => g.paused = false,
@@ -306,7 +307,9 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
                                 }
                             }
                             // The person ended it on the device, or it was taken over.
-                            if v["type"] == "RECEIVER_STATUS" && v["status"]["applications"].as_array().is_some_and(|a| a.is_empty()) {
+                            // (only if our player is gone: a status from the app that was running before ours doesn't count)
+                            if v["type"] == "RECEIVER_STATUS" && v["status"]["applications"].as_array().is_some_and(|a| !a.iter().any(|x| x["sessionId"] == session.as_str())) {
+                                crate::log("cast: the device closed our player");
                                 break;
                             }
                             None
