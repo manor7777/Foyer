@@ -338,6 +338,9 @@ struct GlFns {
     bind_fbo: unsafe extern "system" fn(u32, u32),
     fbo_tex: unsafe extern "system" fn(u32, u32, u32, u32, i32),
     get_int: unsafe extern "system" fn(u32, *mut i32),
+    active_tex: unsafe extern "system" fn(u32),
+    pixel_store: unsafe extern "system" fn(u32, i32),
+    attrib_off: unsafe extern "system" fn(u32),
 }
 
 impl GlFns {
@@ -362,6 +365,9 @@ impl GlFns {
             bind_fbo: f!("glBindFramebuffer"),
             fbo_tex: f!("glFramebufferTexture2D"),
             get_int: f!("glGetIntegerv"),
+            active_tex: f!("glActiveTexture"),
+            pixel_store: f!("glPixelStorei"),
+            attrib_off: f!("glDisableVertexAttribArray"),
         })
     }
 
@@ -493,6 +499,14 @@ impl Surface {
                     RenderParam { kind: 0, data: std::ptr::null_mut() },
                 ];
                 (api.render_render)(ctx, params.as_mut_ptr());
+                // mpv leaves GL state behind that the UI renderer then trips over (garbled text and icons).
+                if let Some(gl) = &gl {
+                    (gl.active_tex)(0x84C0);
+                    (gl.pixel_store)(0x0CF5, 4);
+                    for i in 2..8 {
+                        (gl.attrib_off)(i);
+                    }
+                }
                 if let (Some(gl), Some(m)) = (&gl, target) {
                     (gl.bind_fbo)(GL_FRAMEBUFFER, prev_fbo as u32);
                     tex_out = Some(m.tex);

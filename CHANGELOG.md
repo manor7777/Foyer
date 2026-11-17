@@ -2,6 +2,11 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.1
+
+- Fixed the mouse pointer and player controls hiding while the cast device picker was open on Windows, which made it impossible to pick a device.
+- Android: an attempt at the screen glitch where the player and the cast picker drew garbled icons and text. Video drawing now resets the graphics state it leaves behind. This was found from screenshots only and could not be reproduced here, so please say if it still happens (a wireless-debugging log would then pin it down).
+
 ## Foyer 0.28.0
 
 - Fixed being signed out when a file on the server changes while you are watching it. If the title can no longer be found when you leave the player, Foyer now shows a short message at the bottom of the window and takes you to Home, still signed in. Only a genuinely expired sign-in goes back to the login page.

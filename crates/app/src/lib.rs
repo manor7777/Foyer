@@ -4812,6 +4812,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
                 && !ui.get_menu_hold()
                 && !ui.get_sub_dialog_open()
                 && !ui.get_message_open()
+                && !ui.global::<CastUi>().get_open()
                 && ui.get_player_started()
                 && c.st.lock().unwrap().last_move.elapsed() > Duration::from_secs(3)
             {
@@ -4819,7 +4820,7 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
             }
             // Slint only re-applies its cursor rule on the next mouse event, so a still cursor would
             // stay visible after the controls fade. Drive the OS cursor directly as well.
-            let hidden = ui.get_full_player() && !ui.get_pip() && ui.get_player_started() && !ui.get_controls_shown() && !ui.get_player_paused();
+            let hidden = ui.get_full_player() && !ui.get_pip() && !ui.global::<CastUi>().get_open() && ui.get_player_started() && !ui.get_controls_shown() && !ui.get_player_paused();
             if hidden != cursor_hidden.replace(hidden) {
                 platform::set_cursor_visible(ui.window(), !hidden);
             }
