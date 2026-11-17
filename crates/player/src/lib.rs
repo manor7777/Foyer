@@ -486,6 +486,30 @@ impl GlFns {
         st
     }
 
+    /// Sets the state mpv assumes: the GL defaults. The UI renderer leaves non-default settings behind (for example the
+    /// row length it used for its glyph atlas), and mpv, which only sets what it needs for the job at hand, then
+    /// uploads video frames sheared into static.
+    unsafe fn defaults(&self) {
+        for (e, v) in [(0x0CF5u32, 4), (0x0CF2, 0), (0x0CF4, 0), (0x0CF3, 0)] {
+            (self.pixel_store)(e, v);
+        }
+        (self.bind_buffer)(0x88EC, 0);
+        (self.bind_buffer)(0x8892, 0);
+        (self.bind_buffer)(0x8893, 0);
+        (self.use_program)(0);
+        (self.active_tex)(0x84C0);
+        for cap in [0x0C11u32, 0x0BE2, 0x0B71, 0x0B90, 0x0B44] {
+            (self.disable)(cap);
+        }
+        (self.enable)(0x0BD0);
+        (self.blend_sep)(1, 0, 1, 0);
+        (self.blend_eq_sep)(0x8006, 0x8006);
+        (self.color_mask)(1, 1, 1, 1);
+        (self.depth_mask)(1);
+        (self.stencil_mask)(0xFFFF_FFFF);
+        self.clear_errors();
+    }
+
     /// Puts back what `save` read.
     unsafe fn restore(&self, st: &GlSaved) {
         (self.use_program)(st.program as u32);
@@ -670,6 +694,9 @@ impl Surface {
                 ];
                 // Android: mpv's leftovers corrupted the UI's text and icons (see `GlFns::save`).
                 let saved = if cfg!(target_os = "android") { gl.as_ref().map(|g| g.save()) } else { None };
+                if let (Some(gl), Some(_)) = (&gl, &saved) {
+                    gl.defaults();
+                }
                 (api.render_render)(ctx, params.as_mut_ptr());
                 // mpv leaves GL state behind that the UI renderer then trips over (garbled text and icons).
                 if let Some(gl) = &gl {

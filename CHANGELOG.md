@@ -4,7 +4,7 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 
 ## Foyer 0.28.4
 
-- Android: fixed the garbled interface while a video is playing. Text drawn after the video had started (such as the clock or the cast list) came out with black boxes around the letters, and the pause/play button turned into a white square. Found with a phone connected over `adb`: the video decoder's drawing leaves graphics settings behind that the interface drawing then trips over. Foyer now saves those settings before the video is drawn and puts them back straight afterwards. Windows is unchanged.
+- Android: fixed the garbled interface while a video is playing. Text drawn after the video had started (such as the clock or the cast list) came out with black boxes around the letters, and the pause/play button turned into a white square. Found with a phone connected over `adb`: the video decoder's drawing leaves graphics settings behind that the interface drawing then trips over. Foyer now saves those settings before the video is drawn and puts them back straight afterwards, and gives the video decoder the plain default settings it expects to start from (otherwise video frames came out as static). Windows is unchanged.
 
 ## Foyer 0.28.3
 
