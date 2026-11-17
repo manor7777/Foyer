@@ -136,12 +136,32 @@ impl Ctx {
                         let item = client.item(&uid, &item_id).await.map_err(|e| e.to_string())?;
                         let source = item.media_sources.first().map(|s| s.id.clone()).unwrap_or_else(|| item.id.clone());
                         // A Chromecast can't play most original files, so ask the server for a 1080p H.264 stream.
-                        let url = client.stream_url(&item.id, &source, &uuid::Uuid::new_v4().simple().to_string(), Some((12_000_000, 1080)), None).map_err(|e| e.to_string())?;
+                        let play_session = uuid::Uuid::new_v4().simple().to_string();
+                        let url = client.stream_url(&item.id, &source, &play_session, Some((12_000_000, 1080)), None).map_err(|e| e.to_string())?;
                         let title = match item.kind.as_str() {
                             "Episode" => format!("{} {} {}", item.series_name.clone().unwrap_or_default(), episode_tag(&item), item.name),
                             _ => item.name.clone(),
                         };
-                        Ok(Active::Chromecast(gcast::start(dev, url, "application/x-mpegURL", &title, start).await?))
+                        let cast = gcast::start(dev, url, "application/x-mpegURL", &title, start).await?;
+                        // The device streams straight from the server, so tell the server what is playing: it then shows
+                        // the session (and its progress) like any other player, and remembers where you got to.
+                        let (c, st) = (client.clone(), cast.status_handle());
+                        let ids = (item.id.clone(), source, play_session);
+                        tokio::spawn(async move {
+                            let (item, source, sess) = ids;
+                            let t = |s: f64| (s.max(0.0) * 10_000_000.0) as i64;
+                            let _ = c.report_start(&item, &source, &sess, t(start), "Transcode").await;
+                            loop {
+                                tokio::time::sleep(Duration::from_secs(5)).await;
+                                let s = *st.lock().unwrap();
+                                if s.ended {
+                                    let _ = c.report_stopped(&item, &source, &sess, t(s.pos), "Transcode").await;
+                                    break;
+                                }
+                                let _ = c.report_progress(&item, &source, &sess, t(s.pos), s.paused, "Transcode").await;
+                            }
+                        });
+                        Ok(Active::Chromecast(cast))
                     }
                 }
             }

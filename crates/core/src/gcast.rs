@@ -176,11 +176,29 @@ pub enum Cmd {
 /// A running cast. Dropping it ends the connection (the device stops playing).
 pub struct Cast {
     tx: UnboundedSender<Cmd>,
+    status: Arc<std::sync::Mutex<Status>>,
+}
+
+/// What the device last said it was doing.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Status {
+    /// Seconds into the media.
+    pub pos: f64,
+    pub paused: bool,
+    /// The device finished, was stopped, or the connection ended.
+    pub ended: bool,
 }
 
 impl Cast {
     pub fn send(&self, c: Cmd) {
         let _ = self.tx.send(c);
+    }
+    pub fn status(&self) -> Status {
+        *self.status.lock().unwrap()
+    }
+    /// A handle that keeps reporting the status after the `Cast` itself has moved elsewhere.
+    pub fn status_handle(&self) -> Arc<std::sync::Mutex<Status>> {
+        self.status.clone()
     }
 }
 
@@ -248,13 +266,23 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
     wr.write_all(&frame("sender-0", &transport, NS_MEDIA, &load)).await.map_err(|e| e.to_string())?;
 
     let (tx, mut rx) = unbounded_channel::<Cmd>();
+    let status = Arc::new(std::sync::Mutex::new(Status { pos: start_secs, ..Default::default() }));
+    let st = status.clone();
     tokio::spawn(async move {
         let mut media_session: Option<i64> = None;
         let mut beat = tokio::time::interval(Duration::from_secs(5));
         let mut req = 10;
         loop {
             let out = tokio::select! {
-                _ = beat.tick() => Some(frame("sender-0", "receiver-0", NS_BEAT, &json!({"type": "PING"}))),
+                _ = beat.tick() => {
+                    // Ask how far along it is (it only volunteers this when something changes).
+                    req += 1;
+                    let ask = frame("sender-0", &transport, NS_MEDIA, &json!({"type": "GET_STATUS", "requestId": req}));
+                    if wr.write_all(&ask).await.is_err() {
+                        break;
+                    }
+                    Some(frame("sender-0", "receiver-0", NS_BEAT, &json!({"type": "PING"})))
+                }
                 m = mrx.recv() => match m {
                     None => break,
                     Some((ns, _, v)) => {
@@ -264,6 +292,17 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
                             if v["type"] == "MEDIA_STATUS" {
                                 if let Some(id) = v["status"][0]["mediaSessionId"].as_i64() {
                                     media_session = Some(id);
+                                }
+                                let m = &v["status"][0];
+                                let mut g = st.lock().unwrap();
+                                if let Some(t) = m["currentTime"].as_f64() {
+                                    g.pos = t;
+                                }
+                                match m["playerState"].as_str() {
+                                    Some("PAUSED") => g.paused = true,
+                                    Some("PLAYING") | Some("BUFFERING") => g.paused = false,
+                                    Some("IDLE") if m["idleReason"].is_string() => g.ended = true,
+                                    _ => {}
                                 }
                             }
                             // The person ended it on the device, or it was taken over.
@@ -301,8 +340,9 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
                 }
             }
         }
+        st.lock().unwrap().ended = true;
     });
-    Ok(Cast { tx })
+    Ok(Cast { tx, status })
 }
 
 #[cfg(test)]

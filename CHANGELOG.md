@@ -2,6 +2,10 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.8
+
+- Casting to a Cast device or TV now shows up on the server: Foyer reports the playback (start, progress every few seconds, pause, stop) to Emby/Jellyfin/Plex, so the session appears under Now Playing with the right user, and your position is remembered. The TV still streams straight from the server; the phone only controls it.
+
 ## Foyer 0.28.7
 
 - Casting: Google Cast devices (Chromecasts, and TVs with Google Cast built in such as some Samsung models) were not being found on some phones even though Emby's own cast menu listed them. Foyer now searches with a proper mDNS client that joins the multicast group on every network adapter, which is how Chromecasts announce themselves. The previous search sent one question and listened for a direct reply, which many Chromecasts never send. What the search finds (or that it found none) is now written to the log, so a phone that still shows no Cast device can say why.
