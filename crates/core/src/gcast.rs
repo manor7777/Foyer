@@ -203,7 +203,7 @@ impl Cast {
 }
 
 /// Starts `url` on the device. `content_type` is e.g. "application/x-mpegURL" for an HLS stream.
-pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, start_secs: f64) -> Result<Cast, String> {
+pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, subtitle: &str, image: Option<String>, start_secs: f64) -> Result<Cast, String> {
     let tcp = tokio::time::timeout(Duration::from_secs(5), TcpStream::connect((dev.ip, dev.port))).await.map_err(|_| "The device didn't answer")?.map_err(|e| e.to_string())?;
     let cfg = rustls::ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
         .with_safe_default_protocol_versions()
@@ -261,7 +261,7 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
     wr.write_all(&frame("sender-0", &transport, NS_CONN, &json!({"type": "CONNECT"}))).await.map_err(|e| e.to_string())?;
     let load = json!({
         "type": "LOAD", "requestId": 2, "sessionId": session, "autoplay": true, "currentTime": start_secs,
-        "media": { "contentId": url, "streamType": "BUFFERED", "contentType": content_type, "metadata": { "metadataType": 0, "title": title } }
+        "media": { "contentId": url, "streamType": "BUFFERED", "contentType": content_type, "metadata": { "metadataType": 0, "title": title, "subtitle": subtitle, "images": image.map(|u| json!([{"url": u}])).unwrap_or_else(|| json!([])) } }
     });
     wr.write_all(&frame("sender-0", &transport, NS_MEDIA, &load)).await.map_err(|e| e.to_string())?;
 

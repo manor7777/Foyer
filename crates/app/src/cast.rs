@@ -142,7 +142,8 @@ impl Ctx {
                             "Episode" => format!("{} {} {}", item.series_name.clone().unwrap_or_default(), episode_tag(&item), item.name),
                             _ => item.name.clone(),
                         };
-                        let cast = gcast::start(dev, url, "application/x-mpegURL", &title, start).await?;
+                        let image = client.image_url(&item, emby_api::ImageKind::Backdrop, 1280);
+                        let cast = gcast::start(dev, url, "application/x-mpegURL", &title, "Casting from Foyer", image, start).await?;
                         // The device streams straight from the server, so tell the server what is playing: it then shows
                         // the session (and its progress) like any other player, and remembers where you got to.
                         let (c, st) = (client.clone(), cast.status_handle());

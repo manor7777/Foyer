@@ -4,6 +4,7 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 
 ## Foyer 0.28.8
 
+- Casting to a Cast device now shows the title, a backdrop picture and "Casting from Foyer" on the TV. (A Foyer logo on the receiver itself would need Foyer registered as a Cast app with Google; this is the most the standard receiver allows.)
 - Casting to a Cast device or TV now shows up on the server: Foyer reports the playback (start, progress every few seconds, pause, stop) to Emby/Jellyfin/Plex, so the session appears under Now Playing with the right user, and your position is remembered. The TV still streams straight from the server; the phone only controls it.
 
 ## Foyer 0.28.7
