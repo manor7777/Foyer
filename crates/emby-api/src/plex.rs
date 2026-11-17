@@ -765,6 +765,7 @@ impl Client {
                 let player = &m["Player"];
                 Session {
                     id: s(&m["Session"], "id").unwrap_or_default(),
+                    device_id: None,
                     user_name: s(&m["User"], "title"),
                     client: s(player, "product"),
                     device_name: s(player, "title"),

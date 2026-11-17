@@ -216,6 +216,7 @@ pub struct PlayState {
 #[serde(rename_all = "PascalCase", default)]
 pub struct Session {
     pub id: String,
+    pub device_id: Option<String>,
     pub user_name: Option<String>,
     pub client: Option<String>,
     pub device_name: Option<String>,
@@ -825,6 +826,19 @@ impl Client {
             .await?
             .error_for_status()?;
         Ok(())
+    }
+
+    /// Starts an item on another signed-in app ("cast" to it) at a position.
+    pub async fn session_play(&self, session: &str, item: &str, start_ticks: i64) -> Result<()> {
+        self.req(reqwest::Method::POST, &format!("/Sessions/{session}/Playing?PlayCommand=PlayNow&ItemIds={item}&StartPositionTicks={start_ticks}"))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    pub fn device_id(&self) -> &str {
+        &self.device_id
     }
 
     /// Seek a remote session to a position.

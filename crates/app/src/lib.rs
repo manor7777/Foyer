@@ -21,6 +21,7 @@ mod seerr;
 mod notes;
 mod hide;
 mod cardmenu;
+mod cast;
 mod downloads;
 mod sysmedia;
 #[cfg(windows)]
@@ -4012,6 +4013,17 @@ pub fn run() -> Result<(), slint::PlatformError> {
         d.on_play(move |id| c4.play(id.to_string(), true, false));
         let c5 = c.clone();
         d.on_open_folder(move |id| c5.dl_open_folder(id.to_string()));
+        let k = ui.global::<CastUi>();
+        let c8 = c.clone();
+        k.on_request(move |id, start| c8.cast_open(id.to_string(), start as f64));
+        let c9 = c.clone();
+        k.on_request_current(move || c9.cast_current());
+        let c10 = c.clone();
+        k.on_pick(move |i| c10.cast_pick(i));
+        let c11 = c.clone();
+        k.on_toggle_pause(move || c11.cast_toggle_pause());
+        let c12 = c.clone();
+        k.on_stop(move || c12.cast_stop());
         let c6 = c.clone();
         ui.on_open_downloads(move || c6.navigate(Page::Downloads, true));
         let c7 = c.clone();

@@ -1845,8 +1845,11 @@ name = "foyer-core"
 version = "0.28.0"
 dependencies = [
  "emby-api",
+ "rustls",
  "serde",
  "serde_json",
+ "tokio",
+ "tokio-rustls",
  "uuid",
 ]
 

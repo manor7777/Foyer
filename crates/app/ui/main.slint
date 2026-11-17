@@ -604,6 +604,26 @@ export global DownloadsUi {
     callback open-folder(string);
 }
 
+export struct CastTarget {
+    name: string,
+    kind: string,
+}
+
+/// Casting: the device picker and the controls shown while something is cast.
+export global CastUi {
+    in-out property <bool> open;
+    in-out property <bool> searching;
+    in-out property <[CastTarget]> targets;
+    /// Name of the device being cast to ("" = not casting).
+    in-out property <string> active;
+    in-out property <bool> paused;
+    callback request(string, float); // item id, start seconds
+    callback request-current();
+    callback pick(int);
+    callback toggle-pause();
+    callback stop();
+}
+
 export global CardMenu {
     in-out property <bool> downloaded;
     in-out property <bool> played;
@@ -5742,6 +5762,10 @@ export component AppWindow inherits Window {
                                     clicked => { root.toggle-favorite(); }
                                 }
                                 if !root.stack-actions && detail.playable: RoundIcon {
+                                    icon: @image-url("icons/cast.svg");
+                                    clicked => { CastUi.request(detail.id, 0.0); }
+                                }
+                                if !root.stack-actions && detail.playable: RoundIcon {
                                     icon: @image-url("icons/tech.svg");
                                     active: root.info-open;
                                     clicked => { root.info-open = !root.info-open; }
@@ -5780,6 +5804,10 @@ export component AppWindow inherits Window {
                                     icon: detail.favorite ? @image-url("icons/heart-filled.svg") : @image-url("icons/heart.svg");
                                     active: detail.favorite;
                                     clicked => { root.toggle-favorite(); }
+                                }
+                                if detail.playable: RoundIcon {
+                                    icon: @image-url("icons/cast.svg");
+                                    clicked => { CastUi.request(detail.id, 0.0); }
                                 }
                                 if detail.playable: RoundIcon {
                                     icon: @image-url("icons/tech.svg");
@@ -6290,7 +6318,7 @@ export component AppWindow inherits Window {
             height: 40px;
             y: 14px;
             // 14 px bar padding, then (on desktop) two 40 px buttons and the 12 px gaps around them
-            x: parent.width - self.width - (root.controls-op > 0 ? (Device.desktop ? 118px : 14px) : 16px);
+            x: parent.width - self.width - (root.controls-op > 0 ? (Device.desktop ? 170px : 66px) : 16px);
             animate x { duration: 160ms; easing: ease-out; }
         }
 
@@ -6399,6 +6427,10 @@ export component AppWindow inherits Window {
                 }
                 // Room for the clock (drawn separately, so it can stay on screen when this bar fades).
                 if root.show-clock: Rectangle { width: 96px; }
+                if !root.player-live: IconButton {
+                    icon: @image-url("icons/cast.svg");
+                    clicked => { CastUi.request-current(); }
+                }
                 // The in-app mini player and the shrink-the-window picture-in-picture are desktop features.
                 if Device.desktop: IconButton {
                     icon: @image-url("icons/shrink.svg");
@@ -6791,6 +6823,129 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ---------------- cast picker ----------------
+    if CastUi.open: Rectangle {
+        background: #000000b0;
+        TouchArea { clicked => { CastUi.open = false; } }
+        VerticalLayout {
+            alignment: center;
+            Rectangle {
+                width: min(480px, root.width - 32px);
+                height: cast-col.preferred-height;
+                background: Palette.alternate-background;
+                border-radius: 8px;
+                TouchArea { }
+                cast-col := VerticalLayout {
+                    padding: 24px;
+                    spacing: 10px;
+                    Text {
+                        text: "Cast to";
+                        font-size: 22px;
+                        font-weight: 700;
+                        color: Palette.foreground;
+                    }
+                    if CastUi.searching: Text {
+                        text: "Looking for devices…";
+                        color: Palette.foreground;
+                        opacity: 0.7;
+                    }
+                    if !CastUi.searching && CastUi.targets.length == 0: Text {
+                        text: "No devices found. Chromecasts and other apps signed in to your server show up here when they are on and on the same network.";
+                        color: Palette.foreground;
+                        opacity: 0.7;
+                        wrap: word-wrap;
+                    }
+                    for t[i] in CastUi.targets: Rectangle {
+                        height: 56px;
+                        border-radius: 8px;
+                        background: ct.has-hover ? Palette.control-hover : Palette.control-background;
+                        Image {
+                            x: 14px;
+                            y: (parent.height - self.height) / 2;
+                            width: 22px;
+                            height: 22px;
+                            source: @image-url("icons/cast.svg");
+                            colorize: Palette.foreground;
+                        }
+                        Text {
+                            x: 52px;
+                            y: 9px;
+                            width: parent.width - 62px;
+                            text: t.name;
+                            color: Palette.foreground;
+                            font-size: 14px;
+                            overflow: elide;
+                        }
+                        Text {
+                            x: 52px;
+                            y: 30px;
+                            width: parent.width - 62px;
+                            text: t.kind;
+                            color: Palette.foreground;
+                            opacity: 0.6;
+                            font-size: 12px;
+                        }
+                        ct := TouchArea { clicked => { CastUi.pick(i); } }
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        Button {
+                            text: "Cancel";
+                            clicked => { CastUi.open = false; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ---------------- casting controls ----------------
+    if CastUi.active != "": Rectangle {
+        y: root.height - self.height - (root.bottom-nav ? 96px : 16px) - (root.offline ? 60px : 0px);
+        x: (root.width - self.width) / 2;
+        width: min(560px, root.width - 32px);
+        height: 48px;
+        background: Palette.alternate-background;
+        border-radius: 24px;
+        border-width: 1px;
+        border-color: Palette.border;
+        drop-shadow-blur: 12px;
+        drop-shadow-color: #00000080;
+        Image {
+            x: 16px;
+            y: (parent.height - self.height) / 2;
+            width: 20px;
+            height: 20px;
+            source: @image-url("icons/cast.svg");
+            colorize: Palette.accent-background;
+        }
+        Text {
+            x: 46px;
+            width: parent.width - 46px - 100px;
+            height: parent.height;
+            text: "Casting to " + CastUi.active;
+            color: Palette.foreground;
+            font-size: 13px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        HorizontalLayout {
+            x: parent.width - self.preferred-width - 6px;
+            y: 4px;
+            spacing: 4px;
+            IconButton {
+                icon: CastUi.paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                size: 40px;
+                clicked => { CastUi.toggle-pause(); }
+            }
+            IconButton {
+                icon: @image-url("icons/stop.svg");
+                size: 40px;
+                clicked => { CastUi.stop(); }
+            }
+        }
+    }
+
     // ---------------- offline banner ----------------
     if root.offline && root.page != "login": Rectangle {
         y: root.height - self.height - (root.bottom-nav ? 96px : 16px);
@@ -6831,7 +6986,7 @@ export component AppWindow inherits Window {
 
     // ---------------- toast ----------------
     if toast != "": Rectangle {
-        y: root.height - self.height - (root.bottom-nav ? 96px : 32px) - (root.offline ? 60px : 0px);
+        y: root.height - self.height - (root.bottom-nav ? 96px : 32px) - (root.offline ? 60px : 0px) - (CastUi.active != "" ? 60px : 0px);
         x: (root.width - self.width) / 2;
         width: min(560px, root.width - 32px);
         height: toast-text.preferred-height + 24px;

@@ -4,6 +4,7 @@ mod config;
 mod format;
 mod quality;
 pub mod color;
+pub mod gcast;
 
 pub use config::*;
 pub use format::*;
