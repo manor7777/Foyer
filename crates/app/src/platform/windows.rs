@@ -193,3 +193,21 @@ pub fn gpu_names() -> Vec<String> {
 
 /// Phones turn to landscape while a video plays; nothing to do here.
 pub fn set_landscape(_on: bool) {}
+
+/// Asks for a folder, then copies the log files there. Returns where they went.
+pub fn export_logs(dir: &Path) -> Result<String, String> {
+    use std::os::windows::process::CommandExt;
+    let out = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-STA", "-Command", "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Save Foyer logs to'; if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"])
+        .creation_flags(0x0800_0000)
+        .output()
+        .map_err(|e| e.to_string())?;
+    let target = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if target.is_empty() {
+        return Err("No folder chosen.".into());
+    }
+    for e in std::fs::read_dir(dir).map_err(|e| e.to_string())?.flatten() {
+        std::fs::copy(e.path(), std::path::Path::new(&target).join(e.file_name())).map_err(|e| e.to_string())?;
+    }
+    Ok(format!("Saved to {target}"))
+}

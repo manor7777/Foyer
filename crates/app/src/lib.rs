@@ -4273,6 +4273,15 @@ pub fn run() -> Result<(), slint::PlatformError> {
         let _ = std::fs::create_dir_all(logs_dir());
         platform::open_folder(&logs_dir());
     });
+    let c = ctx.clone();
+    ui.on_export_logs(move || {
+        let c = c.clone();
+        std::thread::spawn(move || match platform::export_logs(&logs_dir()) {
+            Err(e) if e == "No folder chosen." => {}
+            Ok(m) => c.sr_notify("Logs saved", &m),
+            Err(e) => c.sr_notify("Couldn't save logs", &e),
+        });
+    });
     ui.on_clear_logs(move || {
         if let Ok(rd) = std::fs::read_dir(logs_dir()) {
             for e in rd.flatten() {

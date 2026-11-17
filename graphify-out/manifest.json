@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/seerr.rs": {
-    "mtime": 1794607062.5787168,
-    "seen": 1794607160.3449304,
-    "ast_hash": "2e7524364d5259f5dba0d09d9a52859f",
+    "mtime": 1794919266.7423794,
+    "seen": 1794919390.4762788,
+    "ast_hash": "7b2e3cd707d4ef5adf27080b1454c4b9",
     "semantic_hash": ""
   },
   "crates/app/src/update.rs": {

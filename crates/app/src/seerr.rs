@@ -244,7 +244,7 @@ impl Ctx {
         Some((s.sr.client.clone()?, s.sr.user.clone()?))
     }
 
-    fn sr_notify(&self, header: &str, text: &str) {
+    pub(crate) fn sr_notify(&self, header: &str, text: &str) {
         let (header, text) = (header.to_string(), text.to_string());
         let weak = self.ui.clone();
         let _ = slint::invoke_from_event_loop(move || {
@@ -469,6 +469,10 @@ impl Ctx {
                 }
                 _ => (format!("{name}: unlimited"), 1.0, false),
             };
+            let tv_left = match (q.tv.limit, q.tv.remaining) {
+                (Some(l), Some(r)) if l > 0 => r.max(0) as i32,
+                _ => -1,
+            };
             let (m, t) = (part("Movie", &q.movie), part("Series", &q.tv));
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ctx.ui.upgrade() {
@@ -481,6 +485,7 @@ impl Ctx {
                     g.set_tv_frac(t.1);
                     g.set_tv_limited(t.2);
                     g.set_shown(true);
+                    ui.set_sr_tv_left(tv_left);
                 }
             });
         });
@@ -622,6 +627,7 @@ impl Ctx {
     // ---------------------------------------------------------------- title page
 
     pub fn show_sr_detail(&self, kind: String, id: i64) {
+        self.load_sr_quota();
         let Some((seerr, user)) = self.sr_session() else { return self.show_sr_connect() };
         let Some((client, uid)) = self.session() else { return };
         let my = self.begin();
@@ -696,7 +702,7 @@ impl Ctx {
                         name: format!("{}{eps}", s.name.clone().unwrap_or_else(|| format!("Season {}", s.season_number))).into(),
                         status: text.into(),
                         requestable,
-                        selected: requestable,
+                        selected: false,
                     });
                 }
             }
@@ -830,7 +836,9 @@ impl Ctx {
         if let Some(ui) = self.ui.upgrade() {
             let m = ui.get_sr_seasons();
             if let Some(mut s) = m.row_data(i.max(0) as usize) {
-                if s.requestable {
+                let left = ui.get_sr_tv_left();
+                let others = m.iter().filter(|x| x.selected).count() as i32 - s.selected as i32;
+                if s.requestable && (!v || left < 0 || others < left) {
                     s.selected = v;
                     m.set_row_data(i as usize, s);
                 }
@@ -846,6 +854,11 @@ impl Ctx {
             let picked: Vec<i32> = ui.get_sr_seasons().iter().filter(|s| s.selected && s.requestable).map(|s| s.number).collect();
             if picked.is_empty() {
                 self.sr_notify("Pick a season", "Select at least one season to request.");
+                return;
+            }
+            let left = ui.get_sr_tv_left();
+            if left >= 0 && picked.len() as i32 > left {
+                self.sr_notify("Over your limit", &format!("You can request {left} more season(s)."));
                 return;
             }
             Some(picked)

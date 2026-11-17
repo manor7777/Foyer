@@ -44,3 +44,7 @@ pub fn set_landscape(_on: bool) {}
 
 /// Windows registers its toast identity here; nothing to do elsewhere.
 pub fn register_app_identity() {}
+
+pub fn export_logs(_dir: &Path) -> Result<String, String> {
+    Err("Not supported here.".into())
+}

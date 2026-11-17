@@ -2,6 +2,12 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.27.1
+
+- Requesting a series: no season is ticked for you any more, and if your account has a series request limit the request window shows how many seasons you have left. You can no longer tick more seasons than that, which stops requests failing when you picked more than you were allowed.
+- Android: the navigation bar, and the taskbar on Samsung foldables, hide while a video plays so they no longer sit over the controls. Swipe from the edge to bring them back for a moment.
+- Debug logging: **Save copy to…** (Windows) lets you pick a folder to copy the log files to, and **Save to Downloads** (Android) copies them to the Downloads/Foyer folder on the phone, so you can find and send them without a computer.
+
 ## Foyer 0.27.0
 
 - Rich notifications. New episodes, requests that are ready and updates now come with the poster, and clicking them takes you to the right place.

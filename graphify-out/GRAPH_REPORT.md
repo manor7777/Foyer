@@ -1,17 +1,17 @@
-# Graph Report - Foyer  (2026-11-14)
+# Graph Report - Foyer  (2026-11-17)
 
 ## Corpus Check
-- 27 files · ~51,813 words
+- 27 files · ~51,891 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .rc 1, .ico 1)
 
 ## Summary
-- 1075 nodes · 2424 edges · 41 communities (37 shown, 4 thin omitted)
+- 1075 nodes · 2429 edges · 41 communities (37 shown, 4 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 97 edges (avg confidence: 0.67)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8cc3aa30`
+- Built from commit: `4136060c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -247,7 +247,7 @@ Nodes (11): auto_steps_down_when_link_is_slow(), decide(), explicit_choices_and_
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Client` connect `Client` to `ImageKind`, `Ctx`, `MediaStream`, `main.rs`, `emby-api/src/lib.rs`, `Result`, `RemoteEvent`, `play_one`, `.get`, `State`, `User`, `Ctx`?**
-  _High betweenness centrality (0.132) - this node is a cross-community bridge._
+  _High betweenness centrality (0.136) - this node is a cross-community bridge._
 - **Are the 20 inferred relationships involving `Item` (e.g. with `.pitem()` and `.pitems()`) actually correct?**
   _`Item` has 20 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Auto`, `Direct`, `Home` to the rest of the system?**
@@ -255,8 +255,8 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `player/src/lib.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.05962732919254658 - nodes in this community are weakly interconnected._
 - **Why does `Ctx` connect `Ctx` to `Ctx`, `update.rs`, `main.rs`, `notes.rs`, `play_one`, `Quality`, `State`?**
-  _High betweenness centrality (0.094) - this node is a cross-community bridge._
+  _High betweenness centrality (0.093) - this node is a cross-community bridge._
 - **Should `Ctx` be split into smaller, more focused modules?**
-  _Cohesion score 0.07054871220604703 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07166853303471445 - nodes in this community are weakly interconnected._
 - **Why does `Seerr` connect `Seerr` to `.send`, `Ctx`, `seerr-api/src/lib.rs`, `seerr.rs`, `User`, `Media`, `Detail`, `Discover`?**
   _High betweenness centrality (0.066) - this node is a cross-community bridge._

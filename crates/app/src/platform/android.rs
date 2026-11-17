@@ -230,7 +230,27 @@ pub fn set_landscape(on: bool) {
     }) {
         eprintln!("setRequestedOrientation failed: {e}");
     }
+    // Hide the navigation bar too, which includes Samsung's taskbar on foldables.
+    if let Err(e) = android_media::set_immersive(on) {
+        eprintln!("immersive mode failed: {e}");
+    }
 }
 
 /// Windows registers its toast identity here; nothing to do elsewhere.
 pub fn register_app_identity() {}
+
+/// Copies the log files to Downloads/Foyer. Returns where they went.
+pub fn export_logs(dir: &Path) -> Result<String, String> {
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let mut n = 0;
+    for e in std::fs::read_dir(dir).map_err(|e| e.to_string())?.flatten() {
+        let p = e.path();
+        let Some(name) = p.file_name().and_then(|f| f.to_str()) else { continue };
+        android_media::save_to_downloads(&p.to_string_lossy(), &format!("foyer-{stamp}-{name}"))?;
+        n += 1;
+    }
+    if n == 0 {
+        return Err("There are no log files yet.".into());
+    }
+    Ok("Saved to the Downloads/Foyer folder on this device.".into())
+}

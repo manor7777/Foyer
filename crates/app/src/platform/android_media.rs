@@ -109,6 +109,36 @@ pub fn set_pip_auto(on: bool, aspect: f32) {
     });
 }
 
+/// Loads one of the helper classes from the embedded dex.
+fn helper_class<'a>(env: &mut JNIEnv<'a>, act: &JObject<'_>, name: &str) -> jni::errors::Result<JClass<'a>> {
+    let parent = env.call_method(act, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
+    // SAFETY: DEX is 'static, and the loader only reads it.
+    let buf = unsafe { env.new_direct_byte_buffer(DEX.as_ptr() as *mut u8, DEX.len())? };
+    let loader = env.new_object("dalvik/system/InMemoryDexClassLoader", "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V", &[JValue::Object(&buf), JValue::Object(&parent)])?;
+    let name = env.new_string(name)?;
+    let class = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?.l()?;
+    Ok(JClass::from(class))
+}
+
+/// Hides (or restores) the system navigation bar and taskbar through the dex helper `Immersive`.
+pub fn set_immersive(on: bool) -> Result<(), String> {
+    with_env(|env, act| {
+        let class = helper_class(env, act, "app.foyer.player.Immersive")?;
+        env.call_static_method(class, "set", "(Landroid/app/Activity;Z)V", &[JValue::Object(act), JValue::Bool(on as u8)])?;
+        Ok(())
+    })
+}
+
+/// Copies a file into the public Downloads/Foyer folder as `name`.
+pub fn save_to_downloads(path: &str, name: &str) -> Result<(), String> {
+    with_env(|env, act| {
+        let class = helper_class(env, act, "app.foyer.player.Export")?;
+        let (p, n) = (env.new_string(path)?, env.new_string(name)?);
+        env.call_static_method(class, "save", "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)V", &[JValue::Object(act), JValue::Object(&p), JValue::Object(&n)])?;
+        Ok(())
+    })
+}
+
 // ---------------------------------------------------------------- media session
 
 fn load_callback_class(env: &mut JNIEnv<'_>, act: &JObject<'_>) -> jni::errors::Result<GlobalRef> {
