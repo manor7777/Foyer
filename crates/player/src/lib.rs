@@ -342,6 +342,46 @@ struct GlFns {
     active_tex: unsafe extern "system" fn(u32),
     pixel_store: unsafe extern "system" fn(u32, i32),
     attrib_off: unsafe extern "system" fn(u32),
+    // State the host's renderer relies on, saved and put back around mpv's drawing (see `save`).
+    use_program: unsafe extern "system" fn(u32),
+    bind_buffer: unsafe extern "system" fn(u32, u32),
+    viewport: unsafe extern "system" fn(i32, i32, i32, i32),
+    scissor: unsafe extern "system" fn(i32, i32, i32, i32),
+    enable: unsafe extern "system" fn(u32),
+    disable: unsafe extern "system" fn(u32),
+    is_enabled: unsafe extern "system" fn(u32) -> u8,
+    blend_sep: unsafe extern "system" fn(u32, u32, u32, u32),
+    blend_eq_sep: unsafe extern "system" fn(u32, u32),
+    color_mask: unsafe extern "system" fn(u8, u8, u8, u8),
+    depth_mask: unsafe extern "system" fn(u8),
+    stencil_mask: unsafe extern "system" fn(u32),
+    get_attrib: unsafe extern "system" fn(u32, u32, *mut i32),
+    attrib_on: unsafe extern "system" fn(u32),
+    get_error: unsafe extern "system" fn() -> u32,
+    vao: Option<unsafe extern "system" fn(u32)>,
+    bind_rbo: Option<unsafe extern "system" fn(u32, u32)>,
+}
+
+/// Everything in `GlFns::save` (indexes mirror the order it reads them).
+#[derive(Clone, Copy, Default)]
+struct GlSaved {
+    program: i32,
+    buffers: [i32; 3], // array, element array, pixel unpack
+    vao: i32,
+    fbo: i32,
+    rbo: i32,
+    active: i32,
+    tex2d: [i32; 4],
+    tex_ext: [i32; 4],
+    viewport: [i32; 4],
+    scissor: [i32; 4],
+    color_mask: [i32; 4],
+    caps: [bool; 6], // scissor, blend, depth, stencil, cull, dither
+    blend: [i32; 6], // src rgb, dst rgb, src alpha, dst alpha, equation rgb, equation alpha
+    depth_mask: i32,
+    stencil_mask: i32,
+    unpack: [i32; 4], // alignment, row length, skip pixels, skip rows
+    attribs: [bool; 8],
 }
 
 impl GlFns {
@@ -369,7 +409,140 @@ impl GlFns {
             active_tex: f!("glActiveTexture"),
             pixel_store: f!("glPixelStorei"),
             attrib_off: f!("glDisableVertexAttribArray"),
+            use_program: f!("glUseProgram"),
+            bind_buffer: f!("glBindBuffer"),
+            viewport: f!("glViewport"),
+            scissor: f!("glScissor"),
+            enable: f!("glEnable"),
+            disable: f!("glDisable"),
+            is_enabled: f!("glIsEnabled"),
+            blend_sep: f!("glBlendFuncSeparate"),
+            blend_eq_sep: f!("glBlendEquationSeparate"),
+            color_mask: f!("glColorMask"),
+            depth_mask: f!("glDepthMask"),
+            stencil_mask: f!("glStencilMask"),
+            get_attrib: f!("glGetVertexAttribiv"),
+            attrib_on: f!("glEnableVertexAttribArray"),
+            get_error: f!("glGetError"),
+            vao: {
+                let p = loader(CStr::from_bytes_with_nul_unchecked(b"glBindVertexArray\0"));
+                (!p.is_null()).then(|| std::mem::transmute(p))
+            },
+            bind_rbo: {
+                let p = loader(CStr::from_bytes_with_nul_unchecked(b"glBindRenderbuffer\0"));
+                (!p.is_null()).then(|| std::mem::transmute(p))
+            },
         })
+    }
+
+    /// Reads the GL state mpv is about to disturb. mpv draws with its own shaders, buffers and settings and does
+    /// not put them back; on Android the UI renderer then drew new text and icons wrongly (white squares, black
+    /// boxes around letters), because its uploads and draws ran on top of mpv's leftovers.
+    unsafe fn save(&self) -> GlSaved {
+        let g = |e: u32| {
+            let mut v = 0i32;
+            (self.get_int)(e, &mut v);
+            v
+        };
+        let g4 = |e: u32| {
+            let mut v = [0i32; 4];
+            (self.get_int)(e, v.as_mut_ptr());
+            v
+        };
+        let mut st = GlSaved { active: g(0x84E0), program: g(0x8B8D), fbo: g(0x8CA6), ..Default::default() };
+        st.buffers = [g(0x8894), g(0x8895), g(0x88EF)];
+        if self.vao.is_some() {
+            st.vao = g(0x85B5);
+        }
+        if self.bind_rbo.is_some() {
+            st.rbo = g(0x8CA7);
+        }
+        for u in 0..4u32 {
+            (self.active_tex)(0x84C0 + u);
+            st.tex2d[u as usize] = g(0x8069);
+            st.tex_ext[u as usize] = g(0x8D67);
+        }
+        (self.active_tex)(st.active as u32);
+        st.viewport = g4(0x0BA2);
+        st.scissor = g4(0x0C10);
+        st.color_mask = g4(0x0C23);
+        for (i, cap) in [0x0C11u32, 0x0BE2, 0x0B71, 0x0B90, 0x0B44, 0x0BD0].into_iter().enumerate() {
+            st.caps[i] = (self.is_enabled)(cap) != 0;
+        }
+        for (i, e) in [0x80C9u32, 0x80C8, 0x80CB, 0x80CA, 0x8009, 0x883D].into_iter().enumerate() {
+            st.blend[i] = g(e);
+        }
+        st.depth_mask = g(0x0B72);
+        st.stencil_mask = g(0x0B98);
+        for (i, e) in [0x0CF5u32, 0x0CF2, 0x0CF4, 0x0CF3].into_iter().enumerate() {
+            st.unpack[i] = g(e);
+        }
+        for i in 0..8u32 {
+            let mut on = 0i32;
+            (self.get_attrib)(i, 0x8622, &mut on);
+            st.attribs[i as usize] = on != 0;
+        }
+        self.clear_errors();
+        st
+    }
+
+    /// Puts back what `save` read.
+    unsafe fn restore(&self, st: &GlSaved) {
+        (self.use_program)(st.program as u32);
+        (self.bind_buffer)(0x8892, st.buffers[0] as u32);
+        (self.bind_buffer)(0x8893, st.buffers[1] as u32);
+        (self.bind_buffer)(0x88EC, st.buffers[2] as u32);
+        if let Some(vao) = self.vao {
+            vao(st.vao as u32);
+        }
+        (self.bind_fbo)(GL_FRAMEBUFFER, st.fbo as u32);
+        if let Some(rbo) = self.bind_rbo {
+            rbo(0x8D41, st.rbo as u32);
+        }
+        for u in 0..4u32 {
+            (self.active_tex)(0x84C0 + u);
+            (self.bind_tex)(GL_TEXTURE_2D, st.tex2d[u as usize] as u32);
+            (self.bind_tex)(0x8D65, st.tex_ext[u as usize] as u32);
+        }
+        (self.active_tex)(st.active as u32);
+        let v = st.viewport;
+        (self.viewport)(v[0], v[1], v[2], v[3]);
+        let c = st.scissor;
+        (self.scissor)(c[0], c[1], c[2], c[3]);
+        for (i, cap) in [0x0C11u32, 0x0BE2, 0x0B71, 0x0B90, 0x0B44, 0x0BD0].into_iter().enumerate() {
+            if st.caps[i] {
+                (self.enable)(cap);
+            } else {
+                (self.disable)(cap);
+            }
+        }
+        let b = st.blend;
+        (self.blend_sep)(b[0] as u32, b[1] as u32, b[2] as u32, b[3] as u32);
+        (self.blend_eq_sep)(b[4] as u32, b[5] as u32);
+        let m = st.color_mask;
+        (self.color_mask)(m[0] as u8, m[1] as u8, m[2] as u8, m[3] as u8);
+        (self.depth_mask)(st.depth_mask as u8);
+        (self.stencil_mask)(st.stencil_mask as u32);
+        for (i, e) in [0x0CF5u32, 0x0CF2, 0x0CF4, 0x0CF3].into_iter().enumerate() {
+            (self.pixel_store)(e, st.unpack[i]);
+        }
+        for i in 0..8u32 {
+            if st.attribs[i as usize] {
+                (self.attrib_on)(i);
+            } else {
+                (self.attrib_off)(i);
+            }
+        }
+        self.clear_errors();
+    }
+
+    /// Queries and restores above can raise harmless errors on older GL versions; don't leave them for the host to see.
+    unsafe fn clear_errors(&self) {
+        for _ in 0..16 {
+            if (self.get_error)() == 0 {
+                break;
+            }
+        }
     }
 
     unsafe fn free(&self, m: MiniTex) {
@@ -495,6 +668,8 @@ impl Surface {
                     RenderParam { kind: PARAM_BLOCK_FOR_TARGET_TIME, data: &mut block as *mut c_int as *mut c_void },
                     RenderParam { kind: 0, data: std::ptr::null_mut() },
                 ];
+                // Android: mpv's leftovers corrupted the UI's text and icons (see `GlFns::save`).
+                let saved = if cfg!(target_os = "android") { gl.as_ref().map(|g| g.save()) } else { None };
                 (api.render_render)(ctx, params.as_mut_ptr());
                 // mpv leaves GL state behind that the UI renderer then trips over (garbled text and icons).
                 if let Some(gl) = &gl {
@@ -507,6 +682,9 @@ impl Surface {
                 if let (Some(gl), Some(m)) = (&gl, target) {
                     (gl.bind_fbo)(GL_FRAMEBUFFER, prev_fbo as u32);
                     tex_out = Some(m.tex);
+                }
+                if let (Some(gl), Some(saved)) = (&gl, &saved) {
+                    gl.restore(saved);
                 }
             }
             GL_LOADER.store(0, Ordering::Release);

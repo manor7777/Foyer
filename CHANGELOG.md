@@ -2,6 +2,10 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.4
+
+- Android: fixed the garbled interface while a video is playing. Text drawn after the video had started (such as the clock or the cast list) came out with black boxes around the letters, and the pause/play button turned into a white square. Found with a phone connected over `adb`: the video decoder's drawing leaves graphics settings behind that the interface drawing then trips over. Foyer now saves those settings before the video is drawn and puts them back straight afterwards. Windows is unchanged.
+
 ## Foyer 0.28.3
 
 - Android TV: the D-pad can now leave a text field. Up and Down inside the sign-in boxes (and any other text box) move to the previous or next control instead of moving the text cursor, so you can get from the server address to the user name, password and Sign in button.
