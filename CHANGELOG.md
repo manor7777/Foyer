@@ -5,6 +5,9 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 ## Foyer 0.28.1
 
 - Fixed the mouse pointer and player controls hiding while the cast device picker was open on Windows, which made it impossible to pick a device.
+- Picture-in-picture (Windows): resizing is smooth now. Foyer follows the mouse and resizes and moves the window in one step instead of letting Windows resize it and correcting the shape afterwards. The window also remembers the size you made it for the rest of the session, so going out and back into picture-in-picture keeps it.
+- Picture-in-picture and the in-app mini player: the buttons no longer fade away as the pointer moves onto them, so they are easy to click.
+- Mini player: put right the video not advancing unless the mouse was moving over it.
 - Android: an attempt at the screen glitch where the player and the cast picker drew garbled icons and text. Video drawing now resets the graphics state it leaves behind. This was found from screenshots only and could not be reproduced here, so please say if it still happens (a wireless-debugging log would then pin it down).
 
 ## Foyer 0.28.0

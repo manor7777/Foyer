@@ -261,3 +261,12 @@ pub fn save_to_downloads(src: &Path, name: &str) -> Result<String, String> {
     let _ = std::fs::remove_file(src);
     Ok("Downloads/Foyer".into())
 }
+
+pub const CUSTOM_RESIZE: bool = false;
+pub fn cursor_pos() -> Option<(i32, i32)> {
+    None
+}
+pub fn left_button_down() -> bool {
+    false
+}
+pub fn set_window_rect(_w: &slint::Window, _x: i32, _y: i32, _width: i32, _height: i32) {}

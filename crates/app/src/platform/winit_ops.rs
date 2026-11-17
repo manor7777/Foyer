@@ -83,3 +83,49 @@ pub fn save_to_downloads(src: &std::path::Path, name: &str) -> Result<String, St
     }
     Ok(dest.to_string_lossy().into_owned())
 }
+
+// Resizing the frameless picture-in-picture window by hand: asking Windows to resize it and then correcting the
+// shape afterwards made it judder, so on Windows Foyer follows the mouse itself and moves + resizes in one call.
+
+/// True where `cursor_pos`, `left_button_down` and `set_window_rect` work.
+pub const CUSTOM_RESIZE: bool = cfg!(windows);
+
+/// Mouse position on screen in physical pixels.
+#[cfg(windows)]
+pub fn cursor_pos() -> Option<(i32, i32)> {
+    use windows_sys::Win32::{Foundation::POINT, UI::WindowsAndMessaging::GetCursorPos};
+    let mut p = POINT { x: 0, y: 0 };
+    // SAFETY: plain out-parameter call.
+    (unsafe { GetCursorPos(&mut p) } != 0).then_some((p.x, p.y))
+}
+
+#[cfg(windows)]
+pub fn left_button_down() -> bool {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+    // SAFETY: plain call.
+    unsafe { GetAsyncKeyState(VK_LBUTTON as i32) as u16 & 0x8000 != 0 }
+}
+
+/// Moves and resizes the window (outer rectangle, physical pixels) in one step.
+#[cfg(windows)]
+pub fn set_window_rect(w: &slint::Window, x: i32, y: i32, width: i32, height: i32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER};
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    w.with_winit_window(|win| {
+        if let Ok(RawWindowHandle::Win32(h)) = win.window_handle().map(|h| h.as_raw()) {
+            // SAFETY: the handle belongs to this live window.
+            unsafe { SetWindowPos(h.hwnd.get() as _, std::ptr::null_mut(), x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE) };
+        }
+    });
+}
+
+#[cfg(not(windows))]
+pub fn cursor_pos() -> Option<(i32, i32)> {
+    None
+}
+#[cfg(not(windows))]
+pub fn left_button_down() -> bool {
+    false
+}
+#[cfg(not(windows))]
+pub fn set_window_rect(_w: &slint::Window, _x: i32, _y: i32, _width: i32, _height: i32) {}

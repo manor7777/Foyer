@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
-    "mtime": 1794919530.5263474,
-    "seen": 1794922732.0118172,
-    "ast_hash": "1f2644f4a0ca6a2e57a2c88557e6607b",
+    "mtime": 1794928051.943679,
+    "seen": 1794928111.5107276,
+    "ast_hash": "791b337048aa8c2c163efd99ffffdc66",
     "semantic_hash": ""
   },
   "crates/app/build.rs": {
@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "crates/player/src/lib.rs": {
-    "mtime": 1794927233.7549403,
-    "seen": 1794927409.9396427,
-    "ast_hash": "44090a08353d5a8711b7e1c75a453868",
+    "mtime": 1794927899.0339527,
+    "seen": 1794928111.5107834,
+    "ast_hash": "d7fb48a3ed61bcb4f51233e7c0b9fb8e",
     "semantic_hash": ""
   },
   "crates/seerr-api/Cargo.toml": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1794927306.5892034,
-    "seen": 1794927409.9399598,
-    "ast_hash": "2280bc9b4c17d25c878bd02ccfbc0d2f",
+    "mtime": 1794928101.1554315,
+    "seen": 1794928111.5109756,
+    "ast_hash": "03d8ab59897f2953cdf83a3988ed18e4",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -498,15 +498,15 @@
     "semantic_hash": ""
   },
   "crates/app/src/lib.rs": {
-    "mtime": 1794927233.7429914,
-    "seen": 1794927409.939557,
-    "ast_hash": "da95ceab4687e27c7ff5c2c433887eb2",
+    "mtime": 1794928051.9485736,
+    "seen": 1794928111.5107458,
+    "ast_hash": "fd8edce1d234d63e7757dee440dbbf74",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android.rs": {
-    "mtime": 1794923172.3824294,
-    "seen": 1794923912.5682757,
-    "ast_hash": "94ac9224c9c93c334d0b5e7af72902c8",
+    "mtime": 1794928051.9442077,
+    "seen": 1794928111.5107515,
+    "ast_hash": "f7b6969108c1ae47db667f7b89a4dfe8",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android_media.rs": {
@@ -540,9 +540,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/platform/winit_ops.rs": {
-    "mtime": 1794923172.3824294,
-    "seen": 1794923912.5682836,
-    "ast_hash": "98bb5e7669469936bef36b078b4bc370",
+    "mtime": 1794928051.9442077,
+    "seen": 1794928111.5107596,
+    "ast_hash": "64f0481c124c5efb8e66bf3ebf7e35f7",
     "semantic_hash": ""
   },
   "crates/app/src/sysmedia.rs": {

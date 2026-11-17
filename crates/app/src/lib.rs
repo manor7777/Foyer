@@ -491,6 +491,8 @@ struct State {
     /// Which edge or corner of the picture-in-picture window is being dragged (see `platform::drag_resize`),
     /// so the opposite side can stay put while the window keeps the video's shape.
     pip_dir: Option<i32>,
+    /// Width the picture-in-picture window had when it was last closed, reused the next time this session.
+    pip_width: Option<u32>,
     lib: LibView,
     sr: SeerrState,
     /// Log of every notification Foyer has shown, newest first.
@@ -2672,7 +2674,8 @@ impl Ctx {
                 w.set_maximized(false);
             }
             let sf = w.scale_factor();
-            let (pw, ph) = ((480.0 * sf) as u32, (480.0 * sf / ui.get_video_aspect().max(0.2)) as u32);
+            let pw = self.st.lock().unwrap().pip_width.unwrap_or((480.0 * sf) as u32);
+            let ph = (pw as f32 / ui.get_video_aspect().max(0.2)) as u32;
             platform::set_decorations(w, false);
             let area = platform::monitor_area(w);
             // Let the lowered minimum size take effect before resizing.
@@ -2687,7 +2690,11 @@ impl Ctx {
             });
         } else {
             let Some((size, pos, max)) = self.st.lock().unwrap().pip_saved.take() else { return };
-            self.st.lock().unwrap().pip_dir = None;
+            {
+                let mut s = self.st.lock().unwrap();
+                s.pip_dir = None;
+                s.pip_width = Some(w.size().width);
+            }
             platform::set_decorations(w, true);
             w.set_size(size);
             w.set_position(pos);
@@ -2695,6 +2702,49 @@ impl Ctx {
                 w.set_maximized(true);
             }
         }
+    }
+
+    /// Resizes the picture-in-picture window while the mouse button is held, keeping the video's shape and the
+    /// side opposite the dragged edge fixed. Moves and resizes in a single call, so it doesn't judder.
+    fn pip_resize_drag(&self, dir: i32) {
+        thread_local! {
+            static DRAG: std::cell::RefCell<Option<slint::Timer>> = const { std::cell::RefCell::new(None) };
+        }
+        let Some(ui) = self.ui.upgrade() else { return };
+        let Some(c0) = platform::cursor_pos() else { return };
+        let w = ui.window();
+        let (p0, s0) = (w.position(), w.size());
+        let (w0, h0) = (s0.width as i32, s0.height as i32);
+        let aspect = ui.get_video_aspect().max(0.2);
+        let min_w = (240.0 * w.scale_factor()) as i32;
+        let max_w = platform::monitor_area(w).map_or(i32::MAX, |m| m.2 as i32).max(min_w);
+        let weak = self.ui.clone();
+        let last = std::cell::Cell::new((w0, h0));
+        let timer = slint::Timer::default();
+        timer.start(slint::TimerMode::Repeated, Duration::from_millis(8), move || {
+            let Some(ui) = weak.upgrade() else { return };
+            if !platform::left_button_down() {
+                DRAG.with(|d| *d.borrow_mut() = None);
+                return;
+            }
+            let Some((cx, cy)) = platform::cursor_pos() else { return };
+            let (dx, dy) = (cx - c0.0, cy - c0.1);
+            let raw_w = match dir {
+                0 => ((h0 - dy) as f32 * aspect).round() as i32,
+                1 => ((h0 + dy) as f32 * aspect).round() as i32,
+                3 | 5 | 7 => w0 - dx,
+                _ => w0 + dx,
+            };
+            let nw = raw_w.clamp(min_w, max_w);
+            let nh = (nw as f32 / aspect).round() as i32;
+            if (nw, nh) == last.replace((nw, nh)) {
+                return;
+            }
+            let x = if matches!(dir, 3 | 5 | 7) { p0.x + w0 - nw } else { p0.x };
+            let y = if matches!(dir, 0 | 4 | 5) { p0.y + h0 - nh } else { p0.y };
+            platform::set_window_rect(ui.window(), x, y, nw, nh);
+        });
+        DRAG.with(|d| *d.borrow_mut() = Some(timer));
     }
 
     /// Updates the player's time-of-day label (only when the text changes).
@@ -3886,6 +3936,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
             click_gen: 0,
             pip_saved: None,
             pip_dir: None,
+            pip_width: None,
             lib: LibView::default(),
             sr: SeerrState::default(),
             notes: notes::load_notes(),
@@ -4759,7 +4810,11 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     ui.on_pip_resize(move |dir| {
         if let Some(ui) = weak.upgrade() {
             c.st.lock().unwrap().pip_dir = Some(dir);
-            platform::drag_resize(ui.window(), dir);
+            if platform::CUSTOM_RESIZE && platform::left_button_down() {
+                c.pip_resize_drag(dir);
+            } else {
+                platform::drag_resize(ui.window(), dir);
+            }
         }
     });
     let c = ctx.clone();

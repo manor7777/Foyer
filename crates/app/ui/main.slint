@@ -6692,7 +6692,8 @@ export component AppWindow inherits Window {
             }
         }
         Rectangle {
-            opacity: pip-ta.has-hover || root.player-paused ? 1.0 : 0.0;
+            // A button under the pointer takes the hover from the area behind it, so count the buttons too.
+            opacity: pip-ta.has-hover || pb1.hovered || pb2.hovered || pb3.hovered || root.player-paused ? 1.0 : 0.0;
             animate opacity { duration: 150ms; }
             background: #00000070;
             HorizontalLayout {
@@ -6701,18 +6702,18 @@ export component AppWindow inherits Window {
                 alignment: end;
                 y: 0px;
                 height: 44px;
-                IconButton {
+                pb1 := IconButton {
                     size: 32px;
                     icon: @image-url("icons/expand.svg");
                     clicked => { root.pip = false; }
                 }
-                IconButton {
+                pb2 := IconButton {
                     size: 32px;
                     icon: @image-url("icons/close.svg");
                     clicked => { root.player-key("quit"); }
                 }
             }
-            IconButton {
+            pb3 := IconButton {
                 size: 52px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
@@ -6754,7 +6755,7 @@ export component AppWindow inherits Window {
             clicked => { root.mini = false; }
         }
         if root.mini && root.mini-t > 0.95: Rectangle {
-            opacity: mini-ta.has-hover || mini-ta.pressed ? 1.0 : 0.0;
+            opacity: mini-ta.has-hover || mini-ta.pressed || mb1.hovered || mb2.hovered || mb3.hovered ? 1.0 : 0.0;
             animate opacity { duration: 150ms; }
             background: #00000070;
             HorizontalLayout {
@@ -6763,18 +6764,18 @@ export component AppWindow inherits Window {
                 alignment: end;
                 y: 0px;
                 height: 44px;
-                IconButton {
+                mb1 := IconButton {
                     size: 32px;
                     icon: @image-url("icons/expand.svg");
                     clicked => { root.mini = false; }
                 }
-                IconButton {
+                mb2 := IconButton {
                     size: 32px;
                     icon: @image-url("icons/close.svg");
                     clicked => { root.player-key("quit"); }
                 }
             }
-            IconButton {
+            mb3 := IconButton {
                 size: 52px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
