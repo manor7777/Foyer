@@ -2,6 +2,10 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.11
+
+- **Poster-hover backdrop no longer flashes.** When one backdrop replaced another, both layers faded at once and the page showed through for a moment, like a flash of white. The old backdrop now stays put underneath while the new one fades in over it.
+
 ## Foyer 0.28.10
 
 **Casting grows real controls**
