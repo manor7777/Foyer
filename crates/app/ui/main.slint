@@ -2824,7 +2824,8 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         image-fit: cover;
-        opacity: Hover.active && !Hover.front-b ? 1.0 : 0.0;
+        // stays fully opaque under the incoming layer, so a cross-fade never dips
+        opacity: Hover.active ? 1.0 : 0.0;
         animate opacity { duration: 350ms; easing: ease-in-out; }
     }
     if !root.full-player && root.hover-backdrop: Image {

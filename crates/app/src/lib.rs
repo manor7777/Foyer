@@ -2714,7 +2714,8 @@ impl Ctx {
                     let img = Image::from_rgba8(buf);
                     if !h.get_active() {
                         // Nothing showing: load into the front layer and fade it in.
-                        if h.get_front_b() { h.set_image_b(img) } else { h.set_image(img) }
+                        h.set_front_b(false);
+                        h.set_image(img);
                     } else {
                         // Cross-fade: load into the hidden layer and make it the front one.
                         let b = !h.get_front_b();

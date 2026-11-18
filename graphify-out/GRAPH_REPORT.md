@@ -1,7 +1,7 @@
 # Graph Report - Foyer  (2026-11-18)
 
 ## Corpus Check
-- 152 files · ~311,876 words
+- 152 files · ~311,869 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: (none) 4, .xml 2, .rc 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `865880f3`
+- Built from commit: `a822c52d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1232,7 +1232,7 @@ Nodes (3): Foyer 0.26.0, ✨ Highlights, 🔧 Under the hood
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `SharedString` connect `SharedString` to `input_items.rs`, `MenuItem`, `graphics.rs`, `app/src/lib.rs`, `ImageInner`, `.visual_representation`, `WindowProperties`, `data_transfer.rs`, `AccessibleStringProperty`, `ItemRc`, `TextInput`, `Image`, `LogicalRect`, `window.rs`, `PlainOrStyledText`, `SystemTrayIcon`, `WindowInner`, `platform.rs`, `T`, `date_time.rs`, `format!`, `graphics/path.rs`, `item_tree.rs`, `items.rs`, `ScaleFactor`, `DataTransfer`, `StyledTextItem`, `input.rs`, `KeyboardModifiers`, `PhysicalPx`, `TestItemTree`, `translations.rs`, `i-slint-core/lib.rs`, `ParsedSVG`, `i-slint-core/string.rs`, `menus.rs`, `ItemTreeVTable`, `benches/string.rs`, `GraphicsAPI`, `SlintContext`, `text.rs`, `i-slint-core/accessibility.rs`?**
-  _High betweenness centrality (0.110) - this node is a cross-community bridge._
+  _High betweenness centrality (0.107) - this node is a cross-community bridge._
 - **Are the 46 inferred relationships involving `ItemRc` (e.g. with `.font_request()` and `item_children_bounding_rect()`) actually correct?**
   _`ItemRc` has 46 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Session`, `Chromecast`, `Session` to the rest of the system?**

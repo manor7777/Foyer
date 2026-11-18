@@ -498,9 +498,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/lib.rs": {
-    "mtime": 1794962644.1162724,
-    "seen": 1794963045.9099522,
-    "ast_hash": "7914a9a4cb7805101eb8eff4211ee254",
+    "mtime": 1795007566.9297702,
+    "seen": 1795007675.9369006,
+    "ast_hash": "8bdf3b50854af8d5078f9f3254e5117c",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android.rs": {
