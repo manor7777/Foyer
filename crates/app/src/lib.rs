@@ -3657,8 +3657,11 @@ fn keep_display_on(on: bool) {
     unsafe { SetThreadExecutionState(if on { ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED } else { ES_CONTINUOUS }) };
 }
 
+/// Android: the screensaver / sleep used to start in the middle of a film on TV sticks.
 #[cfg(not(windows))]
-fn keep_display_on(_: bool) {}
+fn keep_display_on(on: bool) {
+    platform::keep_screen_on(on);
+}
 
 fn ticks(secs: f64) -> i64 {
     (secs * TICKS_PER_SEC as f64) as i64
@@ -5223,6 +5226,7 @@ fn android_main(app: slint::android::AndroidApp) {
     }
     let (vm, activity) = (app.vm_as_ptr(), app.activity_as_ptr());
     platform::init(vm, activity);
+    platform::set_app(app.clone());
     player::set_java_vm(vm);
     slint::android::init(app).expect("slint android init");
     if let Err(e) = run() {

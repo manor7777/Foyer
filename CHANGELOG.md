@@ -2,6 +2,10 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.14
+
+- **Android TV / Google TV and phones: the screen no longer sleeps during a video.** A Chromecast with Google TV went to its screensaver part-way through playback, and a phone could dim and lock. Foyer now keeps the screen on while a video is playing (as the Windows version already did); when you pause or the video ends, the screensaver and sleep work as normal.
+
 ## Foyer 0.28.13
 
 **Android TV / Google TV**

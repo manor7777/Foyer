@@ -144,3 +144,7 @@ pub fn multicast_lock(_on: bool) {}
 
 /// Android only (Back with nowhere to go hides the app); desktops have no Back key.
 pub fn move_to_back() {}
+
+/// Android only; Windows keeps the display on from the player thread (keep_display_on in lib.rs).
+#[allow(dead_code)]
+pub fn keep_screen_on(_on: bool) {}
