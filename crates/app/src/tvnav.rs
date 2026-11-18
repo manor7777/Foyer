@@ -6,7 +6,8 @@
 //! view (Slint does that on focus), so rows and pages follow the focus.
 
 use i_slint_core::item_tree::ItemRc;
-use i_slint_core::items::{FocusReason, FocusScope, TextInput, TouchArea};
+use i_slint_core::item_tree::ParentItemTraversalMode;
+use i_slint_core::items::{Flickable, FocusReason, FocusScope, TextInput, TouchArea};
 use i_slint_core::window::WindowInner;
 
 /// Directions as sent from the UI's `dpad(int)` callback.
@@ -116,6 +117,52 @@ fn current(window: &slint::Window) -> Option<(ItemRc, R)> {
 
 fn focus(window: &slint::Window, item: &ItemRc) {
     WindowInner::from_pub(window).set_focus_item(item, true, FocusReason::TabNavigation);
+    if let Some(now) = WindowInner::from_pub(window).focus_item.borrow().upgrade() {
+        keep_clear(&now);
+    }
+}
+
+/// Slint scrolls a focused item just into view, flush with the edge, which cuts off the heading
+/// above a row and hides that there is more beside it. Scroll a little further: room above for the
+/// row's heading, and a bit of the next card showing at the sides.
+fn keep_clear(item: &ItemRc) {
+    const ABOVE: f32 = 64.0;
+    const BELOW: f32 = 24.0;
+    const SIDE: f32 = 48.0;
+    let mut parent = item.parent_item(ParentItemTraversalMode::StopAtPopups);
+    while let Some(p) = parent {
+        if let Some(f) = p.downcast::<Flickable>() {
+            let f = f.as_pin_ref();
+            // positions are read fresh for each scroll area, since scrolling an inner one moves the item
+            let (r, area) = (rect(item), rect(&p));
+            let fit = |pos: f32, lo: f32, hi: f32, a0: f32, a1: f32, before: f32, after: f32, content: f32| {
+                let visible = a1 - a0;
+                if content <= visible + 1.0 {
+                    return None;
+                }
+                let shift = if lo < a0 + before {
+                    a0 + before - lo
+                } else if hi > a1 - after {
+                    a1 - after - hi
+                } else {
+                    return None;
+                };
+                Some((pos + shift).clamp(-(content - visible), 0.0))
+            };
+            let y = Flickable::FIELD_OFFSETS.content_y().apply_pin(f);
+            let h = Flickable::FIELD_OFFSETS.content_height().apply_pin(f).get().0;
+            if let Some(ny) = fit(y.get().0, r.y0, r.y1, area.y0, area.y1, ABOVE, BELOW, h) {
+                y.set(i_slint_core::lengths::LogicalLength::new(ny));
+            }
+            let (r, area) = (rect(item), rect(&p));
+            let x = Flickable::FIELD_OFFSETS.content_x().apply_pin(f);
+            let w = Flickable::FIELD_OFFSETS.content_width().apply_pin(f).get().0;
+            if let Some(nx) = fit(x.get().0, r.x0, r.x1, area.x0, area.x1, SIDE, SIDE, w) {
+                x.set(i_slint_core::lengths::LogicalLength::new(nx));
+            }
+        }
+        parent = p.parent_item(ParentItemTraversalMode::StopAtPopups);
+    }
 }
 
 /// True when a real control (not the window's catch-all key handler) has focus.

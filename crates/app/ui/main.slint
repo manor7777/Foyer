@@ -4110,10 +4110,23 @@ export component AppWindow inherits Window {
                         SettingRow {
                             title: "Hardware decoding";
                             description: "Uses your graphics card to decode video. Turn off if you see glitches.";
-                            divider: Device.desktop;
                             ToggleSwitch {
                                 checked <=> root.hw-decode;
                                 toggled(c) => { root.set-hwdec(c); }
+                            }
+                        }
+                        // Android: zero-copy is much faster on TV sticks; copying is the fallback if the picture glitches.
+                        if !Device.desktop: SettingRow {
+                            title: "Decoding method";
+                            description: "Automatic tries the fast method first. If the picture glitches, try Copy; if video is slow or choppy, try Zero-copy.";
+                            Dropdown {
+                                width: 230px;
+                                model: ["Automatic", "Copy (compatible)", "Zero-copy (fastest)"];
+                                current-index: root.hw-mode == 2 ? 1 : (root.hw-mode == 4 ? 2 : 0);
+                                selected => {
+                                    root.hw-mode = self.current-index == 1 ? 2 : (self.current-index == 2 ? 4 : 0);
+                                    root.set-hw-mode(root.hw-mode);
+                                }
                             }
                         }
                         if Device.desktop: SettingRow {

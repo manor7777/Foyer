@@ -832,8 +832,21 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
             set("hwdec", "no");
         } else if cfg!(target_os = "android") {
             set("ao", "audiotrack,opensles");
-            // MediaCodec; "mediacodec" renders straight to the GL surface, "-copy" is the safe fallback.
-            set("hwdec", if opts.hw_mode == 4 { "mediacodec" } else { "mediacodec-copy" });
+            // MediaCodec. "mediacodec" hands decoded frames to the GL surface without copying (fast);
+            // "-copy" copies every frame back to memory first, which on weak TV chips (Chromecast
+            // with Google TV) managed only a few frames a second. Automatic tries zero-copy and
+            // falls back to copying if the device can't do it.
+            set(
+                "hwdec",
+                match opts.hw_mode {
+                    4 => "mediacodec",
+                    2 => "mediacodec-copy",
+                    _ => "mediacodec,mediacodec-copy",
+                },
+            );
+            // Read ahead less: a TV stick has 1-2 GB of memory for everything.
+            set("demuxer-max-bytes", "150MiB");
+            set("demuxer-max-back-bytes", "50MiB");
         } else {
             match opts.hw_mode {
                 2 => set("hwdec", "dxva2-copy"),

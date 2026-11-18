@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.13
+
+**Android TV / Google TV**
+
+- **Smoother video on TV sticks.** Video played at a few frames a second on a Chromecast with Google TV: every decoded frame was copied back to memory before being drawn, which that chip is very slow at. Android now uses zero-copy hardware decoding when the device supports it, and falls back to the old way when it doesn't. The player also reads ahead less (150 MB instead of 1 GB), as TV sticks have little memory.
+- **Settings → Playback → "Decoding method" now shows on Android**: Automatic, Copy (compatible) or Zero-copy (fastest). If the picture glitches, try Copy.
+- **Scrolling with the remote keeps headings in view.** Moving down to a row scrolled it flush to the top edge and cut off its heading; the page now leaves room above it, and a row keeps a bit of the next card showing at the side.
+
 ## Foyer 0.28.12
 
 **Android TV / Google TV: the remote works**
