@@ -3967,14 +3967,17 @@ pub fn run() -> Result<(), slint::PlatformError> {
         ui.on_playing_changed(platform::set_landscape);
     }
     // TV remote: arrows move focus to the nearest control that way (tvnav.rs); 4 = to the navigation
-    // rail. Run after the current key event has finished, not from inside its handler.
+    // rail; 5 = into a dialog that just opened. Run after the current key event has finished, not from inside its handler.
     {
         let step = |weak: Weak<AppWindow>, dir: i32| {
-            slint::Timer::single_shot(Duration::from_millis(0), move || {
+            // A dialog that just opened is only built on the next frame; give it a moment.
+            slint::Timer::single_shot(Duration::from_millis(if dir == 5 { 120 } else { 0 }), move || {
                 let Some(ui) = weak.upgrade() else { return };
                 let w = ui.window();
                 if dir == 4 {
                     tvnav::focus_start(w, true);
+                } else if dir == 5 {
+                    tvnav::settle(w);
                 } else {
                     tvnav::step(w, dir);
                 }

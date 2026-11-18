@@ -6,7 +6,7 @@
 //! view (Slint does that on focus), so rows and pages follow the focus.
 
 use i_slint_core::item_tree::ItemRc;
-use i_slint_core::items::{FocusReason, FocusScope, TextInput};
+use i_slint_core::items::{FocusReason, FocusScope, TextInput, TouchArea};
 use i_slint_core::window::WindowInner;
 
 /// Directions as sent from the UI's `dpad(int)` callback.
@@ -74,6 +74,14 @@ fn candidates(win: &WindowInner, size: (f32, f32)) -> Vec<(ItemRc, R)> {
     let Some(start) = root(win) else { return out };
     let mut cur = start.clone();
     for _ in 0..50_000 {
+        // A visible window-sized touch area is a dialog's backdrop (or the video under the player's
+        // controls): everything before it is underneath, so the remote stays inside the dialog.
+        if cur.downcast::<TouchArea>().is_some() && cur.is_visible() {
+            let r = rect(&cur);
+            if r.x1 - r.x0 >= size.0 * 0.9 && r.y1 - r.y0 >= size.1 * 0.9 {
+                out.clear();
+            }
+        }
         if focusable(&cur) {
             let r = rect(&cur);
             let big = r.x1 - r.x0 >= size.0 * 0.9 && r.y1 - r.y0 >= size.1 * 0.9;
@@ -169,6 +177,18 @@ pub fn step(window: &slint::Window, dir: i32) -> bool {
 /// Gap between two ranges (0 when they overlap).
 fn gap(a0: f32, a1: f32, b0: f32, b1: f32) -> f32 {
     (a0 - b1).max(b0 - a1).max(0.0)
+}
+
+/// After a dialog opened or closed: if the focus is not somewhere the remote can reach (under the
+/// dialog, or gone), move it to the start of what is reachable.
+pub fn settle(window: &slint::Window) {
+    let reachable = current(window).is_some_and(|(item, _)| {
+        let win = WindowInner::from_pub(window);
+        candidates(win, window_size(window)).iter().any(|(i, _)| *i == item)
+    });
+    if !reachable {
+        focus_start(window, false);
+    }
 }
 
 /// Focuses a starting point: the top of the navigation rail when `nav`, else the first control of the

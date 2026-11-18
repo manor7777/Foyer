@@ -196,6 +196,25 @@ component LineEdit inherits FocusScope {
     }
 }
 
+/// A clickable area the TV remote can reach too: Select / Enter activates it, and it shows a focus ring.
+component Tap inherits TouchArea {
+    in property <length> ring-radius: 6px;
+    tap-fs := FocusScope {
+        enabled: root.enabled;
+        // a mouse click or tap goes to the touch area; only the keyboard / remote focuses this
+        focus-on-click: false;
+        key-pressed(e) => {
+            if e.text == Key.Return || e.text == " " { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    Rectangle {
+        border-radius: root.ring-radius;
+        border-width: tap-fs.has-focus ? 3px : 0px;
+        border-color: Palette.accent-background;
+    }
+}
+
 component Bar inherits Rectangle {
     in property <float> progress;
     height: 4px;
@@ -317,6 +336,17 @@ component Dropdown inherits Rectangle {
         y: root.height + 2px;
         width: max(root.width, 200px);
         height: min(300px, root.model.length * (Device.touch ? 46px : 34px) + 12px);
+        // TV remote: keys from inside a popup stop at the popup, so the arrows and Back are handled here.
+        FocusScope {
+        focus-on-tab-navigation: false;
+        key-pressed(e) => {
+            if e.text == Key.UpArrow { DpadNav.step(0); return accept; }
+            if e.text == Key.RightArrow { DpadNav.step(1); return accept; }
+            if e.text == Key.DownArrow { DpadNav.step(2); return accept; }
+            if e.text == Key.LeftArrow { DpadNav.step(3); return accept; }
+            if e.text == Key.Back || e.text == Key.Escape { pop.close(); return accept; }
+            return reject;
+        }
         Rectangle {
             background: Palette.alternate-background;
             border-radius: 8px;
@@ -356,6 +386,7 @@ component Dropdown inherits Rectangle {
                     }
                 }
             }
+        }
         }
     }
 }
@@ -413,6 +444,17 @@ component MultiSelect inherits Rectangle {
         y: root.height + 2px;
         width: max(root.width, 220px);
         height: min(340px, (root.rows.length + (root.show-all ? 1 : 0)) * root.row-h + 12px);
+        // TV remote: keys from inside a popup stop at the popup, so the arrows and Back are handled here.
+        FocusScope {
+        focus-on-tab-navigation: false;
+        key-pressed(e) => {
+            if e.text == Key.UpArrow { DpadNav.step(0); return accept; }
+            if e.text == Key.RightArrow { DpadNav.step(1); return accept; }
+            if e.text == Key.DownArrow { DpadNav.step(2); return accept; }
+            if e.text == Key.LeftArrow { DpadNav.step(3); return accept; }
+            if e.text == Key.Back || e.text == Key.Escape { pop.close(); return accept; }
+            return reject;
+        }
         Rectangle {
             background: Palette.alternate-background;
             border-radius: 8px;
@@ -429,13 +471,13 @@ component MultiSelect inherits Rectangle {
                             border-radius: 4px;
                             background: all-ta.has-hover ? Palette.control-hover : transparent;
                             Text { text: "Select all"; color: Palette.accent-background; font-size: 13px * Scale.text-scale; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                            all-ta := TouchArea { clicked => { root.set-all(true); } }
+                            all-ta := Tap { clicked => { root.set-all(true); } }
                         }
                         Rectangle {
                             border-radius: 4px;
                             background: none-ta.has-hover ? Palette.control-hover : transparent;
                             Text { text: "Clear"; color: Palette.accent-background; font-size: 13px * Scale.text-scale; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                            none-ta := TouchArea { clicked => { root.set-all(false); } }
+                            none-ta := Tap { clicked => { root.set-all(false); } }
                         }
                     }
                     for r[i] in root.rows: Rectangle {
@@ -470,10 +512,11 @@ component MultiSelect inherits Rectangle {
                             vertical-alignment: center;
                             overflow: elide;
                         }
-                        ra := TouchArea { clicked => { root.toggled(i); } }
+                        ra := Tap { clicked => { root.toggled(i); } }
                     }
                 }
             }
+        }
         }
     }
 }
@@ -581,7 +624,7 @@ component SettingsTab inherits Rectangle {
         horizontal-alignment: center;
         vertical-alignment: center;
     }
-    ta := TouchArea { clicked => { root.clicked(); } }
+    ta := Tap { clicked => { root.clicked(); } }
 }
 
 
@@ -1123,7 +1166,7 @@ component TrackMenu inherits PopupWindow {
                     border-radius: 6px;
                     background: sb.has-hover ? #ffffff30 : #ffffff18;
                     Text { text: b.t; color: white; font-size: 13px * Scale.text-scale; horizontal-alignment: center; vertical-alignment: center; }
-                    sb := TouchArea { clicked => { root.sync(b.d); } }
+                    sb := Tap { clicked => { root.sync(b.d); } }
                 }
                 Rectangle {
                     horizontal-stretch: 1;
@@ -1135,14 +1178,14 @@ component TrackMenu inherits PopupWindow {
                         vertical-alignment: center;
                     }
                     // click the value to reset
-                    sr := TouchArea { clicked => { root.sync(0.0); } }
+                    sr := Tap { clicked => { root.sync(0.0); } }
                 }
                 for b in [{ t: "+0.1", d: 0.1 }, { t: "+1s", d: 1.0 }]: Rectangle {
                     width: 46px;
                     border-radius: 6px;
                     background: sb2.has-hover ? #ffffff30 : #ffffff18;
                     Text { text: b.t; color: white; font-size: 13px * Scale.text-scale; horizontal-alignment: center; vertical-alignment: center; }
-                    sb2 := TouchArea { clicked => { root.sync(b.d); } }
+                    sb2 := Tap { clicked => { root.sync(b.d); } }
                 }
             }
             ScrollView {
@@ -1242,7 +1285,7 @@ component Overview inherits Rectangle {
             font-weight: 600;
             vertical-alignment: center;
         }
-        TouchArea {
+        Tap {
             mouse-cursor: pointer;
             clicked => { root.open = !root.open; }
         }
@@ -1350,7 +1393,7 @@ component LetterChip inherits Rectangle {
         horizontal-alignment: center;
         vertical-alignment: center;
     }
-    ta := TouchArea { clicked => { root.clicked(); } }
+    ta := Tap { clicked => { root.clicked(); } }
 }
 
 component StatusChip inherits Rectangle {
@@ -1458,7 +1501,7 @@ component SeerrTabs inherits Rectangle {
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
-                        ta := TouchArea { clicked => { root.picked(i); } }
+                        ta := Tap { clicked => { root.picked(i); } }
                     }
                 }
             }
@@ -1614,7 +1657,7 @@ component CardMenuRow inherits Rectangle {
             overflow: elide;
         }
     }
-    ra := TouchArea { clicked => { root.clicked(); } }
+    ra := Tap { clicked => { root.clicked(); } }
 }
 
 /// "Options" on a detail page: the occasional actions (follow, hide, remove from Continue Watching,
@@ -1648,6 +1691,17 @@ component DetailMenu inherits Rectangle {
         y: root.height + 4px;
         width: 300px;
         height: root.rows * (root.row-h + 2px) + 16px;
+        // TV remote: keys from inside a popup stop at the popup, so the arrows and Back are handled here.
+        FocusScope {
+        focus-on-tab-navigation: false;
+        key-pressed(e) => {
+            if e.text == Key.UpArrow { DpadNav.step(0); return accept; }
+            if e.text == Key.RightArrow { DpadNav.step(1); return accept; }
+            if e.text == Key.DownArrow { DpadNav.step(2); return accept; }
+            if e.text == Key.LeftArrow { DpadNav.step(3); return accept; }
+            if e.text == Key.Back || e.text == Key.Escape { pop.close(); return accept; }
+            return reject;
+        }
         Rectangle {
             background: Palette.alternate-background;
             border-radius: 10px;
@@ -1696,6 +1750,7 @@ component DetailMenu inherits Rectangle {
                     clicked => { root.report(); }
                 }
             }
+        }
         }
     }
 }
@@ -1930,6 +1985,17 @@ component CardView inherits Rectangle {
         y: root.menu-y;
         width: root.menu-w;
         height: root.menu-h;
+        // TV remote: keys from inside a popup stop at the popup, so the arrows and Back are handled here.
+        FocusScope {
+        focus-on-tab-navigation: false;
+        key-pressed(e) => {
+            if e.text == Key.UpArrow { DpadNav.step(0); return accept; }
+            if e.text == Key.RightArrow { DpadNav.step(1); return accept; }
+            if e.text == Key.DownArrow { DpadNav.step(2); return accept; }
+            if e.text == Key.LeftArrow { DpadNav.step(3); return accept; }
+            if e.text == Key.Back || e.text == Key.Escape { menu.close(); return accept; }
+            return reject;
+        }
         Rectangle {
             background: Palette.alternate-background;
             border-radius: 10px;
@@ -1993,6 +2059,7 @@ component CardView inherits Rectangle {
                     clicked => { CardMenu.cw-hide(root.card.id, root.card.title); }
                 }
             }
+        }
         }
     }
 
@@ -2393,6 +2460,10 @@ export component AppWindow inherits Window {
     callback dpad(int);
     /// Back with nowhere to go back to: hide the app instead of closing it (Android).
     callback app-background();
+    /// Something is open over the page; on TV the remote's focus moves into it (dpad 5).
+    property <bool> any-modal: root.confirm-open || root.sr-report-open || root.sr-request-open || CastUi.open
+        || (CastUi.sheet && CastUi.active != "") || root.play-error != "" || root.sub-dialog-open;
+    changed any-modal => { if Device.tv { root.dpad(5); } }
     /// Changing this puts the remote's focus on the player's play / pause button.
     in-out property <int> player-focus-req: 0;
     in-out property <bool> nav-pinned: false;
@@ -2801,9 +2872,22 @@ export component AppWindow inherits Window {
                 root.dismiss-message();
                 return accept;
             }
+            // Back / Escape closes whatever is open over the page first (the remote has no other way out).
+            if e.text == Key.Back || e.text == Key.Escape {
+                if root.confirm-open { root.confirm-open = false; return accept; }
+                if root.sr-report-open { root.sr-report-open = false; return accept; }
+                if root.sr-request-open { root.sr-request-open = false; return accept; }
+                if CastUi.sheet && CastUi.active != "" { CastUi.sheet = false; return accept; }
+                if CastUi.open { CastUi.open = false; return accept; }
+                if root.play-error != "" { root.play-error = ""; return accept; }
+            }
             if root.full-player {
                 if root.sub-dialog-open {
-                    if e.text == Key.Escape { root.close-sub-search(); }
+                    if e.text == Key.Escape || e.text == Key.Back { root.close-sub-search(); }
+                    else if Device.tv && e.text == Key.UpArrow { root.dpad(0); }
+                    else if Device.tv && e.text == Key.RightArrow { root.dpad(1); }
+                    else if Device.tv && e.text == Key.DownArrow { root.dpad(2); }
+                    else if Device.tv && e.text == Key.LeftArrow { root.dpad(3); }
                     return accept;
                 }
                 // TV remote. With a control focused the arrows move between the controls and Back hides them;
@@ -3085,7 +3169,7 @@ export component AppWindow inherits Window {
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
-                    dta := TouchArea { clicked => { root.server-text = s; root.detect-server(s); } }
+                    dta := Tap { clicked => { root.server-text = s; root.detect-server(s); } }
                 }
                 user-edit := LineEdit { placeholder-text: root.login-kind == 2 ? "Plex email or user name" : "User name"; }
                 pass-edit := LineEdit {
@@ -3134,7 +3218,7 @@ export component AppWindow inherits Window {
                                 vertical-alignment: center;
                             }
                         }
-                        fta := TouchArea {
+                        fta := Tap {
                             enabled: !root.discovering;
                             clicked => { root.discover(); }
                         }
@@ -3170,7 +3254,7 @@ export component AppWindow inherits Window {
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
-                        plex-ta := TouchArea { clicked => { root.pick-plex-server(i); } }
+                        plex-ta := Tap { clicked => { root.pick-plex-server(i); } }
                     }
                     if root.busy: Text {
                         text: "Connecting…";
@@ -3191,7 +3275,7 @@ export component AppWindow inherits Window {
                         opacity: 0.7;
                         font-size: 13px * Scale.text-scale;
                         horizontal-alignment: center;
-                        TouchArea { clicked => { root.cancel-plex-pick(); } }
+                        Tap { clicked => { root.cancel-plex-pick(); } }
                     }
                 }
                 if root.login-cancel: Text {
@@ -3200,7 +3284,7 @@ export component AppWindow inherits Window {
                     opacity: 0.7;
                     font-size: 13px * Scale.text-scale;
                     horizontal-alignment: center;
-                    TouchArea { clicked => { root.go-home(); } }
+                    Tap { clicked => { root.go-home(); } }
                 }
             }
         }
@@ -3406,7 +3490,7 @@ export component AppWindow inherits Window {
                         background: n.read ? Palette.control-background.with-alpha(0.6) : Palette.control-background;
                         border-width: 1px;
                         border-color: n.read ? Palette.border : Palette.accent-background;
-                        TouchArea {
+                        Tap {
                             mouse-cursor: pointer;
                             clicked => { root.note-click(n.id, n.item); }
                         }
@@ -3495,7 +3579,7 @@ export component AppWindow inherits Window {
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
                             }
-                            fv-ta := TouchArea { clicked => { root.fav-tab-picked(i); } }
+                            fv-ta := Tap { clicked => { root.fav-tab-picked(i); } }
                         }
                     }
                     if root.fav-tabs.length > 0: LineEdit {
@@ -3643,7 +3727,7 @@ export component AppWindow inherits Window {
                                     vertical-alignment: center;
                                 }
                             }
-                            hta := TouchArea {
+                            hta := Tap {
                                 clicked => {
                                     root.search-text = h;
                                     root.search(h);
@@ -4187,7 +4271,7 @@ export component AppWindow inherits Window {
                                             background: c;
                                             border-width: Palette.seed == c ? 2px : (swa.has-hover ? 1px : 0px);
                                             border-color: white;
-                                            swa := TouchArea {
+                                            swa := Tap {
                                                 clicked => { root.set-accent-rgb(c); }
                                             }
                                         }
@@ -4678,7 +4762,7 @@ export component AppWindow inherits Window {
                                     Heading { text: row.title; }
                                     Heading { text: "›"; opacity: 0.6; }
                                 }
-                                TouchArea {
+                                Tap {
                                     mouse-cursor: pointer;
                                     clicked => { root.sr-browse(row.title); }
                                 }
@@ -4905,7 +4989,7 @@ export component AppWindow inherits Window {
                         background: Palette.control-background;
                         border-width: 1px;
                         border-color: Palette.border;
-                        TouchArea {
+                        Tap {
                             clicked => { root.sr-open-target(r.kind, r.tmdb, r.available); }
                         }
                         HorizontalLayout {
@@ -5199,7 +5283,7 @@ export component AppWindow inherits Window {
                         background: Palette.control-background;
                         border-width: 1px;
                         border-color: Palette.border;
-                        TouchArea {
+                        Tap {
                             clicked => { root.sr-open-issue(it.id); }
                         }
                         HorizontalLayout {
@@ -5423,7 +5507,7 @@ export component AppWindow inherits Window {
                         background: Palette.control-background;
                         border-width: 1px;
                         border-color: Palette.border;
-                        TouchArea {
+                        Tap {
                             clicked => { root.sr-open-user(u.id); }
                         }
                         HorizontalLayout {
@@ -5679,7 +5763,7 @@ export component AppWindow inherits Window {
                                             }
                                         }
                                     }
-                                    TouchArea { clicked => { root.tune(ch.id, ch.name); } }
+                                    Tap { clicked => { root.tune(ch.id, ch.name); } }
                                 }
                             }
                         }
@@ -5743,7 +5827,7 @@ export component AppWindow inherits Window {
                                         overflow: elide;
                                     }
                                 }
-                                pta := TouchArea { clicked => { root.tune(ch.id, ch.name); } }
+                                pta := Tap { clicked => { root.tune(ch.id, ch.name); } }
                               }
                             }
                         }
@@ -5797,7 +5881,7 @@ export component AppWindow inherits Window {
                                     height: 64px;
                                     image-fit: contain;
                                     // Episodes: the logo goes back to the series page.
-                                    TouchArea {
+                                    Tap {
                                         enabled: detail.series-id != "";
                                         mouse-cursor: detail.series-id != "" ? MouseCursor.pointer : MouseCursor.default;
                                         clicked => { root.open-item(detail.series-id, "Series"); }
@@ -5815,7 +5899,7 @@ export component AppWindow inherits Window {
                                 color: Palette.foreground;
                                 opacity: detail.series-id != "" && subtitle-touch.has-hover ? 1 : 0.85;
                                 // "Series S1E2" links back to the series page too.
-                                subtitle-touch := TouchArea {
+                                subtitle-touch := Tap {
                                     enabled: detail.series-id != "";
                                     mouse-cursor: detail.series-id != "" ? MouseCursor.pointer : MouseCursor.default;
                                     clicked => { root.open-item(detail.series-id, "Series"); }
@@ -5843,7 +5927,7 @@ export component AppWindow inherits Window {
                                         font-size: 12px * Scale.text-scale;
                                         vertical-alignment: center;
                                     }
-                                    gta := TouchArea {
+                                    gta := Tap {
                                         mouse-cursor: pointer;
                                         clicked => { root.genre-click(g); }
                                     }
@@ -6543,7 +6627,7 @@ export component AppWindow inherits Window {
                 border-width: 1px;
                 border-color: #ffffff55;
                 Text { text: "Keep watching"; color: white; font-size: 14px * Scale.text-scale; horizontal-alignment: center; vertical-alignment: center; }
-                keep-ta := TouchArea { clicked => { root.player-key("keep"); } }
+                keep-ta := Tap { clicked => { root.player-key("keep"); } }
             }
             Rectangle {
                 width: root.skip-kind == 1 ? 140px : 200px;
@@ -6557,7 +6641,7 @@ export component AppWindow inherits Window {
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
-                skip-ta := TouchArea { clicked => { root.player-key("skip"); } }
+                skip-ta := Tap { clicked => { root.player-key("skip"); } }
             }
         }
 
@@ -7064,7 +7148,7 @@ export component AppWindow inherits Window {
                                 opacity: 0.6;
                                 font-size: 12px * Scale.text-scale;
                             }
-                            ct := TouchArea { clicked => { CastUi.pick(i); } }
+                            ct := Tap { clicked => { CastUi.pick(i); } }
                         }
                         }
                     }
@@ -7111,7 +7195,7 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
             overflow: elide;
         }
-        TouchArea {
+        Tap {
             width: parent.width - 100px;
             clicked => { CastUi.sheet = true; }
         }
@@ -7462,7 +7546,7 @@ export component AppWindow inherits Window {
                                         overflow: elide;
                                     }
                                 }
-                                sta := TouchArea {
+                                sta := Tap {
                                     clicked => { root.sub-download(r.id); }
                                 }
                             }

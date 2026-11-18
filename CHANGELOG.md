@@ -9,7 +9,8 @@ Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publis
 - **The D-pad now moves to the nearest control in the direction you press**, like other TV apps: up and down between rows, left and right along a row (the row scrolls with you), and Select opens. It used to step through every control one at a time, and stopped working altogether after signing in because nothing kept the focus.
 - **The menu opens with its labels while you're in it.** Foyer starts on it; press Right to go into the page, Left from the start of a row to come back. Back on a page goes to the menu, and Back on the menu leaves the app.
 - **Player controls by remote.** Left / Right skip back and forward, Select pauses, and Up or Down brings up the controls with the focus on play / pause. From there the arrows move between all the buttons (previous / next episode, quality, audio, subtitles, cast), the menus they open work with the remote, and Back hides the controls. Desktop-only buttons (keep on top, full screen) are hidden on TV and phones.
-- Episodes in a season's list can be opened with the remote.
+- **Everything can be reached with the remote**, including the Requests pages (tabs, search results, requests, issues, users), episode lists, genres, the series link on an episode, notifications, search history, Favourites tabs, live TV channels, settings tabs, accent swatches, the cast picker and casting bar, skip intro / keep watching, subtitle search results and the audio sync buttons. Drop-down lists and the Options menu work with the arrows, and Back closes them.
+- **Dialogs keep the remote inside them** (cast picker, request and report dialogs, confirmations, subtitle search), and Back closes them.
 - Pressing Select on an empty sign-in field brings the keyboard up instead of trying to sign in with a blank password.
 
 **Android**
