@@ -111,6 +111,9 @@ pub struct Config {
     /// Fade the background to a hovered poster's banner art.
     #[serde(default)]
     pub hover_backdrop: bool,
+    /// Where "Download as file" saves to (desktop). Empty = Downloads\Foyer.
+    #[serde(default)]
+    pub download_dir: String,
     /// Library sort order (index into SORTS).
     #[serde(default)]
     pub library_sort: usize,
@@ -259,6 +262,7 @@ impl Default for Config {
             accent_rgb: default_accent_rgb(),
             nav_pinned: false,
             hover_backdrop: false,
+            download_dir: String::new(),
             library_sort: 0,
             seerr_enabled: false,
             seerr_url: String::new(),

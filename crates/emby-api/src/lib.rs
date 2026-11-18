@@ -482,6 +482,8 @@ pub struct LiveStream {
 pub const TICKS_PER_SEC: i64 = 10_000_000;
 
 /// Reported to the server in the auth header (shown on its dashboard).
+/// What this device is called on the server's dashboard (set once at start-up where the OS knows, e.g. the phone's model).
+pub static DEVICE_NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 pub const CLIENT_NAME: &str = "Emby Theater"; // the server only offers remote control to clients it recognises; "Foyer" broke it (0.21.0)
 pub const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -568,7 +570,7 @@ impl Client {
     }
 
     fn auth_header(&self) -> String {
-        let device = std::env::var("COMPUTERNAME").unwrap_or_else(|_| if cfg!(target_os = "android") { "Android device" } else { "Windows PC" }.into());
+        let device = DEVICE_NAME.get().cloned().or_else(|| std::env::var("COMPUTERNAME").ok()).unwrap_or_else(|| if cfg!(target_os = "android") { "Android device" } else { "Windows PC" }.into());
         let mut h = format!(
             "MediaBrowser Client=\"{CLIENT_NAME}\", Device=\"{device}\", DeviceId=\"{}\", Version=\"{CLIENT_VERSION}\"",
             self.device_id
@@ -1342,7 +1344,7 @@ impl Client {
 
     /// Direct-play URL (the server sends the original file; mpv plays nearly anything) when
     /// `transcode` is None, otherwise an HLS transcode capped at (bits per second, height).
-    pub fn stream_url(&self, item_id: &str, source_id: &str, play_session: &str, transcode: Option<(u32, u32)>, audio_index: Option<i32>) -> Result<String> {
+    pub fn stream_url(&self, item_id: &str, source_id: &str, play_session: &str, transcode: Option<(u32, u32)>, audio_index: Option<i32>, burn_sub: Option<i32>) -> Result<String> {
         if self.kind == Kind::Plex {
             return self.plex_stream_url(item_id, source_id, play_session, transcode, audio_index);
         }
@@ -1351,7 +1353,12 @@ impl Client {
             Some((bps, height)) => format!(
                 "{}{}/Videos/{}/master.m3u8?MediaSourceId={}&PlaySessionId={}&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate={}&MaxHeight={}&TranscodingMaxAudioChannels=6&SegmentContainer=ts&api_key={}&DeviceId={}{}",
                 self.base, self.pfx(), item_id, source_id, play_session, bps, height, token, self.device_id,
-                audio_index.map(|i| format!("&AudioStreamIndex={i}")).unwrap_or_default()
+                format!(
+                    "{}{}",
+                    audio_index.map(|i| format!("&AudioStreamIndex={i}")).unwrap_or_default(),
+                    // Subtitles burned into the picture: works for every kind of subtitle on any receiver.
+                    burn_sub.map(|i| format!("&SubtitleStreamIndex={i}&SubtitleMethod=Encode")).unwrap_or_default()
+                )
             ),
             None => format!(
                 "{}{}/Videos/{}/stream?Static=true&MediaSourceId={}&PlaySessionId={}&api_key={}&DeviceId={}",

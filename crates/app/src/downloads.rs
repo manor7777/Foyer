@@ -112,33 +112,66 @@ async fn fetch_one(client: &Client, uid: &str, id: &str, offline: bool, ctx: &Ct
     let k = key(id, offline);
     let last = Mutex::new(Instant::now());
     let (idc, c2) = (id.to_string(), ctx.clone());
-    let finished = client
-        .download_to(
-            &url,
-            &path,
-            |done, total| {
-                update(&idc, offline, |e| {
-                    e.done = done;
-                    e.total = total;
-                });
-                let mut l = last.lock().unwrap();
-                if l.elapsed() > Duration::from_millis(400) {
-                    *l = Instant::now();
-                    let c = c2.clone();
-                    let _ = slint::invoke_from_event_loop(move || c.dl_sync_ui());
-                }
-            },
-            || CANCEL.lock().unwrap().contains(&k),
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-    if !finished {
-        return Err("Cancelled".into());
+    // What the server says the file should weigh. A server that streams from a remote mount (rclone,
+    // a NAS) can answer "200 OK" with an empty or short body while it is still fetching the file.
+    let expected = item.media_sources.first().and_then(|m| m.size).filter(|s| *s > 0).unwrap_or(0) as u64;
+    let mut attempt = 0;
+    loop {
+        let finished = client
+            .download_to(
+                &url,
+                &path,
+                |done, total| {
+                    update(&idc, offline, |e| {
+                        e.done = done;
+                        e.total = if total > 0 { total } else { expected };
+                    });
+                    let mut l = last.lock().unwrap();
+                    if l.elapsed() > Duration::from_millis(400) {
+                        *l = Instant::now();
+                        let c = c2.clone();
+                        let _ = slint::invoke_from_event_loop(move || c.dl_sync_ui());
+                    }
+                },
+                || CANCEL.lock().unwrap().contains(&k),
+            )
+            .await
+            .map_err(|e| e.to_string());
+        let finished = match finished {
+            Ok(f) => f,
+            Err(e) if attempt < 3 => {
+                applog(&format!("download {id}: {e}; retrying"));
+                attempt += 1;
+                tokio::time::sleep(Duration::from_secs(5 * attempt as u64)).await;
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
+        if !finished {
+            return Err("Cancelled".into());
+        }
+        let len = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        // Allow a little slack in case the server's size is only approximate.
+        if len > 0 && (expected == 0 || len + 1024 >= expected) {
+            break;
+        }
+        let _ = std::fs::remove_file(&path);
+        applog(&format!("download {id}: server sent {len} of {expected} bytes (attempt {})", attempt + 1));
+        if attempt >= 3 {
+            return Err(if len == 0 { "The server sent an empty file (it may still be fetching it from storage). Try again in a minute.".into() } else { format!("The server stopped early ({} of {})", fmt_size(len as i64), fmt_size(expected as i64)) });
+        }
+        attempt += 1;
+        // Give the server (e.g. an rclone-backed NAS) time to pull the file before asking again.
+        tokio::time::sleep(Duration::from_secs(10 * attempt as u64)).await;
+        if CANCEL.lock().unwrap().contains(&k) {
+            return Err("Cancelled".into());
+        }
     }
+    let dest = ctx.st.lock().unwrap().cfg.download_dir.clone();
     let final_path = if offline {
         path.to_string_lossy().into_owned()
     } else {
-        platform::save_to_downloads(&path, &format!("{}.{ext}", safe_name(&title_of(&item))))?
+        platform::save_to_downloads(&path, &format!("{}.{ext}", safe_name(&title_of(&item))), &dest)?
     };
     update(id, offline, |e| {
         e.file = final_path;
@@ -262,6 +295,7 @@ impl Ctx {
         let g = ui.global::<DownloadsUi>();
         g.set_rows(ModelRc::new(VecModel::from(rows)));
         g.set_any(!list.is_empty());
+        g.set_active(list.iter().filter(|e| e.state < 2).count() as i32);
     }
 
     pub fn show_downloads(&self) {

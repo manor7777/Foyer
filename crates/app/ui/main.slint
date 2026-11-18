@@ -613,6 +613,11 @@ export struct DownloadRow {
 export global DownloadsUi {
     in-out property <bool> allowed;
     in-out property <bool> any;
+    /// Downloads still waiting or running (shown as the sidebar badge).
+    in-out property <int> active;
+    /// Folder "Download as file" saves to (desktop); empty means Downloads\Foyer.
+    in-out property <string> folder;
+    callback set-folder(string);
     in-out property <[DownloadRow]> rows;
     callback start(string, bool); // id (item, season or series), keep for offline play?
     callback cancel(string, bool);
@@ -634,6 +639,33 @@ export global CastUi {
     /// Name of the device being cast to ("" = not casting).
     in-out property <string> active;
     in-out property <bool> paused;
+    /// The controls sheet (opened by tapping the "Casting to" bar).
+    in-out property <bool> sheet;
+    /// Seconds into the title, and its length (0 = unknown).
+    in-out property <float> position;
+    in-out property <float> duration;
+    /// True while a finger / the mouse is dragging the bar, so updates from the device don't fight it.
+    in-out property <bool> scrubbing;
+    /// Seeking and track choices only work on Cast devices, not on other apps signed in to the server.
+    in-out property <bool> can-control;
+    in-out property <[string]> audio-names;
+    in-out property <[string]> sub-names;
+    in-out property <int> audio-index;
+    in-out property <int> sub-index;
+    in-out property <[string]> quality-names;
+    in-out property <int> quality-index;
+    /// Why the original file isn't being sent as it is ("" = it is).
+    in-out property <string> transcode-note;
+    callback set-quality(int);
+    in-out property <bool> has-prev;
+    in-out property <bool> has-next;
+    /// What is playing, shown at the top of the controls.
+    in-out property <string> title;
+    callback episode(int); // -1 previous, 1 next
+    callback seek(float);
+    callback skip(int); // -1 back, 1 forward
+    callback set-audio(int);
+    callback set-sub(int);
     callback request(string, float); // item id, start seconds
     callback request-current();
     callback pick(int);
@@ -3228,6 +3260,7 @@ export component AppWindow inherits Window {
                             border-radius: 2px;
                             background: Palette.foreground.with-alpha(0.15);
                             Rectangle {
+                                x: 0;
                                 width: parent.width * d.progress;
                                 border-radius: 2px;
                                 background: Palette.accent-background;
@@ -4333,6 +4366,20 @@ export component AppWindow inherits Window {
                                     checked <=> root.notify-windows;
                                     toggled(c) => { root.set-notify-windows(c); }
                                 }
+                            }
+                        }
+                    }
+                    if SettingsUi.shows(5) && Device.desktop && DownloadsUi.allowed: SettingGroup {
+                        label: "Downloads";
+                        SettingRow {
+                            title: "Save downloaded files to";
+                            description: "Where \"Download as file\" puts files. Leave empty for Downloads\\Foyer. Offline copies always stay inside Foyer.";
+                            divider: false;
+                            LineEdit {
+                                preferred-width: 280px;
+                                placeholder-text: "Downloads\\Foyer";
+                                text <=> DownloadsUi.folder;
+                                edited(t) => { DownloadsUi.set-folder(t); }
                             }
                         }
                     }
@@ -6243,6 +6290,7 @@ export component AppWindow inherits Window {
                     compact: !root.nav-expanded;
                     label: "Downloads";
                     icon: @image-url("icons/download.svg");
+                    badge: DownloadsUi.active;
                     selected: root.page == "downloads";
                     clicked => {
                         root.nav-open = false;
@@ -6961,7 +7009,7 @@ export component AppWindow inherits Window {
 
     // ---------------- casting controls ----------------
     if CastUi.active != "": Rectangle {
-        y: root.height - self.height - (root.bottom-nav ? 96px : 16px) - (root.offline ? 60px : 0px);
+        y: root.height - self.height - (root.bottom-nav ? 108px : 16px) - root.inset-bottom - (root.offline ? 60px : 0px);
         x: (root.width - self.width) / 2;
         width: min(560px, root.width - 32px);
         height: 48px;
@@ -6989,6 +7037,10 @@ export component AppWindow inherits Window {
             vertical-alignment: center;
             overflow: elide;
         }
+        TouchArea {
+            width: parent.width - 100px;
+            clicked => { CastUi.sheet = true; }
+        }
         HorizontalLayout {
             x: parent.width - self.preferred-width - 6px;
             y: 4px;
@@ -7006,9 +7058,174 @@ export component AppWindow inherits Window {
         }
     }
 
+    // ---------------- cast controls sheet ----------------
+    if CastUi.active != "" && CastUi.sheet: Rectangle {
+        background: #000000b0;
+        TouchArea { clicked => { CastUi.sheet = false; } }
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: min(480px, root.width - 32px);
+                    height: cc-col.preferred-height;
+                    background: Palette.alternate-background;
+                    border-radius: 8px;
+                    TouchArea { }
+                    cc-col := VerticalLayout {
+                        padding: 24px;
+                        spacing: 14px;
+                        Text {
+                            text: "Casting to " + CastUi.active;
+                            font-size: 20px * Scale.text-scale;
+                            font-weight: 700;
+                            color: Palette.foreground;
+                            overflow: elide;
+                        }
+                        if CastUi.title != "": Text {
+                            text: CastUi.title;
+                            font-size: 13px * Scale.text-scale;
+                            color: Palette.foreground;
+                            opacity: 0.7;
+                            overflow: elide;
+                        }
+                        if CastUi.can-control && CastUi.duration > 0: VerticalLayout {
+                            spacing: 4px;
+                            Rectangle {
+                                height: 32px;
+                                Rectangle {
+                                    y: (parent.height - 6px) / 2;
+                                    height: 6px;
+                                    border-radius: 3px;
+                                    background: Palette.foreground.with-alpha(0.2);
+                                    Rectangle {
+                                        x: 0px;
+                                        width: parent.width * min(1.0, max(0.0, CastUi.position / CastUi.duration));
+                                        border-radius: 3px;
+                                        background: Palette.accent-background;
+                                    }
+                                }
+                                cast-seek-ta := TouchArea {
+                                    pointer-event(e) => {
+                                        if (e.kind == PointerEventKind.down) {
+                                            CastUi.scrubbing = true;
+                                            CastUi.position = min(1.0, max(0.0, self.mouse-x / self.width)) * CastUi.duration;
+                                        } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                                            CastUi.scrubbing = false;
+                                            CastUi.seek(min(1.0, max(0.0, self.mouse-x / self.width)) * CastUi.duration);
+                                        }
+                                    }
+                                    moved => {
+                                        if (self.pressed) {
+                                            CastUi.position = min(1.0, max(0.0, self.mouse-x / self.width)) * CastUi.duration;
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalLayout {
+                                Text {
+                                    text: Math.floor(CastUi.position / 3600) + ":" + (Math.mod(Math.floor(CastUi.position / 60), 60) < 10 ? "0" : "") + Math.mod(Math.floor(CastUi.position / 60), 60) + ":" + (Math.mod(Math.floor(CastUi.position), 60) < 10 ? "0" : "") + Math.mod(Math.floor(CastUi.position), 60);
+                                    color: Palette.foreground;
+                                    opacity: 0.7;
+                                    font-size: 12px * Scale.text-scale;
+                                }
+                                Rectangle { }
+                                Text {
+                                    text: Math.floor(CastUi.duration / 3600) + ":" + (Math.mod(Math.floor(CastUi.duration / 60), 60) < 10 ? "0" : "") + Math.mod(Math.floor(CastUi.duration / 60), 60) + ":" + (Math.mod(Math.floor(CastUi.duration), 60) < 10 ? "0" : "") + Math.mod(Math.floor(CastUi.duration), 60);
+                                    color: Palette.foreground;
+                                    opacity: 0.7;
+                                    font-size: 12px * Scale.text-scale;
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 14px;
+                            if CastUi.has-prev: IconButton {
+                                icon: @image-url("icons/skip-previous.svg");
+                                size: 52px;
+                                tint: Palette.foreground;
+                                clicked => { CastUi.episode(-1); }
+                            }
+                            if CastUi.can-control: IconButton {
+                                icon: @image-url("icons/replay.svg");
+                                size: 52px;
+                                tint: Palette.foreground;
+                                clicked => { CastUi.skip(-1); }
+                            }
+                            IconButton {
+                                icon: CastUi.paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                                size: 52px;
+                                tint: Palette.foreground;
+                                clicked => { CastUi.toggle-pause(); }
+                            }
+                            if CastUi.can-control: IconButton {
+                                icon: @image-url("icons/forward.svg");
+                                size: 52px;
+                                tint: Palette.foreground;
+                                clicked => { CastUi.skip(1); }
+                            }
+                            if CastUi.has-next: IconButton {
+                                icon: @image-url("icons/skip-next.svg");
+                                size: 52px;
+                                tint: Palette.foreground;
+                                clicked => { CastUi.episode(1); }
+                            }
+                            IconButton {
+                                icon: @image-url("icons/stop.svg");
+                                size: 52px;
+                                tint: Palette.foreground;
+                                clicked => { CastUi.stop(); }
+                            }
+                        }
+                        if CastUi.can-control && CastUi.audio-names.length > 1: Dropdown {
+                            prefix: "Audio: ";
+                            model: CastUi.audio-names;
+                            current-index <=> CastUi.audio-index;
+                            selected(_) => { CastUi.set-audio(CastUi.audio-index); }
+                        }
+                        if CastUi.can-control && CastUi.sub-names.length > 1: Dropdown {
+                            prefix: "Subtitles: ";
+                            model: CastUi.sub-names;
+                            current-index <=> CastUi.sub-index;
+                            selected(_) => { CastUi.set-sub(CastUi.sub-index); }
+                        }
+                        if CastUi.can-control: Dropdown {
+                            prefix: "Quality: ";
+                            model: CastUi.quality-names;
+                            current-index <=> CastUi.quality-index;
+                            selected(_) => { CastUi.set-quality(CastUi.quality-index); }
+                        }
+                        if CastUi.can-control && CastUi.transcode-note != "": Text {
+                            text: CastUi.transcode-note;
+                            color: Palette.foreground;
+                            opacity: 0.55;
+                            font-size: 11px * Scale.text-scale;
+                            wrap: word-wrap;
+                        }
+                        if CastUi.can-control: Text {
+                            text: "Changing audio, subtitles or quality restarts the picture for a moment.";
+                            color: Palette.foreground;
+                            opacity: 0.55;
+                            font-size: 11px * Scale.text-scale;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            alignment: end;
+                            Button {
+                                text: "Close";
+                                clicked => { CastUi.sheet = false; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // ---------------- offline banner ----------------
     if root.offline && root.page != "login": Rectangle {
-        y: root.height - self.height - (root.bottom-nav ? 96px : 16px);
+        y: root.height - self.height - (root.bottom-nav ? 108px : 16px) - root.inset-bottom;
         x: (root.width - self.width) / 2;
         width: min(560px, root.width - 32px);
         height: 48px;
@@ -7046,7 +7263,7 @@ export component AppWindow inherits Window {
 
     // ---------------- toast ----------------
     if toast != "": Rectangle {
-        y: root.height - self.height - (root.bottom-nav ? 96px : 32px) - (root.offline ? 60px : 0px) - (CastUi.active != "" ? 60px : 0px);
+        y: root.height - self.height - (root.bottom-nav ? 108px : 32px) - root.inset-bottom - (root.offline ? 60px : 0px) - (CastUi.active != "" ? 60px : 0px);
         x: (root.width - self.width) / 2;
         width: min(560px, root.width - 32px);
         height: toast-text.preferred-height + 24px;

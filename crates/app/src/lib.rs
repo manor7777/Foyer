@@ -3697,7 +3697,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
             audio_pos = (!streams.is_empty()).then_some(pos as i64 + 1);
             let url = match &local_path {
                 Some(p) => p.to_string_lossy().into_owned(),
-                None => match client.stream_url(&item.id, &source, &session, preset.map(|i| (PRESETS[i].bps, PRESETS[i].height)), audio_index) {
+                None => match client.stream_url(&item.id, &source, &session, preset.map(|i| (PRESETS[i].bps, PRESETS[i].height)), audio_index, None) {
                     Ok(u) => u,
                     Err(e) => return PlayResult::Failed(e.to_string()),
                 },
@@ -4220,6 +4220,9 @@ pub fn run() -> Result<(), slint::PlatformError> {
         d.on_play(move |id| c4.play(id.to_string(), true, false));
         let c5 = c.clone();
         d.on_open_folder(move |id| c5.dl_open_folder(id.to_string()));
+        d.set_folder(c.st.lock().unwrap().cfg.download_dir.clone().into());
+        let c6 = c.clone();
+        d.on_set_folder(move |p| c6.update_cfg(|cfg| cfg.download_dir = p.to_string()));
         let k = ui.global::<CastUi>();
         let c8 = c.clone();
         k.on_request(move |id, start| c8.cast_open(id.to_string(), start as f64));
@@ -4227,6 +4230,18 @@ pub fn run() -> Result<(), slint::PlatformError> {
         k.on_request_current(move || c9.cast_current());
         let c10 = c.clone();
         k.on_pick(move |i| c10.cast_pick(i));
+        let ck = c.clone();
+        k.on_seek(move |s| ck.cast_seek(s));
+        let ck = c.clone();
+        k.on_skip(move |d| ck.cast_skip(d));
+        let ck = c.clone();
+        k.on_episode(move |d| ck.cast_episode(d));
+        let ck = c.clone();
+        k.on_set_audio(move |i| ck.cast_tracks(Some(i.max(0) as usize), None, None));
+        let ck = c.clone();
+        k.on_set_sub(move |i| ck.cast_tracks(None, Some(i.max(0) as usize), None));
+        let ck = c.clone();
+        k.on_set_quality(move |i| ck.cast_tracks(None, None, Some(i.max(0) as usize)));
         let c11 = c.clone();
         k.on_toggle_pause(move || c11.cast_toggle_pause());
         let c12 = c.clone();
@@ -5012,6 +5027,11 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
             }
         }
     });
+    // The server's dashboard only offered remote control for the Windows build ("Windows PC"), not for "Android device",
+    // so the phone presents itself as the player the server knows.
+    if cfg!(target_os = "android") {
+        let _ = emby_api::DEVICE_NAME.set("Emby Theater".into());
+    }
     let hide_timer = slint::Timer::default();
     {
         let c = ctx.clone();

@@ -165,11 +165,15 @@ impl ServerCertVerifier for NoVerify {
 
 // ---------------------------------------------------------------- a cast in progress
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Cmd {
     Play,
     Pause,
     Seek(f64),
+    /// Start a different stream (new audio track or subtitles) at this many seconds.
+    /// (the optional pair is a new title and picture, for another episode).
+    /// The stream's content type is given too (HLS for a transcode, the file's own type for the original).
+    Load(String, String, f64, Option<(String, Option<String>)>),
     Stop,
 }
 
@@ -187,6 +191,8 @@ pub struct Status {
     pub paused: bool,
     /// The device finished, was stopped, or the connection ended.
     pub ended: bool,
+    /// The device could not play the stream (e.g. it can't decode the original file).
+    pub failed: bool,
 }
 
 impl Cast {
@@ -259,10 +265,20 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
     .ok_or("The device closed the connection")?;
 
     wr.write_all(&frame("sender-0", &transport, NS_CONN, &json!({"type": "CONNECT"}))).await.map_err(|e| e.to_string())?;
-    let load = json!({
-        "type": "LOAD", "requestId": 2, "sessionId": session, "autoplay": true, "currentTime": start_secs,
-        "media": { "contentId": url, "streamType": "BUFFERED", "contentType": content_type, "metadata": { "metadataType": 0, "title": title, "subtitle": subtitle, "images": image.map(|u| json!([{"url": u}])).unwrap_or_else(|| json!([])) } }
-    });
+    let load_msg = {
+        let (title, subtitle, session) = (title.to_string(), subtitle.to_string(), session.clone());
+        move |url: &str, content_type: &str, req: i64, at: f64, meta: Option<&(String, Option<String>)>| {
+            let (title, image) = match meta {
+                Some((t, i)) => (t.as_str(), i.clone()),
+                None => (title.as_str(), image.clone()),
+            };
+            json!({
+                "type": "LOAD", "requestId": req, "sessionId": session, "autoplay": true, "currentTime": at,
+                "media": { "contentId": url, "streamType": "BUFFERED", "contentType": content_type, "metadata": { "metadataType": 0, "title": title, "subtitle": subtitle, "images": image.map(|u| json!([{"url": u}])).unwrap_or_else(|| json!([])) } }
+            })
+        }
+    };
+    let load = load_msg(&url, content_type, 2, start_secs, None);
     wr.write_all(&frame("sender-0", &transport, NS_MEDIA, &load)).await.map_err(|e| e.to_string())?;
 
     let (tx, mut rx) = unbounded_channel::<Cmd>();
@@ -302,7 +318,8 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
                                 match m["playerState"].as_str() {
                                     Some("PAUSED") => g.paused = true,
                                     Some("PLAYING") | Some("BUFFERING") => g.paused = false,
-                                    Some("IDLE") if m["idleReason"].is_string() => g.ended = true,
+                                    Some("IDLE") if m["idleReason"] == "ERROR" => g.failed = true,
+                                    Some("IDLE") if m["idleReason"].is_string() && m["idleReason"] != "INTERRUPTED" => g.ended = true,
                                     _ => {}
                                 }
                             }
@@ -330,6 +347,14 @@ pub async fn start(dev: &Device, url: String, content_type: &str, title: &str, s
                         Cmd::Play => Some(media("PLAY", json!({}))),
                         Cmd::Pause => Some(media("PAUSE", json!({}))),
                         Cmd::Seek(s) => Some(media("SEEK", json!({"currentTime": s}))),
+                        Cmd::Load(u, ct, at, meta) => {
+                            {
+                                let mut g = st.lock().unwrap();
+                                g.pos = at;
+                                g.failed = false;
+                            }
+                            Some(frame("sender-0", &transport, NS_MEDIA, &load_msg(&u, &ct, req, at, meta.as_ref())))
+                        }
                         Cmd::Stop => {
                             let _ = wr.write_all(&frame("sender-0", "receiver-0", NS_RECV, &json!({"type": "STOP", "requestId": req, "sessionId": session}))).await;
                             break;

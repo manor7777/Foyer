@@ -2,6 +2,24 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.10
+
+**Casting grows real controls**
+
+- **Tap the "Casting to …" bar** to open a controls sheet: a seek bar with the time, back / forward (your skip times), pause / play, stop, and, for episodes, **previous / next episode** on the same TV without restarting its player. The sheet also has **Audio**, **Subtitles** and **Quality** pickers. (The seek, track and quality controls work on Cast devices; other Foyer / Emby apps signed in to your server keep pause and stop.)
+- **Subtitles now show on the TV.** They were never sent before. The one chosen on the title's page (else your remembered language, else the file's default) is burned into the picture by the server, so every subtitle type works on any Cast device. Changing audio, subtitles or quality restarts the picture for a moment at the same spot.
+- **Quality starts at "Original (no transcoding)".** The file goes to the TV untouched, and the server transcodes only when it has to: when a subtitle is on (it is burned in) or when you pick an audio track other than the file's default. If the TV can't play the original, Foyer switches to a 1080p transcode by itself and says so. Pick a lower quality by hand for a slow connection.
+- The casting bar no longer sits on top of the bottom navigation (it ignored the system gesture area on phones, which is most visible on a folding phone), and it clears by itself when the show ends or is stopped on the TV.
+- Changing the audio track or subtitles no longer makes Foyer think the cast ended.
+- Android: the phone now presents itself to the server as "Emby Theater" instead of "Android device", because the dashboard offered remote-control buttons for the Windows build but not for the phone.
+
+**Downloads**
+
+- **"Download as file" no longer reports a 0 KB file as finished.** A server that serves files from slow remote storage (rclone, a NAS) can answer straight away with an empty body while it is still fetching the file; Foyer took that as a finished download. It now checks the size against what the server says the file should be, waits and retries up to three times, and only then fails with a clear message. This covers offline copies too.
+- **New setting: Settings → Advanced → Downloads → "Save downloaded files to"** chooses the folder "Download as file" saves to (empty keeps Downloads\Foyer). Windows and desktop only; Android keeps saving to its Downloads folder, and offline copies always stay inside Foyer.
+- The Downloads page's progress bar was drawn from the middle instead of the left edge; it now fills from the left.
+- The Downloads item in the sidebar shows how many downloads are still running (finished ones are not counted), like the Alerts badge.
+
 ## Foyer 0.28.8
 
 - Casting to a Cast device now shows the title, a backdrop picture and "Casting from Foyer" on the TV. (A Foyer logo on the receiver itself would need Foyer registered as a Cast app with Google; this is the most the standard receiver allows.)
