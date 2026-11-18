@@ -163,6 +163,10 @@ fn main() {
     if std::env::var("PREVIEW_NAV_OPEN").is_ok() {
         ui.set_nav_open(true);
     }
+    // TV: the remote's focus is in the navigation rail (it opens with its labels).
+    if std::env::var("PREVIEW_NAV_FOCUS").is_ok() {
+        ui.global::<foyer::DpadNav>().set_in_nav(true);
+    }
     ui.set_page(page.into());
     ui.show().unwrap();
     slint::platform::update_timers_and_animations();

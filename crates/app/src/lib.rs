@@ -84,6 +84,7 @@ mod hide;
 mod cardmenu;
 mod cast;
 mod downloads;
+mod tvnav;
 mod sysmedia;
 #[cfg(windows)]
 mod media;
@@ -3965,21 +3966,47 @@ pub fn run() -> Result<(), slint::PlatformError> {
     if platform::form_factor() == platform::FormFactor::Touch {
         ui.on_playing_changed(platform::set_landscape);
     }
-    // TV remote: arrows move focus along the page. Slint already moves focus on Tab / Shift+Tab, so
-    // send those (after the current key event has finished, not from inside its handler).
+    // TV remote: arrows move focus to the nearest control that way (tvnav.rs); 4 = to the navigation
+    // rail. Run after the current key event has finished, not from inside its handler.
     {
         let step = |weak: Weak<AppWindow>, dir: i32| {
             slint::Timer::single_shot(Duration::from_millis(0), move || {
                 let Some(ui) = weak.upgrade() else { return };
-                let key: slint::SharedString = if dir > 0 { slint::platform::Key::Tab } else { slint::platform::Key::Backtab }.into();
-                ui.window().dispatch_event(slint::platform::WindowEvent::KeyPressed { text: key.clone() });
-                ui.window().dispatch_event(slint::platform::WindowEvent::KeyReleased { text: key });
+                let w = ui.window();
+                if dir == 4 {
+                    tvnav::focus_start(w, true);
+                } else {
+                    tvnav::step(w, dir);
+                }
+                ui.global::<DpadNav>().set_in_nav(tvnav::focus_in_nav(w));
             });
         };
         let weak = ui.as_weak();
         ui.on_dpad(move |dir| step(weak.clone(), dir));
         let weak = ui.as_weak();
         ui.global::<DpadNav>().on_step(move |dir| step(weak.clone(), dir));
+        ui.on_app_background(platform::move_to_back);
+    }
+    // TV: there is no pointer, so focus must always be somewhere or the remote does nothing. Slint drops
+    // the focus when the focused control goes away (the sign-in form after signing in, a page that was
+    // left); put it back: on the navigation rail at start, else where the remote was (rail or page).
+    let tv_focus = slint::Timer::default();
+    if platform::form_factor() == platform::FormFactor::Tv {
+        let weak = ui.as_weak();
+        let last_in_nav = std::cell::Cell::new(true);
+        tv_focus.start(slint::TimerMode::Repeated, Duration::from_millis(250), move || {
+            let Some(ui) = weak.upgrade() else { return };
+            if ui.get_full_player() {
+                return;
+            }
+            let w = ui.window();
+            if tvnav::has_focus(w) {
+                last_in_nav.set(tvnav::focus_in_nav(w));
+            } else {
+                tvnav::focus_start(w, last_in_nav.get());
+            }
+            ui.global::<DpadNav>().set_in_nav(tvnav::focus_in_nav(w));
+        });
     }
     notes::serve_instance(instance_lock, ui.as_weak());
 
@@ -5198,4 +5225,8 @@ fn android_main(app: slint::android::AndroidApp) {
     if let Err(e) = run() {
         eprintln!("foyer exited with an error: {e}");
     }
+    // The activity is gone but Android keeps the process. Everything set up above (Slint's platform, the
+    // single-instance port, the runtime) would make the next launch exit straight away, leaving the app
+    // unable to open until force-stopped; end the process so the next launch starts clean.
+    std::process::exit(0);
 }

@@ -18,15 +18,15 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1795013316.9293964,
-    "seen": 1795013336.138889,
-    "ast_hash": "97e0ba89bcfaadad2adb26ef266b9efd",
+    "mtime": 1795016825.5368886,
+    "seen": 1795017286.4567616,
+    "ast_hash": "257f44584ec26030ea6abb0305b2aac0",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
-    "mtime": 1794945480.1811078,
-    "seen": 1794946098.2208047,
-    "ast_hash": "26ad94d0cff56bdf5b062215797f64aa",
+    "mtime": 1795016381.3595257,
+    "seen": 1795017286.4567652,
+    "ast_hash": "54a41a27143198f60f49d3ff76a1c2d4",
     "semantic_hash": ""
   },
   "crates/app/build.rs": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795013316.9882226,
-    "seen": 1795013336.1391222,
-    "ast_hash": "c5daab55330c859a81b45f6241742a5d",
+    "mtime": 1795016825.6104057,
+    "seen": 1795017286.4571662,
+    "ast_hash": "22d54c7bae8c639550562b5015d912dd",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -150,9 +150,9 @@
     "semantic_hash": ""
   },
   "docs/ANDROID-PLAN.md": {
-    "mtime": 1794936601.3459795,
-    "seen": 1794939352.7574027,
-    "ast_hash": "7e9d82e2cd8d15f8acc33cb57d14e426",
+    "mtime": 1795016829.99337,
+    "seen": 1795017286.4571772,
+    "ast_hash": "19319ffef87e4d6d2f8cf80961f0ccc8",
     "semantic_hash": ""
   },
   "crates/app/assets/app-1024.png": {
@@ -486,9 +486,9 @@
     "semantic_hash": ""
   },
   "crates/app/examples/preview.rs": {
-    "mtime": 1794945084.3740585,
-    "seen": 1794946098.220813,
-    "ast_hash": "a79a526f3443afda70407435c70bb0e3",
+    "mtime": 1795016696.2742412,
+    "seen": 1795017286.456781,
+    "ast_hash": "bdbd4d872cf4f5ac9b4bb08f7c32b9f1",
     "semantic_hash": ""
   },
   "crates/app/src/cardmenu.rs": {
@@ -498,15 +498,15 @@
     "semantic_hash": ""
   },
   "crates/app/src/lib.rs": {
-    "mtime": 1795007566.9297702,
-    "seen": 1795007675.9369006,
-    "ast_hash": "8bdf3b50854af8d5078f9f3254e5117c",
+    "mtime": 1795016561.33016,
+    "seen": 1795017286.4567997,
+    "ast_hash": "fc1ae6e8723037d7f47bab90ec8aa612",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android.rs": {
-    "mtime": 1794962644.129295,
-    "seen": 1794963045.909958,
-    "ast_hash": "2adb40383bc47816b0f67a8e7c2c2dc7",
+    "mtime": 1795016545.075528,
+    "seen": 1795017286.4568112,
+    "ast_hash": "852a4bcbd040638c2024a5983080ad65",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android_media.rs": {
@@ -540,9 +540,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/platform/winit_ops.rs": {
-    "mtime": 1794962644.1168072,
-    "seen": 1794963045.9099662,
-    "ast_hash": "d9a63fb05882db990b666775969a4396",
+    "mtime": 1795016545.076049,
+    "seen": 1795017286.4568279,
+    "ast_hash": "9f9edd7e146535a5b09a9a3d0977e978",
     "semantic_hash": ""
   },
   "crates/app/src/sysmedia.rs": {
@@ -810,9 +810,9 @@
     "semantic_hash": ""
   },
   "vendor/i-slint-core/item_tree.rs": {
-    "mtime": 1794919530.5957403,
-    "seen": 1794922732.0119798,
-    "ast_hash": "eff8d03ffd25f2b6cfb488e1cb3c1b09",
+    "mtime": 1795016381.359001,
+    "seen": 1795017286.456992,
+    "ast_hash": "e1304c0d05c7111660d55059a861745b",
     "semantic_hash": ""
   },
   "vendor/i-slint-core/items.rs": {
@@ -1152,9 +1152,9 @@
     "semantic_hash": ""
   },
   "vendor/i-slint-core/FOYER_PATCH.md": {
-    "mtime": 1794919530.5669222,
-    "seen": 1794922732.0121083,
-    "ast_hash": "5b72080f4515340bcf5c074326eeb1c0",
+    "mtime": 1795016381.3595257,
+    "seen": 1795017286.45718,
+    "ast_hash": "291ad293be134753b7d43915cfa56674",
     "semantic_hash": ""
   },
   "vendor/i-slint-core/LICENSES/GPL-3.0-only.txt": {
@@ -1281,6 +1281,12 @@
     "mtime": 1794924093.79591,
     "seen": 1794924513.835652,
     "ast_hash": "b2e4318e863280db30a68f71594794d6",
+    "semantic_hash": ""
+  },
+  "crates/app/src/tvnav.rs": {
+    "mtime": 1795016468.5995667,
+    "seen": 1795017286.456837,
+    "ast_hash": "89a17335c93f0516bbfeca3df3969b3b",
     "semantic_hash": ""
   }
 }

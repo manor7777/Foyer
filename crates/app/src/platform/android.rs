@@ -236,6 +236,17 @@ pub fn set_landscape(on: bool) {
     }
 }
 
+/// Back with nowhere left to go: send the app to the background (like Home) instead of letting
+/// Android finish the activity.
+pub fn move_to_back() {
+    if let Err(e) = with_env(|env, act| {
+        env.call_method(act, "moveTaskToBack", "(Z)Z", &[JValue::Bool(1)])?;
+        Ok(())
+    }) {
+        eprintln!("moveTaskToBack failed: {e}");
+    }
+}
+
 /// Windows registers its toast identity here; nothing to do elsewhere.
 pub fn register_app_identity() {}
 

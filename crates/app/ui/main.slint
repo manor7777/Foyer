@@ -14,7 +14,10 @@ export global Device {
 
 /// TV remote: Up / Down inside a text field must move focus on instead of moving the text cursor.
 export global DpadNav {
+    /// 0 up, 1 right, 2 down, 3 left (see tvnav.rs).
     callback step(int);
+    /// The focused control is in the navigation rail; set from Rust. On TV the rail opens with its labels then.
+    in-out property <bool> in-nav: false;
 }
 
 /// Hovering a poster fades the window background to that title's banner art (Settings > Appearance).
@@ -141,8 +144,11 @@ component LineEdit inherits FocusScope {
     /// Hides the on-screen keyboard, which also commits any text the keyboard is still composing.
     public function dismiss() { ti.clear-focus(); }
     capture-key-pressed(e) => {
-        if Device.tv && e.text == Key.UpArrow { DpadNav.step(-1); return accept; }
-        if Device.tv && e.text == Key.DownArrow { DpadNav.step(1); return accept; }
+        if Device.tv && e.text == Key.UpArrow { DpadNav.step(0); return accept; }
+        if Device.tv && e.text == Key.DownArrow { DpadNav.step(2); return accept; }
+        // The remote's Select is Return: on an empty field it must not submit the form (it signed in with
+        // a blank password); bring the keyboard back up instead.
+        if Device.tv && e.text == Key.Return && ti.text == "" { ti.clear-focus(); ti.focus(); return accept; }
         return reject;
     }
     Rectangle {
@@ -910,6 +916,9 @@ component IconButton inherits Rectangle {
     in property <color> tint: white;
     callback clicked();
     out property <bool> hovered: ta.has-hover;
+    /// Changing this focuses the button (the TV player puts the remote on play / pause this way).
+    in property <int> focus-req: 0;
+    changed focus-req => { fs.focus(); }
     width: size;
     height: size;
     border-radius: size / 2;
@@ -1079,6 +1088,17 @@ component TrackMenu inherits PopupWindow {
     callback sync(float);
     width: 340px;
     height: min(380px, (root.items.length + (root.allow-search ? 1 : 0)) * 36px + 56px + (root.allow-sync ? 40px : 0px));
+    // TV remote: keys from the menu's rows stop at the popup, so move between them and close it here.
+    FocusScope {
+    focus-on-tab-navigation: false;
+    key-pressed(e) => {
+        if e.text == Key.UpArrow { DpadNav.step(0); return accept; }
+        if e.text == Key.RightArrow { DpadNav.step(1); return accept; }
+        if e.text == Key.DownArrow { DpadNav.step(2); return accept; }
+        if e.text == Key.LeftArrow { DpadNav.step(3); return accept; }
+        if e.text == Key.Back || e.text == Key.Escape { root.close(); return accept; }
+        return reject;
+    }
     Rectangle {
         background: #232323f4;
         border-radius: 8px;
@@ -1141,6 +1161,7 @@ component TrackMenu inherits PopupWindow {
                 }
             }
         }
+    }
     }
 }
 
@@ -1533,13 +1554,14 @@ component HScroll inherits Rectangle {
         changed visible-width => { root.apply-start(); }
         @children
     }
-    if sv.content-x < -4px: GlassArrow {
+    // TV: the remote scrolls rows by moving the focus, so no arrow buttons to land on.
+    if !Device.tv && sv.content-x < -4px: GlassArrow {
         x: 6px;
         y: (parent.height - self.height) / 2 - 20px;
         turn: 90deg;
         clicked => { root.glide-to(min(0px, sv.content-x + root.step)); }
     }
-    if sv.content-x > -root.max-x + 4px && root.max-x > 4px: GlassArrow {
+    if !Device.tv && sv.content-x > -root.max-x + 4px && root.max-x > 4px: GlassArrow {
         x: parent.width - self.width - 6px;
         y: (parent.height - self.height) / 2 - 20px;
         turn: -90deg;
@@ -2178,7 +2200,8 @@ export component AppWindow inherits Window {
     // so it tracks the drag exactly and can't be left half-way during a live resize.
     property <float> width-t: root.nav-pinned ? 1.0 : clamp((root.width - 880px) / 220px, 0.0, 1.0);
     // The menu button opens it over the content on narrow windows (animated; no resize involved).
-    property <float> open-t: root.nav-open ? 1.0 : 0.0;
+    // TV: the rail opens with its labels while the remote's focus is in it, and folds away when it moves on.
+    property <float> open-t: (root.nav-open || (Device.tv && DpadNav.in-nav)) ? 1.0 : 0.0;
     animate open-t { duration: 160ms; easing: ease-out; }
     property <float> nav-t: max(root.width-t, root.open-t);
     property <bool> wide-nav: root.width-t > 0.99;
@@ -2368,6 +2391,10 @@ export component AppWindow inherits Window {
     callback playing-changed(bool);
     /// TV remote: move focus along the page (-1 back, +1 forward); Rust turns it into Shift+Tab / Tab.
     callback dpad(int);
+    /// Back with nowhere to go back to: hide the app instead of closing it (Android).
+    callback app-background();
+    /// Changing this puts the remote's focus on the player's play / pause button.
+    in-out property <int> player-focus-req: 0;
     in-out property <bool> nav-pinned: false;
     callback set-nav-pinned(bool);
     in-out property <bool> hover-backdrop: false;
@@ -2732,6 +2759,10 @@ export component AppWindow inherits Window {
     // Lift the subtitles clear of the bottom control bar as it fades in/out (ratio of window height).
     callback sub-lift(float);
     changed controls-op => { root.sub-lift(root.controls-op * 170px / max(root.height, 1px)); }
+    // TV: when the controls fade, the remote's focus must not stay on a button that is no longer there.
+    changed controls-on => {
+        if Device.tv && !root.controls-on && root.full-player { root-focus.focus(); }
+    }
 
     // quick fade between pages: drop the opacity on change, a one-shot timer then fades it back up
     property <float> page-op: 1.0;
@@ -2775,6 +2806,24 @@ export component AppWindow inherits Window {
                     if e.text == Key.Escape { root.close-sub-search(); }
                     return accept;
                 }
+                // TV remote. With a control focused the arrows move between the controls and Back hides them;
+                // otherwise Left / Right skip, Select pauses, Up / Down bring up the controls.
+                if Device.tv && !root-focus.has-focus {
+                    if e.text == Key.UpArrow { root.dpad(0); root.poke-controls(); return accept; }
+                    if e.text == Key.RightArrow { root.dpad(1); root.poke-controls(); return accept; }
+                    if e.text == Key.DownArrow { root.dpad(2); root.poke-controls(); return accept; }
+                    if e.text == Key.LeftArrow { root.dpad(3); root.poke-controls(); return accept; }
+                    if e.text == Key.Back || e.text == Key.Escape {
+                        root.controls-shown = false;
+                        root-focus.focus();
+                        return accept;
+                    }
+                }
+                if Device.tv && (e.text == Key.UpArrow || e.text == Key.DownArrow) {
+                    root.poke-controls();
+                    root.player-focus-req += 1;
+                    return accept;
+                }
                 // transport keys go to the player
                 if e.text == "f" || e.text == Key.F11 { root.full-screen = !root.full-screen; }
                 else if e.text == Key.Escape && root.full-screen { root.full-screen = false; }
@@ -2806,8 +2855,17 @@ export component AppWindow inherits Window {
                 return accept;
             }
             if Device.tv && !root.full-player {
-                if e.text == Key.RightArrow || e.text == Key.DownArrow { root.dpad(1); return accept; }
-                if e.text == Key.LeftArrow || e.text == Key.UpArrow { root.dpad(-1); return accept; }
+                if e.text == Key.UpArrow { root.dpad(0); return accept; }
+                if e.text == Key.RightArrow { root.dpad(1); return accept; }
+                if e.text == Key.DownArrow { root.dpad(2); return accept; }
+                if e.text == Key.LeftArrow { root.dpad(3); return accept; }
+                // Back on a top-level page: first to the navigation rail, then out of the app.
+                if e.text == Key.Back && !DpadNav.in-nav { root.dpad(4); return accept; }
+            }
+            // Nothing left to go back to: hide the app. Letting Android close it left it unable to reopen.
+            if e.text == Key.Back && !root.full-player {
+                root.app-background();
+                return accept;
             }
             return reject;
         }
@@ -6116,6 +6174,17 @@ export component AppWindow inherits Window {
                             ep-ta := TouchArea {
                                 clicked => { root.open-item(ep.id, ep.kind); }
                             }
+                            ep-fs := FocusScope {
+                                key-pressed(e) => {
+                                    if e.text == Key.Return || e.text == " " { root.open-item(ep.id, ep.kind); return accept; }
+                                    return reject;
+                                }
+                            }
+                            Rectangle {
+                                border-radius: 6px;
+                                border-width: ep-fs.has-focus ? 3px : 0px;
+                                border-color: Palette.accent-background;
+                            }
                             IconButton {
                                 x: parent.width - 52px;
                                 y: (parent.height - self.height) / 2;
@@ -6153,7 +6222,7 @@ export component AppWindow inherits Window {
             VerticalLayout {
                 padding: 8px;
                 spacing: 4px;
-                if !root.wide-nav: NavItem {
+                if !root.wide-nav && !Device.tv: NavItem {
                     compact: !root.nav-expanded;
                     label: root.nav-open ? "Close menu" : "Menu";
                     icon: @image-url("icons/menu.svg");
@@ -6250,7 +6319,7 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if nav-sv.content-y < -2px: GlassArrow {
+                    if !Device.tv && nav-sv.content-y < -2px: GlassArrow {
                         x: (parent.width - self.width) / 2;
                         y: 0px;
                         width: 30px;
@@ -6258,7 +6327,7 @@ export component AppWindow inherits Window {
                         turn: 180deg;
                         clicked => { nav-sv.content-y = min(0px, nav-sv.content-y + 120px); }
                     }
-                    if nav-sv.content-height > nav-sv.visible-height + 2px && nav-sv.content-y > -(nav-sv.content-height - nav-sv.visible-height) + 2px: GlassArrow {
+                    if !Device.tv && nav-sv.content-height > nav-sv.visible-height + 2px && nav-sv.content-y > -(nav-sv.content-height - nav-sv.visible-height) + 2px: GlassArrow {
                         x: (parent.width - self.width) / 2;
                         y: parent.height - self.height;
                         width: 30px;
@@ -6634,6 +6703,7 @@ export component AppWindow inherits Window {
                     }
                     IconButton {
                         icon: root.player-paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                        focus-req: root.player-focus-req;
                         clicked => { root.player-key("pause"); }
                     }
                     if !root.player-live: IconButton {
@@ -6733,6 +6803,7 @@ export component AppWindow inherits Window {
                             root.quality-menu-x = self.absolute-position.x;
                             root.menu-hold = true;
                             quality-menu.show();
+                            if Device.tv { DpadNav.step(2); }
                         }
                     }
                     Pill {
@@ -6743,6 +6814,7 @@ export component AppWindow inherits Window {
                             root.audio-menu-x = self.absolute-position.x;
                             root.menu-hold = true;
                             audio-menu.show();
+                            if Device.tv { DpadNav.step(2); }
                         }
                     }
                     Pill {
@@ -6753,13 +6825,14 @@ export component AppWindow inherits Window {
                             root.sub-menu-x = self.absolute-position.x;
                             root.menu-hold = true;
                             sub-menu.show();
+                            if Device.tv { DpadNav.step(2); }
                         }
                     }
                     IconButton {
                         icon: @image-url("icons/camera.svg");
                         clicked => { root.player-key("screenshot"); }
                     }
-                    IconButton {
+                    if Device.desktop: IconButton {
                         icon: @image-url("icons/pin.svg");
                         tint: root.on-top ? Palette.accent-background : white;
                         clicked => {
@@ -6767,7 +6840,7 @@ export component AppWindow inherits Window {
                             root.set-on-top(root.on-top);
                         }
                     }
-                    IconButton {
+                    if Device.desktop: IconButton {
                         icon: root.full-screen ? @image-url("icons/fullscreen-exit.svg") : @image-url("icons/fullscreen.svg");
                         clicked => { root.full-screen = !root.full-screen; }
                     }

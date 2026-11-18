@@ -2,6 +2,20 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.12
+
+**Android TV / Google TV: the remote works**
+
+- **The D-pad now moves to the nearest control in the direction you press**, like other TV apps: up and down between rows, left and right along a row (the row scrolls with you), and Select opens. It used to step through every control one at a time, and stopped working altogether after signing in because nothing kept the focus.
+- **The menu opens with its labels while you're in it.** Foyer starts on it; press Right to go into the page, Left from the start of a row to come back. Back on a page goes to the menu, and Back on the menu leaves the app.
+- **Player controls by remote.** Left / Right skip back and forward, Select pauses, and Up or Down brings up the controls with the focus on play / pause. From there the arrows move between all the buttons (previous / next episode, quality, audio, subtitles, cast), the menus they open work with the remote, and Back hides the controls. Desktop-only buttons (keep on top, full screen) are hidden on TV and phones.
+- Episodes in a season's list can be opened with the remote.
+- Pressing Select on an empty sign-in field brings the keyboard up instead of trying to sign in with a blank password.
+
+**Android**
+
+- **Backing out of the home screen no longer breaks the app.** It now goes to the background like Home does. If Android does close it, the next launch starts fresh; before, it could not be opened again without a force stop.
+
 ## Foyer 0.28.11
 
 - **Poster-hover backdrop no longer flashes.** When one backdrop replaced another, both layers faded at once and the page showed through for a moment, like a flash of white. The old backdrop now stays put underneath while the new one fades in over it.

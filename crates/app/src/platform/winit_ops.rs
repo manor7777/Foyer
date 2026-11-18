@@ -141,3 +141,6 @@ pub fn font_scale() -> f32 {
 
 /// Android only: lets Wi-Fi multicast through while searching for Cast devices.
 pub fn multicast_lock(_on: bool) {}
+
+/// Android only (Back with nowhere to go hides the app); desktops have no Back key.
+pub fn move_to_back() {}

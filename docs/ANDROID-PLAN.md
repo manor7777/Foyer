@@ -47,11 +47,11 @@ Everything below is built by CI on every push; none of it has been run on a real
 - Done: OS-specific code sits behind `crates/app/src/platform` (Windows, desktop and Android backends); settings, quality rules and formatting live in `crates/core` (`foyer-core`). The app crate is a lib (`run()`, plus `android_main`) and a thin desktop bin.
 - Done: LGPL libmpv + FFmpeg (MediaCodec) for arm64 built in CI by `libmpv-android.yml` and bundled into the APK.
 - Done: Android JNI: system notifications (with the Android 13 permission), the in-app updater (signed checksum, then the system installer), the JavaVM for FFmpeg MediaCodec.
-- Done: touch tap targets, no desktop minimum window size, focus rings and Enter/Space on every control, TV remote (arrows -> Tab / Shift+Tab, Select activates, Back goes back), 25% larger cards on TV.
+- Done: touch tap targets, no desktop minimum window size, focus rings and Enter/Space on every control, TV remote (arrows move focus to the nearest control that way, see `crates/app/src/tvnav.rs`; the rail opens while focused; Select activates; Back goes back, then to the rail, then hides the app; player controls and track menus by remote), 25% larger cards on TV.
 - Done: `android.yml` builds a signed APK on every push and PR; `release.yml` publishes `Foyer.exe` and `Foyer.apk` together and fails as a whole if either build fails.
 - Known gaps / next:
   - First run on a real phone and TV (expect fixes: safe-area insets, layouts below ~400 px wide, popup menus on a remote, the player controls overlay by remote).
-  - Directional (up/down) focus movement is linear (Tab order); a row-aware grid navigation would feel better on TV.
+  - Many smaller clickable things (Seerr pages, some settings rows, chips) are still mouse/touch-only TouchAreas without focus; give them a FocusScope as they come up on TV.
   - Material You accent, Android Picture-in-Picture, background notifications, x86 builds (32-bit ARM is done).
   - Much of `lib.rs` (about 4,500 lines) is still UI glue that could move into the core crate.
   - Picture-in-picture on Android needs `android:supportsPictureInPicture` on the activity, which cargo-apk 0.26-era manifests cannot express; it needs a custom manifest or a different packaging step. Until then the mini player and window-shrink PiP are desktop-only.

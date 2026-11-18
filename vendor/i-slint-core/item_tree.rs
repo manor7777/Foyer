@@ -433,7 +433,8 @@ impl ItemRc {
     }
 
     /// Returns true if this item is visible or only clipped away by a `Flickable`.
-    pub(crate) fn is_visible_or_clipped_by_flickable(&self) -> bool {
+    // FOYER PATCH: public so the TV remote's directional focus (crates/app/src/tvnav.rs) can use it.
+    pub fn is_visible_or_clipped_by_flickable(&self) -> bool {
         if self.is_visible() {
             return true;
         }
