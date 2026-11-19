@@ -2,6 +2,20 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.1
+
+**Download fixes**
+
+- Cancel now works straight away, even while a slow server (an rclone or NAS mount) is still sending nothing.
+- A download cut off by a dropped connection picks up where it stopped instead of starting over.
+- Removing a failed or interrupted offline download now deletes its partial video too, so it no longer takes up space.
+- Cancelling just as a download finished could make the next download of that item cancel itself; fixed.
+- Saved file names that Windows rejects (trailing dots, names such as CON or NUL, empty titles) are now made safe.
+
+**Casting**
+
+- A malformed message from a Chromecast can no longer upset the connection.
+
 ## Foyer 0.29.0
 
 **New look: liquid-glass navigation**

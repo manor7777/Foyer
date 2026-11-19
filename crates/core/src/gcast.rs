@@ -123,6 +123,9 @@ fn decode(mut b: &[u8]) -> Option<(String, String, Value)> {
                 let (mut len, mut shift) = (0usize, 0);
                 while let Some((&c, rest)) = b.split_first() {
                     b = rest;
+                    if shift >= 63 {
+                        return None;
+                    }
                     len |= ((c & 0x7F) as usize) << shift;
                     shift += 7;
                     if c & 0x80 == 0 {

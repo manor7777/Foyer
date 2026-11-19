@@ -72,7 +72,27 @@ fn update(id: &str, offline: bool, f: impl FnOnce(&mut Entry)) {
 }
 
 fn safe_name(s: &str) -> String {
-    s.chars().map(|c| if r#"\/:*?"<>|"#.contains(c) || c.is_control() { '_' } else { c }).collect()
+    let s: String = s.chars().map(|c| if r#"\/:*?"<>|"#.contains(c) || c.is_control() { '_' } else { c }).collect();
+    // Windows rejects trailing dots/spaces and device names such as CON or NUL.
+    let s = s.trim_end_matches(['.', ' ']).trim_start().to_string();
+    if s.is_empty() {
+        return "download".into();
+    }
+    let stem = s.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.as_bytes()[3].is_ascii_digit());
+    if reserved { format!("_{s}") } else { s }
+}
+
+/// Deletes every file Foyer keeps for `id` (video, details, poster), including partial ones.
+fn remove_files(id: &str) {
+    let prefix = format!("{id}.");
+    for d in [dir(), dir().join("tmp")] {
+        for e in std::fs::read_dir(d).into_iter().flatten().flatten() {
+            if e.file_name().to_string_lossy().starts_with(&prefix) {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
 }
 
 /// The item itself, or every episode of a series / season, or the playable items of a folder.
@@ -145,7 +165,10 @@ async fn fetch_one(client: &Client, uid: &str, id: &str, offline: bool, ctx: &Ct
                 tokio::time::sleep(Duration::from_secs(5 * attempt as u64)).await;
                 continue;
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                let _ = std::fs::remove_file(&path);
+                return Err(e);
+            }
         };
         if !finished {
             return Err("Cancelled".into());
@@ -201,6 +224,7 @@ impl Ctx {
                         continue;
                     }
                     l.retain(|e| !(e.id == i.id && e.offline == offline));
+                    CANCEL.lock().unwrap().retain(|k| *k != key(&i.id, offline));
                     l.push(Entry { id: i.id.clone(), title: title_of(i), subtitle: i.kind.clone(), offline, ..Default::default() });
                     queued.push((i.id.clone(), title_of(i)));
                 }
@@ -232,7 +256,6 @@ impl Ctx {
                     }
                     Err(m) if m == "Cancelled" => {
                         LIST.lock().unwrap().retain(|e| !(e.id == *qid && e.offline == offline));
-                        CANCEL.lock().unwrap().retain(|k| *k != key(qid, offline));
                     }
                     Err(m) => {
                         failed += 1;
@@ -246,6 +269,7 @@ impl Ctx {
                         }
                     }
                 }
+                CANCEL.lock().unwrap().retain(|k| *k != key(qid, offline));
                 persist();
                 let c = ctx.clone();
                 let _ = slint::invoke_from_event_loop(move || c.dl_sync_ui());
@@ -334,9 +358,7 @@ impl Ctx {
         };
         if let Some(file) = gone {
             if offline {
-                let d = dir();
-                let _ = std::fs::remove_file(d.join(format!("{id}.json")));
-                let _ = std::fs::remove_file(d.join(format!("{id}.jpg")));
+                remove_files(&id);
                 if let Some(f) = file.filter(|f| !f.is_empty()) {
                     let _ = std::fs::remove_file(f);
                 }

@@ -785,11 +785,44 @@ impl Client {
     /// removes the partial file) when `cancelled()` turns true.
     pub async fn download_to(&self, url: &str, path: &std::path::Path, progress: impl Fn(u64, u64), cancelled: impl Fn() -> bool) -> Result<bool> {
         use std::io::Write;
-        let mut resp = self.http.get(url).timeout(Duration::from_secs(12 * 3600)).send().await?.error_for_status()?;
-        let total = resp.content_length().unwrap_or(0);
-        let mut file = std::fs::File::create(path)?;
-        let mut done = 0u64;
-        while let Some(chunk) = resp.chunk().await? {
+        // Resume a partial file left by a dropped connection; a server that ignores Range sends it all again.
+        let have = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        let mut req = self.http.get(url).timeout(Duration::from_secs(12 * 3600));
+        if have > 0 {
+            req = req.header(reqwest::header::RANGE, format!("bytes={have}-"));
+        }
+        // Wait in short slices so Cancel works even while a slow server sends nothing.
+        let send = req.send();
+        tokio::pin!(send);
+        let resp = loop {
+            tokio::select! {
+                r = &mut send => break r?,
+                _ = tokio::time::sleep(Duration::from_secs(1)) => if cancelled() { return Ok(false) },
+            }
+        };
+        if resp.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && have > 0 {
+            // The partial file doesn't fit what the server has now: drop it so the retry starts fresh.
+            let _ = std::fs::remove_file(path);
+            return Err(Error::Other("the partial download no longer matches the file; starting again".into()));
+        }
+        let mut resp = resp.error_for_status()?;
+        let resumed = have > 0 && resp.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+        let mut done = if resumed { have } else { 0 };
+        let total = resp.content_length().map(|l| l + done).unwrap_or(0);
+        let mut file = if resumed { std::fs::OpenOptions::new().append(true).open(path)? } else { std::fs::File::create(path)? };
+        loop {
+            let chunk = tokio::select! {
+                c = resp.chunk() => c?,
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                    if cancelled() {
+                        drop(file);
+                        let _ = std::fs::remove_file(path);
+                        return Ok(false);
+                    }
+                    continue;
+                }
+            };
+            let Some(chunk) = chunk else { break };
             if cancelled() {
                 drop(file);
                 let _ = std::fs::remove_file(path);
