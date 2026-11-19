@@ -21,6 +21,20 @@ assert dflt in s, "ndk-build Activity::default changed"
 s = s.replace(dflt, dflt + "            supports_picture_in_picture: None,\n", 1)
 m.write_text(s)
 
+# Ship the helper classes as a normal classes.dex inside the APK (FOYER_CLASSES_DEX points at it), so
+# Android loads them like any app's code. Loading a dex blob at runtime is a Play Protect red flag.
+a = ndk / "src" / "apk.rs"
+s = a.read_text()
+anchor = "        for lib_path_unix in self.pending_libs {
+"
+assert anchor in s, "ndk-build apk.rs layout changed"
+s = s.replace(anchor, '''        if let Ok(dex) = std::env::var("FOYER_CLASSES_DEX") {
+            std::fs::copy(dex, self.config.build_dir.join("classes.dex"))?;
+            aapt.arg("classes.dex");
+        }
+''' + anchor, 1)
+a.write_text(s)
+
 t = apk / "Cargo.toml"
 t.write_text(t.read_text() + f'\n[patch.crates-io]\nndk-build = {{ path = "{ndk.resolve()}" }}\n')
 print("patched", m)

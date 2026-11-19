@@ -188,13 +188,20 @@ pub fn step(window: &slint::Window, dir: i32) -> bool {
         return focus_start(window, false);
     }
     let in_nav = r.in_nav() && win.active_popups().is_empty();
-    let mut best: Option<(f32, &ItemRc)> = None;
+    // `in_beam`: the candidate lines up with the current control (their ranges overlap across the
+    // direction of travel), so Down in a grid reaches the card below, not one diagonally close by.
+    let mut best: Option<(bool, f32, &ItemRc)> = None;
     for (item, c) in &all {
         if *item == cur_item {
             continue;
         }
         // Up / Down inside the navigation rail stays in the rail.
         if in_nav && (dir == UP || dir == DOWN) && !c.in_nav() {
+            continue;
+        }
+        // Up / Down skip controls sharing the current one's row (a card's own corner button, the
+        // other buttons of a row). Left / Right may enter a control nested in the current one.
+        if (dir == UP || dir == DOWN) && span(c.y0, c.y1, r.y0, r.y1) > (c.y1 - c.y0).min(r.y1 - r.y0) * 0.5 {
             continue;
         }
         // distance along the pressed direction, and how far off to the side
@@ -205,20 +212,30 @@ pub fn step(window: &slint::Window, dir: i32) -> bool {
             RIGHT if c.cx() > r.cx() + 1.0 && c.x0 >= r.x0 => ((c.x0 - r.x1).max(0.0), gap(c.y0, c.y1, r.y0, r.y1), (c.cy() - r.cy()).abs()),
             _ => continue,
         };
-        // Something in line beats something closer but off to the side; among those in line, the
-        // nearest wins, then the most centred.
-        let score = along + side * 4.0 + centre * 0.1;
-        if best.is_none_or(|(s, _)| score < s) {
-            best = Some((score, item));
+        // Something in line always beats something off to the side; among those in line the nearest
+        // wins, then the most centred. With nothing in line, the closest overall.
+        let in_beam = side <= 0.5;
+        let score = if in_beam { along + centre * 0.1 } else { along + side * 4.0 + centre * 0.1 };
+        let better = match best {
+            None => true,
+            Some((b_beam, b_score, _)) => (in_beam && !b_beam) || (in_beam == b_beam && score < b_score),
+        };
+        if better {
+            best = Some((in_beam, score, item));
         }
     }
     match best {
-        Some((_, item)) => {
+        Some((_, _, item)) => {
             focus(window, item);
             true
         }
         None => false,
     }
+}
+
+/// How far two ranges overlap (0 when they do not).
+fn span(a0: f32, a1: f32, b0: f32, b1: f32) -> f32 {
+    (a1.min(b1) - a0.max(b0)).max(0.0)
 }
 
 /// Gap between two ranges (0 when they overlap).

@@ -2,7 +2,7 @@
 //! headset controls) for the playing video. Everything is best effort: failures are logged.
 //!
 //! cargo-apk ships no Java code, so the MediaSession callback class is a tiny dex built by CI
-//! (`.github/scripts/build-mediacb.sh`) and loaded here with an InMemoryDexClassLoader.
+//! (`.github/scripts/build-mediacb.sh`) and packaged as the APK's classes.dex.
 use super::with_env;
 use crate::platform::MediaAction;
 use jni::objects::{GlobalRef, JClass, JObject, JValue};
@@ -12,7 +12,6 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
-static DEX: &[u8] = include_bytes!("../../android/mediacb.dex");
 const CHANNEL: &str = "foyer_playback";
 const NOTE_ID: i32 = 4242;
 const CB_CLASS: &str = "app.foyer.player.MediaCb";
@@ -109,12 +108,9 @@ pub fn set_pip_auto(on: bool, aspect: f32) {
     });
 }
 
-/// Loads one of the helper classes from the embedded dex.
+/// Loads one of the helper classes (they are in the APK's own classes.dex, see patch-cargo-apk.py).
 fn helper_class<'a>(env: &mut JNIEnv<'a>, act: &JObject<'_>, name: &str) -> jni::errors::Result<JClass<'a>> {
-    let parent = env.call_method(act, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
-    // SAFETY: DEX is 'static, and the loader only reads it.
-    let buf = unsafe { env.new_direct_byte_buffer(DEX.as_ptr() as *mut u8, DEX.len())? };
-    let loader = env.new_object("dalvik/system/InMemoryDexClassLoader", "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V", &[JValue::Object(&buf), JValue::Object(&parent)])?;
+    let loader = env.call_method(act, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
     let name = env.new_string(name)?;
     let class = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?.l()?;
     Ok(JClass::from(class))
@@ -145,13 +141,7 @@ fn load_callback_class(env: &mut JNIEnv<'_>, act: &JObject<'_>) -> jni::errors::
     if let Some(c) = CB.get() {
         return Ok(c.clone());
     }
-    let parent = env.call_method(act, "getClassLoader", "()Ljava/lang/ClassLoader;", &[])?.l()?;
-    // SAFETY: DEX is 'static, and the loader only reads it.
-    let buf = unsafe { env.new_direct_byte_buffer(DEX.as_ptr() as *mut u8, DEX.len())? };
-    let loader = env.new_object("dalvik/system/InMemoryDexClassLoader", "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V", &[JValue::Object(&buf), JValue::Object(&parent)])?;
-    let name = env.new_string(CB_CLASS)?;
-    let class = env.call_method(&loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", &[JValue::Object(&name)])?.l()?;
-    let class = JClass::from(class);
+    let class = helper_class(env, act, CB_CLASS)?;
     env.register_native_methods(&class, &[NativeMethod { name: "nativeAction".into(), sig: "(IJ)V".into(), fn_ptr: native_action as *mut c_void }])?;
     let global = env.new_global_ref(&class)?;
     let _ = CB.set(global.clone());

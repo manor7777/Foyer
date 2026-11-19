@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Compiles crates/app/android/java/**/*.java to crates/app/android/mediacb.dex (embedded into the
-# Android build with include_bytes!). Needs a JDK and an Android SDK (ANDROID_HOME).
+# Compiles crates/app/android/java/**/*.java to crates/app/android/mediacb.dex (packaged into the APK as
+# classes.dex by the patched cargo-apk). Needs a JDK and an Android SDK (ANDROID_HOME).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"

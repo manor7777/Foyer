@@ -4,8 +4,8 @@ import android.media.session.MediaSession;
 
 /**
  * Receives the system's media buttons (notification shade, lock screen, headset, Bluetooth) for
- * the playing video and hands them to Rust. Compiled to a dex by CI and loaded at runtime with an
- * InMemoryDexClassLoader, because cargo-apk packages no Java code.
+ * the playing video and hands them to Rust. Compiled to a dex by CI and added to the APK as classes.dex
+ * (cargo-apk packages no Java code itself; see .github/scripts/patch-cargo-apk.py).
  */
 public class MediaCb extends MediaSession.Callback {
     static native void nativeAction(int code, long arg);

@@ -67,6 +67,8 @@ target_sdk_version = 34
 label = "Foyer"
 icon = "@mipmap/ic_launcher"
 theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+# The APK carries a classes.dex (the media-session helper), added by the patched cargo-apk.
+has_code = true
 
 [package.metadata.android.application.activity]
 config_changes = "orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode|density"

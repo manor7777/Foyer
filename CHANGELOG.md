@@ -2,6 +2,22 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.15
+
+**Play Protect**
+
+- **Android no longer loads code at runtime.** The media-controls helper (notification shade, lock screen and headset buttons) used to be loaded from a data blob inside the app with an in-memory class loader, which is exactly what Google Play Protect's scanner treats as suspicious. It now ships as a normal `classes.dex` inside the APK, like any other Android app. If Play Protect still asks about a sideloaded update, that is its generic "unknown developer" prompt: Foyer is not on Google Play, and it also asks for the install-apps permission so it can update itself.
+
+**New look**
+
+- **Liquid-glass navigation.** On phones and tablets the bottom bar is now a floating glass pill with the "More" button as a separate round glass button beside it. The selected tab sits in a raised glass lens that stretches like liquid as it slides to the tab you pick. On desktop and TV the sidebar is a rounded glass panel with the selected page as an accent-coloured capsule, in light and dark mode.
+
+**Android TV / Google TV**
+
+- **Opening a film, series or episode puts the remote on Play (or Resume)**, so Select starts it straight away.
+- **The focused button is visible on the accent-coloured Play button** (it used to be ringed in the same colour as the button).
+- **Up / Down in a grid goes to the item directly below** (and Left / Right to the one beside it) rather than to something nearby but off to the side; Up / Down no longer land on a control in the same row, such as a card's own corner button.
+
 ## Foyer 0.28.14
 
 - **Android TV / Google TV and phones: the screen no longer sleeps during a video.** A Chromecast with Google TV went to its screensaver part-way through playback, and a phone could dim and lock. Foyer now keeps the screen on while a video is playing (as the Windows version already did); when you pause or the video ends, the screensaver and sleep work as normal.

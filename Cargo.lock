@@ -1470,7 +1470,7 @@ dependencies = [
 
 [[package]]
 name = "emby-api"
-version = "0.28.14"
+version = "0.28.15"
 dependencies = [
  "futures-util",
  "reqwest",
@@ -1825,7 +1825,7 @@ dependencies = [
 
 [[package]]
 name = "foyer"
-version = "0.28.14"
+version = "0.28.15"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -1854,7 +1854,7 @@ dependencies = [
 
 [[package]]
 name = "foyer-core"
-version = "0.28.14"
+version = "0.28.15"
 dependencies = [
  "emby-api",
  "mdns-sd",
@@ -4845,7 +4845,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "player"
-version = "0.28.14"
+version = "0.28.15"
 dependencies = [
  "libloading 0.8.9",
 ]
@@ -5681,7 +5681,7 @@ dependencies = [
 
 [[package]]
 name = "seerr-api"
-version = "0.28.14"
+version = "0.28.15"
 dependencies = [
  "reqwest",
  "serde",
