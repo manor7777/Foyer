@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1795101645.806044,
-    "seen": 1795101761.9024236,
-    "ast_hash": "df1259e7853205c41364fd097e3b7340",
+    "mtime": 1795105347.1817408,
+    "seen": 1795105469.365178,
+    "ast_hash": "e01aec734874a82000ffec54135c65c6",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795101645.8186984,
-    "seen": 1795101761.9027696,
-    "ast_hash": "9517523543ba77cee335a3b5592fe87c",
+    "mtime": 1795105347.2023635,
+    "seen": 1795105469.3653939,
+    "ast_hash": "b4bfe35ec72802d75182904d83ec09ff",
     "semantic_hash": ""
   },
   "CLAUDE.md": {

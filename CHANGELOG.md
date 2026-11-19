@@ -2,31 +2,22 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
-## Foyer 0.28.19
+## Foyer 0.29.0
 
-**Android**
+**New look: liquid-glass navigation**
 
-- **Updates install the standard way.** Google Play Protect was blocking Foyer as "harmful" when it scanned the installer. The update now goes to Android through the normal PackageInstaller session (the way other self-updating apps do it) instead of saving a file to Downloads and opening it. The update is still checked against the signed checksum first, and Android refuses anything not signed with Foyer's key. Free space: the previous update file is cleaned up.
+- **Phones and tablets:** the bottom bar is now a floating glass pill, with "More" as a separate round glass button beside it. The selected tab sits in a raised glass lens that stretches like liquid as it slides to the tab you pick.
+- **Desktop and TV:** the sidebar is a rounded glass panel with the selected page as an accent-coloured capsule, in light and dark mode.
 
-## Foyer 0.28.16
+**Android: Google Play Protect**
 
-- **Glass navigation drawn properly.** The bottom bar, the "More" button and the sidebar showed square corners behind their rounded shape; they are now clean rounded glass.
-
-## Foyer 0.28.15
-
-**Play Protect**
-
-- **Android no longer loads code at runtime.** The media-controls helper (notification shade, lock screen and headset buttons) used to be loaded from a data blob inside the app with an in-memory class loader, which is exactly what Google Play Protect's scanner treats as suspicious. It now ships as a normal `classes.dex` inside the APK, like any other Android app. If Play Protect still asks about a sideloaded update, that is its generic "unknown developer" prompt: Foyer is not on Google Play, and it also asks for the install-apps permission so it can update itself.
-
-**New look**
-
-- **Liquid-glass navigation.** On phones and tablets the bottom bar is now a floating glass pill with the "More" button as a separate round glass button beside it. The selected tab sits in a raised glass lens that stretches like liquid as it slides to the tab you pick. On desktop and TV the sidebar is a rounded glass panel with the selected page as an accent-coloured capsule, in light and dark mode.
+- **No more "harmful app" block.** Play Protect was flagging Foyer when it was installed or updated. Two things changed: the media-controls helper (notification shade, lock screen and headset buttons) is now a normal `classes.dex` inside the APK instead of code loaded at runtime, and in-app updates are handed to Android through the standard PackageInstaller session instead of saving a file to Downloads and opening it. Updates are still checked against the signed checksum first, and Android refuses anything not signed with Foyer's key. The previous update file is cleaned up afterwards.
 
 **Android TV / Google TV**
 
 - **Opening a film, series or episode puts the remote on Play (or Resume)**, so Select starts it straight away.
 - **The focused button is visible on the accent-coloured Play button** (it used to be ringed in the same colour as the button).
-- **Up / Down in a grid goes to the item directly below** (and Left / Right to the one beside it) rather than to something nearby but off to the side; Up / Down no longer land on a control in the same row, such as a card's own corner button.
+- **Up / Down in a grid goes to the item directly below** (and Left / Right to the one beside it) rather than to something nearby but off to the side. Up / Down no longer land on a control in the same row, such as a card's own corner button.
 
 ## Foyer 0.28.14
 
