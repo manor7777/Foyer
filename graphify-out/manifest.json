@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1795094924.37484,
-    "seen": 1795095227.5485756,
-    "ast_hash": "51c7baf6595f2dcde97ff10157245b74",
+    "mtime": 1795098453.2898471,
+    "seen": 1795098535.0006468,
+    "ast_hash": "6e40ff6b92fa953c1c0765a0fa8fcdae",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795095185.5557353,
-    "seen": 1795095227.548921,
-    "ast_hash": "1973ecf31143c1faa671104a42ed9898",
+    "mtime": 1795098453.3712883,
+    "seen": 1795098535.0008507,
+    "ast_hash": "1354aed15981dc1586be7c50996dad4d",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -450,9 +450,9 @@
     "semantic_hash": ""
   },
   ".github/scripts/patch-cargo-apk.py": {
-    "mtime": 1795094375.1580508,
-    "seen": 1795095227.5485637,
-    "ast_hash": "3b1b5f69e5e61e538d26d8d211bc7c57",
+    "mtime": 1795096445.6162057,
+    "seen": 1795098535.0006378,
+    "ast_hash": "407f36491ff8a4836a8a220c3d38584a",
     "semantic_hash": ""
   },
   ".github/workflows/android.yml": {

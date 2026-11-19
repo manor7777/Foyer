@@ -2,6 +2,10 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.16
+
+- **Glass navigation drawn properly.** The bottom bar, the "More" button and the sidebar showed square corners behind their rounded shape; they are now clean rounded glass.
+
 ## Foyer 0.28.15
 
 **Play Protect**

@@ -82,17 +82,13 @@ export global Palette {
     // fairly dense (denser on phones and TVs, where the content behind is busy and the text must stay readable);
     // the glass look comes from the sheen, the lit rim and the soft shadow.
     out property <float> glass-alpha: Device.desktop ? 0.62 : 0.82;
-    out property <brush> glass-fill: dark
-        ? @linear-gradient(180deg, Colors.hsv(shue, 0.40 * ssat, 0.24, glass-alpha) 0%, Colors.hsv(shue, 0.44 * ssat, 0.14, glass-alpha) 100%)
-        : @linear-gradient(180deg, #ffffffe8 0%, Colors.hsv(shue, 0.06 * ssat, 0.93, glass-alpha + 0.1) 100%);
+    /// Solid body of a glass surface (gradients ignore corner radii, so fills are flat colours).
+    out property <color> glass-body: dark ? Colors.hsv(shue, 0.42 * ssat, 0.19, glass-alpha) : Colors.hsv(shue, 0.05 * ssat, 0.96, glass-alpha + 0.12);
     out property <brush> glass-rim: dark
         ? @linear-gradient(160deg, #ffffff7a 0%, #ffffff1c 35%, #ffffff10 65%, #ffffff50 100%)
         : @linear-gradient(160deg, #ffffff 0%, #00000012 40%, #0000000c 65%, #ffffffd0 100%);
-    out property <color> glass-sheen: dark ? #ffffff26 : #ffffffb0;
     /// The raised "lens" under the selected tab.
-    out property <brush> lens-fill: dark
-        ? @linear-gradient(180deg, #ffffff3a 0%, #ffffff16 100%)
-        : @linear-gradient(180deg, #ffffffff 0%, #ffffffa0 100%);
+    out property <color> lens-body: dark ? #ffffff20 : #ffffffd8;
     out property <brush> lens-rim: dark
         ? @linear-gradient(180deg, #ffffff80 0%, #ffffff18 100%)
         : @linear-gradient(180deg, #ffffff 0%, #0000001a 100%);
@@ -2139,20 +2135,12 @@ component CardView inherits Rectangle {
 
 /// A liquid-glass surface: translucent body, soft sheen on the upper half, a lit rim and a diffuse shadow.
 component GlassSurface inherits Rectangle {
-    background: Palette.glass-fill;
+    background: Palette.glass-body;
     border-width: 1px;
     border-color: Palette.glass-rim;
     drop-shadow-blur: 26px;
     drop-shadow-color: Palette.glass-shadow;
     drop-shadow-offset-y: 8px;
-    Rectangle {
-        x: 1px;
-        y: 1px;
-        width: parent.width - 2px;
-        height: parent.height * 0.55;
-        border-radius: max(0px, root.border-radius - 1px);
-        background: @linear-gradient(180deg, Palette.glass-sheen 0%, #ffffff00 100%);
-    }
     @children
 }
 
@@ -2254,7 +2242,7 @@ component GlassBar inherits GlassSurface {
         opacity: root.selected >= 0 ? 1.0 : 0.0;
         animate opacity { duration: 200ms; }
         border-radius: self.height / 2;
-        background: Palette.lens-fill;
+        background: Palette.lens-body;
         border-width: 1px;
         border-color: Palette.lens-rim;
     }
@@ -2290,7 +2278,7 @@ component GlassRound inherits GlassSurface {
         border-radius: self.height / 2;
         opacity: root.selected ? 1.0 : 0.0;
         animate opacity { duration: 200ms; }
-        background: Palette.lens-fill;
+        background: Palette.lens-body;
         border-width: 1px;
         border-color: Palette.lens-rim;
     }
