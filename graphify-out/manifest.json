@@ -18,15 +18,15 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1795098453.2898471,
-    "seen": 1795098535.0006468,
-    "ast_hash": "6e40ff6b92fa953c1c0765a0fa8fcdae",
+    "mtime": 1795101645.806044,
+    "seen": 1795101761.9024236,
+    "ast_hash": "df1259e7853205c41364fd097e3b7340",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
-    "mtime": 1795094375.1600513,
-    "seen": 1795095227.5485787,
-    "ast_hash": "ca873ab8996ec722b1cd68e7689f9951",
+    "mtime": 1795100397.620032,
+    "seen": 1795101761.902428,
+    "ast_hash": "1d36a849645b74a278e2b3085030ae7e",
     "semantic_hash": ""
   },
   "crates/app/build.rs": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795098453.3712883,
-    "seen": 1795098535.0008507,
-    "ast_hash": "1354aed15981dc1586be7c50996dad4d",
+    "mtime": 1795101645.8186984,
+    "seen": 1795101761.9027696,
+    "ast_hash": "9517523543ba77cee335a3b5592fe87c",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -504,15 +504,15 @@
     "semantic_hash": ""
   },
   "crates/app/src/platform/android.rs": {
-    "mtime": 1795030516.0743823,
-    "seen": 1795030657.5124333,
-    "ast_hash": "9031a412b82bfc9345788f1f85ba57d3",
+    "mtime": 1795101632.6205783,
+    "seen": 1795101761.9024634,
+    "ast_hash": "9a60a95f947e6f93cdd0fe2512a92032",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android_media.rs": {
-    "mtime": 1795094380.8432698,
-    "seen": 1795095227.5486228,
-    "ast_hash": "574a7732adea1766be430615b5ed0e46",
+    "mtime": 1795101626.4153032,
+    "seen": 1795101761.902465,
+    "ast_hash": "0a9ea3c4f9c2a003730bda74342ea747",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android_notify.rs": {
@@ -1287,6 +1287,12 @@
     "mtime": 1795094454.1657884,
     "seen": 1795095227.548643,
     "ast_hash": "326b2be66850ebfa687655ce4865520f",
+    "semantic_hash": ""
+  },
+  "crates/app/android/java/app/foyer/player/Installer.java": {
+    "mtime": 1795101578.3577857,
+    "seen": 1795101761.902437,
+    "ast_hash": "cdc85678ca54dcf4d97a742764f18f21",
     "semantic_hash": ""
   }
 }

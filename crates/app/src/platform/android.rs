@@ -156,13 +156,25 @@ pub fn system_notify(title: &str, body: &str) {
 
 // ---------------------------------------------------------------- updates
 
-/// Saves the (already verified) APK to the Downloads folder and opens Android's installer on it.
-/// If Foyer isn't yet allowed to install apps, opens that settings page and returns a message
-/// asking the user to allow it and try again.
+/// Installs the (already verified) APK with Android's PackageInstaller (the dex helper `Installer`), which
+/// then shows its own confirm screen. If Foyer isn't yet allowed to install apps, opens that settings page
+/// and returns a message asking the user to allow it and try again.
 pub fn install_package(apk: &[u8], file_name: &str) -> Result<(), String> {
+    // Earlier staged updates are no use any more (each is ~100 MB).
+    if let Ok(dir) = std::fs::read_dir(data_base()) {
+        for f in dir.flatten() {
+            let n = f.file_name().to_string_lossy().to_string();
+            if n.starts_with("Foyer-") && n.ends_with(".apk") {
+                let _ = std::fs::remove_file(f.path());
+            }
+        }
+    }
+    let path = data_base().join(file_name);
+    std::fs::write(&path, apk).map_err(|e| format!("Couldn't save the update ({e})."))?;
+    let path_str = path.to_string_lossy().to_string();
     with_env(|env, act| {
         let sdk = env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?.i()?;
-        if sdk < 29 {
+        if sdk < 26 {
             return Err(jni::errors::Error::JavaException);
         }
         let pm = env.call_method(act, "getPackageManager", "()Landroid/content/pm/PackageManager;", &[])?.l()?;
@@ -180,39 +192,7 @@ pub fn install_package(apk: &[u8], file_name: &str) -> Result<(), String> {
             return Err(jni::errors::Error::NullPtr("install permission"));
         }
 
-        let resolver = env.call_method(act, "getContentResolver", "()Landroid/content/ContentResolver;", &[])?.l()?;
-        let values = env.new_object("android/content/ContentValues", "()V", &[])?;
-        let put = |env: &mut JNIEnv<'_>, k: &str, v: &str| -> jni::errors::Result<()> {
-            let (k, v) = (env.new_string(k)?, env.new_string(v)?);
-            env.call_method(&values, "put", "(Ljava/lang/String;Ljava/lang/String;)V", &[JValue::Object(&k), JValue::Object(&v)])?;
-            Ok(())
-        };
-        put(env, "_display_name", file_name)?;
-        put(env, "mime_type", "application/vnd.android.package-archive")?;
-        put(env, "relative_path", "Download/Foyer")?;
-        let collection = env.get_static_field("android/provider/MediaStore$Downloads", "EXTERNAL_CONTENT_URI", "Landroid/net/Uri;")?.l()?;
-        let uri = env
-            .call_method(&resolver, "insert", "(Landroid/net/Uri;Landroid/content/ContentValues;)Landroid/net/Uri;", &[JValue::Object(&collection), JValue::Object(&values)])?
-            .l()?;
-        if uri.is_null() {
-            return Err(jni::errors::Error::NullPtr("downloads uri"));
-        }
-        let stream = env.call_method(&resolver, "openOutputStream", "(Landroid/net/Uri;)Ljava/io/OutputStream;", &[JValue::Object(&uri)])?.l()?;
-        for chunk in apk.chunks(256 * 1024) {
-            let bytes = env.byte_array_from_slice(chunk)?;
-            env.call_method(&stream, "write", "([B)V", &[JValue::Object(&bytes)])?;
-        }
-        env.call_method(&stream, "flush", "()V", &[])?;
-        env.call_method(&stream, "close", "()V", &[])?;
-
-        let action = env.new_string("android.intent.action.VIEW")?;
-        let mime = env.new_string("application/vnd.android.package-archive")?;
-        let intent = env.new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&action)])?;
-        env.call_method(&intent, "setDataAndType", "(Landroid/net/Uri;Ljava/lang/String;)Landroid/content/Intent;", &[JValue::Object(&uri), JValue::Object(&mime)])?;
-        // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
-        env.call_method(&intent, "addFlags", "(I)Landroid/content/Intent;", &[JValue::Int(0x1 | 0x1000_0000)])?;
-        env.call_method(act, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])?;
-        Ok(())
+        android_media::install_session(env, act, &path_str)
     })
     .map_err(|e| match e.as_str() {
         s if s.contains("install permission") => "Allow Foyer to install apps in the settings page that just opened, then try the update again.".to_string(),

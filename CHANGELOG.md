@@ -2,6 +2,12 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.28.19
+
+**Android**
+
+- **Updates install the standard way.** Google Play Protect was blocking Foyer as "harmful" when it scanned the installer. The update now goes to Android through the normal PackageInstaller session (the way other self-updating apps do it) instead of saving a file to Downloads and opening it. The update is still checked against the signed checksum first, and Android refuses anything not signed with Foyer's key. Free space: the previous update file is cleaned up.
+
 ## Foyer 0.28.16
 
 - **Glass navigation drawn properly.** The bottom bar, the "More" button and the sidebar showed square corners behind their rounded shape; they are now clean rounded glass.

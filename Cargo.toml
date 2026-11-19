@@ -9,7 +9,7 @@ i-slint-core = { path = "vendor/i-slint-core" }
 
 [workspace.package]
 edition = "2021"
-version = "0.28.16"
+version = "0.28.19"
 
 [profile.release]
 opt-level = 3
