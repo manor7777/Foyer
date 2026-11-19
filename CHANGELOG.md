@@ -2,6 +2,13 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.2
+
+**Android TV and Chromecast with Google TV**
+
+- The screen no longer falls asleep during playback: the keep-awake setting is re-applied every 15 seconds and kept on while moving to the next episode.
+- Moving to the next episode no longer waits up to 8 seconds on a slow server before it starts.
+
 ## Foyer 0.29.1
 
 **Download fixes**

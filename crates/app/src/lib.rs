@@ -3889,7 +3889,8 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
         },
     );
 
-    keep_display_on(false);
+    // Keep the screen awake across the handover to the next episode (the next player turns it off at the end).
+    keep_display_on(matches!(outcome, player::Outcome::Finished) && next_ep.is_some());
     let stop_pos = if real || is_live { last_pos } else { start };
     let mut next = None;
     match &outcome {
@@ -3909,7 +3910,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
         }
     }
     drop(rtx);
-    let _ = rt.block_on(async { tokio::time::timeout(Duration::from_secs(8), rh).await });
+    let _ = rt.block_on(async { tokio::time::timeout(Duration::from_secs(2), rh).await });
     if let Some(ls) = live_stream {
         rt.block_on(client.close_live(&ls));
     }

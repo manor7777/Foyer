@@ -240,7 +240,10 @@ pub fn keep_screen_on(on: bool) {
     use slint::android::android_activity::WindowManagerFlags as F;
     use std::sync::atomic::{AtomicU8, Ordering};
     static LAST: AtomicU8 = AtomicU8::new(2);
-    if LAST.swap(on as u8, Ordering::Relaxed) == on as u8 {
+    // Re-apply every 15 s while on: a flag change can be lost around activity/window changes (the TV went to sleep mid-film).
+    static LAST_AT: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+    let stale = on && LAST_AT.lock().map(|mut t| { let s = t.map_or(true, |i| i.elapsed().as_secs() >= 15); if s { *t = Some(std::time::Instant::now()); } s }).unwrap_or(false);
+    if LAST.swap(on as u8, Ordering::Relaxed) == on as u8 && !stale {
         return;
     }
     if let Some(app) = APP.get() {
