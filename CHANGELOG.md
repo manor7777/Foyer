@@ -2,7 +2,7 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
-## Foyer 0.29.9
+## Foyer 0.29.10
 
 **Android: updates without the install permission**
 
