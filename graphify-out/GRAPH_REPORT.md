@@ -1,17 +1,17 @@
 # Graph Report - Foyer  (2026-11-20)
 
 ## Corpus Check
-- 154 files · ~316,462 words
+- 154 files · ~316,787 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: (none) 4, .xml 2, .rc 1)
 
 ## Summary
-- 7000 nodes · 17894 edges · 330 communities (241 shown, 89 thin omitted)
+- 7004 nodes · 17899 edges · 316 communities (233 shown, 83 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 964 edges (avg confidence: 0.6)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a66d8d00`
+- Built from commit: `261e455a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -36,19 +36,19 @@
 - gcast.rs
 - window.rs
 - ModelTracker
-- sharedvector.rs
+- SharedVector<T>
 - Page
 - ImageKind
 - .get
-- .from_pub
+- Coord
 - Ctx
 - Foyer 0.22.0
-- Property
+- component_container.rs
 - platform.rs
 - system_tray/windows.rs
 - Error
 - BorderRadius<T, U>
-- LogicalPosition
+- api.rs
 - WindowInner
 - foyer
 - Quality
@@ -60,9 +60,9 @@
 - super
 - SharedString
 - tests.rs
-- Window
+- items.rs
 - properties/ffi.rs
-- core/src/lib.rs
+- format!
 - graphics/path.rs
 - item_tree.rs
 - flickable.rs
@@ -72,7 +72,7 @@
 - Slot
 - i-slint-core/layout.rs
 - DataTransfer
-- .show_detail
+- media_info
 - items/image.rs
 - android.yml
 - T
@@ -84,15 +84,15 @@
 - items/path.rs
 - CachedRenderingData
 - android_media.rs
-- RenderingResult
-- TestItemTree
+- sharedvector.rs
+- ItemTreeVTable
 - ksni.rs
 - .load_from_data_with_cache_key
 - .get
 - translations.rs
 - BoxShadowOptions
 - TextCursorAffinity
-- .compute_dirty_regions
+- partial_renderer.rs
 - appkit.rs
 - brush.rs
 - android.rs
@@ -106,20 +106,20 @@
 - properties_animations.rs
 - Brush
 - pt
-- item_tree.rs
+- RenderBorderRectangle
 - constant_deceleration.rs
-- .find_sibling
+- LogicalRect
 - LogicalLength
 - downloads.rs
 - linebreaker.rs
-- MenuVTable
+- SelectionSpan
 - vec
 - Rgba8Pixel
 - GraphicsAPI
 - Repeater<C>
 - callbacks.rs
 - .key_event
-- with_env
+- .from_iter
 - RendererSealed
 - T
 - ChangeTracker
@@ -128,20 +128,20 @@
 - SlintContext
 - ConicGradientBrush
 - constant_deceleration_spring_damper.rs
-- .process_mouse_input
+- WindowEventDispatchResult
 - Slice
 - textlayout/shaping.rs
 - spring.rs
-- platform.rs
+- Cast
 - tvnav.rs
 - gdb_pretty_printers.py
 - timers.rs
 - wgpu_29.rs
 - TextCursorDirection
-- i-slint-core/accessibility.rs
+- AccessibilityAction
 - step
 - .evaluate
-- LogicalRect
+- ItemRc
 - wgpu_30.rs
 - graphics.rs
 - fragments.rs
@@ -163,33 +163,33 @@
 - Image
 - Instant
 - MouseInputState
-- RepaintBufferType
+- .fmt
 - DependencyNode
 - MenuFromItemTree
 - erased_bindings.rs
 - lengths.rs
 - solve_flexbox_layout_with_measure
 - Layout
-- PartialRendererCache
+- .as_slice
 - system_tray.rs
 - platform/windows.rs
 - FontMetrics
 - ParsedSVG
 - debug_log.rs
-- component_factory.rs
+- EasingCurve
 - NoVerify
-- Weak<T>
-- GridLayoutOrganizedData
-- .update_check_inner
+- RadialGradientBrush
+- repeater.rs
+- GradientStop
 - data_ringbuffer.rs
-- FittedPathBox
-- ksni.rs
+- .new_circle
+- i-slint-core/accessibility.rs
 - Changelog
 - android_notify.rs
 - play_inner
 - date_time.rs
 - animations.rs
-- PlatformTray
+- Ctx
 - Error
 - ScaleFactor
 - Length
@@ -197,13 +197,13 @@
 - Surface
 - .evaluate
 - rendering_metrics_collector.rs
-- Any
-- DirtyRegion
+- Scalar
+- TexturePixelFormat
 - Slint Software License
 - media.rs
 - StyledTextItem
 - InterpolatedPropertyValue
-- .apply_dirty_region
+- android
 - ItemRef
 - MediaCb
 - TimerList
@@ -215,7 +215,7 @@
 - classify
 - SingleLinkedListPinHead<T>
 - .init
-- Kind
+- TwoWayBindingMapping
 - winit_ops.rs
 - SurfaceTarget
 - WGPUSettings
@@ -224,36 +224,31 @@
 - phantomdata
 - Installer.java
 - preview.rs
-- .window_item
+- slint_timer_start
 - .visual_representation
-- InputMethodProperties
-- Inner
-- .plex_browse
+- TestView
+- ModelIterator<'_, T>
 - Client
 - User
 - T
 - text.rs
 - Renderer
-- LineBreakIterator<'a>
-- has_display_handle
+- .next
 - Conditional<C>
-- DragRequest
 - benches/string.rs
 - android
 - TimerListRc
 - TextLineBreaker
 - LyonPathEventIterator
 - pathbuf
-- windows
 - steps
 - bitmapfont.rs
-- PlatformTray
+- Inner
 - env
 - TextCursorBlinker
 - Community 240
 - FixedTestFont
 - Slint Royalty-free Desktop, Mobile, and Web Applications License
-- .system_info
 - CrossAxisSizing
 - SurfaceTarget
 - armv7_only
@@ -265,7 +260,7 @@
 - PlainOrStyledText
 - Foyer 0.24.0
 - Foyer's patch to i-slint-core 1.18.1
-- WindowHandle
+- WindowAdapterInternal
 - Foyer 0.26.3
 - Foyer 0.26.2
 - Foyer 0.25.1
@@ -274,7 +269,6 @@
 - main
 - Texture
 - Texture
-- CloseRequestResponse
 - secrets
 - BackendDragEvent
 - Foyer 0.26.4
@@ -288,13 +282,6 @@
 - AnimatedBindingState
 - Detail
 - AnimatedBindingKind
-- VelocityRingBuffer<N>
-- append_menu_entry
-- Clipboard
-- DrawOutcome
-- super
-- save_to_downloads
-- TextChangeNotify
 
 ## God Nodes (most connected - your core abstractions)
 1. `ItemRc` - 516 edges
@@ -313,32 +300,32 @@
   crates/app/src/tvnav.rs → .github/workflows/android.yml
 - `libmpv .so with MediaCodec (ExoPlayer fallback)` --semantically_similar_to--> `libmpv playback (hw decoding, cache, direct play, transcode presets)`  [INFERRED] [semantically similar]
   docs/ANDROID-PLAN.md → README.md
-- `fit9slice()` --calls--> `rect()`  [INFERRED]
-  vendor/i-slint-core/graphics/image.rs → crates/app/src/tvnav.rs
-- `with_timer()` --calls--> `f()`  [INFERRED]
-  vendor/i-slint-core/timers.rs → crates/emby-api/src/plex.rs
 - `with_event_loop_proxy()` --calls--> `f()`  [INFERRED]
   vendor/i-slint-core/platform.rs → crates/emby-api/src/plex.rs
+- `with_global_context()` --calls--> `f()`  [INFERRED]
+  vendor/i-slint-core/context.rs → crates/emby-api/src/plex.rs
+- `with_text_input_layout_impl()` --calls--> `f()`  [INFERRED]
+  vendor/i-slint-core/textlayout/sharedparley.rs → crates/emby-api/src/plex.rs
 
 ## Import Cycles
-- 1-file cycle: `vendor/i-slint-core/graphics/image.rs -> vendor/i-slint-core/graphics/image.rs`
-- 1-file cycle: `vendor/i-slint-core/window.rs -> vendor/i-slint-core/window.rs`
 - 1-file cycle: `vendor/i-slint-core/model.rs -> vendor/i-slint-core/model.rs`
+- 1-file cycle: `vendor/i-slint-core/window.rs -> vendor/i-slint-core/window.rs`
+- 1-file cycle: `vendor/i-slint-core/platform.rs -> vendor/i-slint-core/platform.rs`
+- 1-file cycle: `vendor/i-slint-core/graphics/image.rs -> vendor/i-slint-core/graphics/image.rs`
 - 1-file cycle: `vendor/i-slint-core/properties.rs -> vendor/i-slint-core/properties.rs`
 - 1-file cycle: `vendor/i-slint-core/layout.rs -> vendor/i-slint-core/layout.rs`
 - 1-file cycle: `vendor/i-slint-core/translations.rs -> vendor/i-slint-core/translations.rs`
 - 1-file cycle: `vendor/i-slint-core/input.rs -> vendor/i-slint-core/input.rs`
 - 1-file cycle: `vendor/i-slint-core/animations/simulations.rs -> vendor/i-slint-core/animations/simulations.rs`
-- 1-file cycle: `vendor/i-slint-core/platform.rs -> vendor/i-slint-core/platform.rs`
-- 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/system_tray.rs -> vendor/i-slint-core/items.rs`
+- 2-file cycle: `vendor/i-slint-core/model.rs -> vendor/i-slint-core/model/repeater.rs -> vendor/i-slint-core/model.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/window.rs -> vendor/i-slint-core/items.rs`
+- 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/system_tray.rs -> vendor/i-slint-core/items.rs`
+- 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/menus.rs -> vendor/i-slint-core/items.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/flickable.rs -> vendor/i-slint-core/items.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/path.rs -> vendor/i-slint-core/items.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/partial_renderer.rs -> vendor/i-slint-core/items.rs`
-- 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/menus.rs -> vendor/i-slint-core/items.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/input_items.rs -> vendor/i-slint-core/items.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/rtti.rs -> vendor/i-slint-core/items.rs`
-- 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/text.rs -> vendor/i-slint-core/items.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/component_container.rs -> vendor/i-slint-core/items.rs`
 - 2-file cycle: `vendor/i-slint-core/items.rs -> vendor/i-slint-core/items/drag_n_drop.rs -> vendor/i-slint-core/items.rs`
 
@@ -347,23 +334,23 @@
 - **Platform-specific areas needing Android replacements** — docs_android_plan_libmpv_android, docs_android_plan_apk_update, docs_android_plan_material_you, docs_android_plan_background_notifications [INFERRED 0.75]
 - **Playback safety mechanisms** — plan_playback_state_machine, plan_fixemby_patches, plan_self_contained_design [INFERRED 0.75]
 
-## Communities (330 total, 89 thin omitted)
+## Communities (316 total, 83 thin omitted)
 
 ### Community 0 - "input_items.rs"
 Cohesion: 0.05
-Nodes (17): Orientation, Callback, FocusReasonArg, FocusScope, KeyBinding, KeyBindingList, MaybeKeyBindingList, ScaleRotateGestureHandler (+9 more)
+Nodes (16): Callback, FocusReasonArg, FocusScope, KeyBinding, MaybeKeyBindingList, ScaleRotateGestureHandler, slint_maybe_key_binding_list_free(), slint_maybe_key_binding_list_init() (+8 more)
 
 ### Community 1 - "player/src/lib.rs"
-Cohesion: 0.10
-Nodes (30): Api, api(), available(), DEFAULT_OPTIONS, dll_candidates(), END_EOF, END_ERROR, engine_dir() (+22 more)
+Cohesion: 0.09
+Nodes (31): Api, api(), available(), DEFAULT_OPTIONS, dll_candidates(), END_EOF, END_ERROR, engine_dir() (+23 more)
 
 ### Community 2 - "Ctx"
-Cohesion: 0.10
-Nodes (3): fav_group(), Ctx, nice_date()
+Cohesion: 0.09
+Nodes (3): Ctx, episode_summary(), nice_date()
 
 ### Community 3 - "update.rs"
-Cohesion: 0.09
-Nodes (23): Api, ApiAsset, ASSET, bad_signature(), check(), check_signature(), Checked, Latest (+15 more)
+Cohesion: 0.07
+Nodes (26): Api, ApiAsset, ASSET, bad_signature(), check(), check_signature(), Checked, Latest (+18 more)
 
 ### Community 4 - "Foyer (native Emby client)"
 Cohesion: 0.05
@@ -371,7 +358,7 @@ Nodes (46): Android and Android TV plan, Android TV (D-pad focus, 10-foot layout
 
 ### Community 5 - "app/src/lib.rs"
 Cohesion: 0.03
-Nodes (61): HideTarget, android_main(), applog(), AUDIO_PICK, audio_streams(), auto_hw_mode(), cached_image(), ChanData (+53 more)
+Nodes (56): android_main(), applog(), apply_image(), AUDIO_PICK, audio_streams(), auto_hw_mode(), cached_image(), ChanData (+48 more)
 
 ### Community 6 - "seerr-api/src/lib.rs"
 Cohesion: 0.05
@@ -383,19 +370,23 @@ Nodes (22): Control, AddSubtitle, AudioDelayBy, CycleAudio, CycleSubtitles, Fini
 
 ### Community 8 - "emby-api/src/lib.rs"
 Cohesion: 0.06
-Nodes (24): AuthResult, CLIENT_NAME, CLIENT_VERSION, de_id(), de_opt_id(), DEVICE_NAME, discover(), DiscoveredServer (+16 more)
+Nodes (27): CLIENT_NAME, CLIENT_VERSION, de_id(), de_opt_id(), detect(), DEVICE_NAME, discover(), DiscoveredServer (+19 more)
 
 ### Community 9 - "notes.rs"
 Cohesion: 0.07
-Nodes (16): Ctx, FOLLOWED, init_tray_events(), INSTANCE_ADDR, load_notes(), MAX_NOTES, NoteRec, notes_path() (+8 more)
+Nodes (17): Ctx, FOLLOWED, init_tray_events(), INSTANCE_ADDR, load_notes(), MAX_NOTES, NoteRec, notes_path() (+9 more)
+
+### Community 11 - "Result"
+Cohesion: 0.09
+Nodes (4): Browse, Chapter, Item, section_key()
 
 ### Community 12 - "sharedparley.rs"
 Cohesion: 0.09
-Nodes (18): ContentWidths, InnerTextLayoutCache, TextLayoutCache, draw_text_input(), link_in_layout(), link_under_cursor(), PhysicalPoint, PhysicalSize (+10 more)
+Nodes (27): HasFont, RenderString, ScaleFactor, ContentWidths, InnerTextLayoutCache, TextLayoutCache, char_size(), draw_text() (+19 more)
 
 ### Community 13 - "Client"
 Cohesion: 0.07
-Nodes (7): next_up_items(), Client, Other, RemoteSubtitle, Result, Task, VirtualFolder
+Nodes (7): Client, Other, RemoteSubtitle, Result, SystemInfo, Task, VirtualFolder
 
 ### Community 14 - "RemoteEvent"
 Cohesion: 0.10
@@ -406,28 +397,28 @@ Cohesion: 0.07
 Nodes (5): BrokenModel<T>, FilterModel<M, F>, MapModel<M, F>, ModelChecker, ModelTracker
 
 ### Community 16 - "seerr.rs"
-Cohesion: 0.05
-Nodes (39): offline_item(), title_of(), hidden(), SIssue, SReq, Item, describe_eps(), DetailCtx (+31 more)
+Cohesion: 0.04
+Nodes (52): load_posters(), posters_dir(), Slot, Backdrop, DetailLogo, Home, Logo, Poster (+44 more)
 
 ### Community 17 - "gcast.rs"
-Cohesion: 0.08
-Nodes (22): browse(), Cast, Cmd, Load, Pause, Play, Seek, Stop (+14 more)
+Cohesion: 0.12
+Nodes (13): browse(), decode(), DEFAULT_RECEIVER, Device, discover(), field(), frame(), frames_round_trip() (+5 more)
 
 ### Community 18 - "window.rs"
-Cohesion: 0.06
-Nodes (48): Size, KeyEventType, CommitComposition, KeyPressed, KeyReleased, UpdateComposition, PropertyDirtyHandler, a_host_overrides_the_default_title() (+40 more)
+Cohesion: 0.05
+Nodes (64): Size, MenuVTable, PropertyDirtyHandler, a_host_overrides_the_default_title(), accent_color(), context_for_root(), GraphicsAPI, Inaccessible (+56 more)
 
 ### Community 19 - "ModelTracker"
-Cohesion: 0.12
+Cohesion: 0.11
 Nodes (9): FilterModelInner<M, F>, ModelChecker<Data>, ReverseModelInner<M>, SortModel<M, S>, SortModelInner<M, S>, test_filter_model_broken_model(), test_reversed_broken_model(), test_sorted_broken_model() (+1 more)
 
-### Community 20 - "sharedvector.rs"
-Cohesion: 0.07
-Nodes (33): alloc_with_capacity(), capacity_for_grow(), compute_inner_layout(), data_ptr(), drop_inner(), insert_out_of_bounds_test(), insert_test(), IntoIter (+25 more)
+### Community 20 - "SharedVector<T>"
+Cohesion: 0.19
+Nodes (8): capacity_for_grow(), data_ptr(), drop_inner(), IntoIterInner<T>, SharedVector<T>, test_aligned_element_type(), test_reserve(), test_vector_clear()
 
 ### Community 21 - "Page"
-Cohesion: 0.09
-Nodes (22): Page, Detail, Downloads, Genre, Home, Library, LiveTv, Notifications (+14 more)
+Cohesion: 0.06
+Nodes (28): hidden(), HideTarget, goto_with(), LibView, Page, Detail, Downloads, Genre (+20 more)
 
 ### Community 22 - "ImageKind"
 Cohesion: 0.22
@@ -437,25 +428,25 @@ Nodes (6): ImageKind, Backdrop, Logo, Primary, Thumb, Person
 Cohesion: 0.11
 Nodes (9): encode(), encodes_queries_with_percent20(), log(), Media, Page, Person, PersonCredits, PublicSettings (+1 more)
 
-### Community 24 - ".from_pub"
-Cohesion: 0.13
-Nodes (14): accent_color(), context_for_root(), PopupWindow, PopupWindowLocation, ChildWindow, TopLevel, slint_windowrc_close_popup(), slint_windowrc_create_child_window_adapter() (+6 more)
+### Community 24 - "Coord"
+Cohesion: 0.11
+Nodes (8): Orientation, text_layout_info(), Constraint, grid_layout_info(), LayoutCacheGenerator<'a>, LayoutInfo, slint_grid_layout_info(), Coord
 
 ### Community 25 - "Ctx"
 Cohesion: 0.06
-Nodes (11): Ctx, apply_accent(), apply_material(), close(), Ctx, fuzzy_match(), load_posters(), login_error() (+3 more)
+Nodes (20): apply_accent(), apply_material(), card_for(), CardData, cards_model(), close(), Ctx, episode_row() (+12 more)
 
 ### Community 26 - "Foyer 0.22.0"
 Cohesion: 0.17
 Nodes (12): 🛠 Admin, Foyer 0.22.0, ✨ Highlights, 🏠 Home, 🔎 Libraries & search, 🖼 Look & feel, 🔔 Notifications, 🎬 Playback (+4 more)
 
-### Community 27 - "Property"
-Cohesion: 0.06
-Nodes (13): BoxShadowCache, CacheEntry, MAX_CACHED_SHADOWS, CachedGraphicsData, ItemCache, ItemRendererFeatures, .SUPPORTS_TRANSFORMATIONS, ComponentContainer (+5 more)
+### Community 27 - "component_container.rs"
+Cohesion: 0.07
+Nodes (16): ComponentFactory, ComponentFactoryInner, FactoryContext, CachedGraphicsData, CachedGraphicsData<T>, ItemCache, RenderRectangle, ItemTreeWeak (+8 more)
 
 ### Community 28 - "platform.rs"
-Cohesion: 0.05
-Nodes (22): _ANIM_TICK_UPDATED_ON_PLATFORM_SET, EVENTLOOP_PROXY, INITIAL_INSTANT, Platform, set_platform(), SetPlatformError, AlreadySet, update_timers_and_animations() (+14 more)
+Cohesion: 0.04
+Nodes (40): BackendMouseEvent, Exit, Moved, PinchGesture, Pressed, Released, RotationGesture, Wheel (+32 more)
 
 ### Community 29 - "system_tray/windows.rs"
 Cohesion: 0.03
@@ -469,21 +460,21 @@ Nodes (6): Error, BadLogin, Forbidden, Network, NotSignedIn, Server
 Cohesion: 0.07
 Nodes (10): ApproxEq, BorderRadius, BorderRadius<T, U>, BorderRadius<T, U1>, BorderRadius<T, U2>, IntBorderRadius, approx_eq!, PhysicalBorderRadius (+2 more)
 
-### Community 32 - "LogicalPosition"
-Cohesion: 0.12
-Nodes (9): logical_physical_pos(), LogicalPosition, PhysicalPosition, WindowPosition, Logical, Physical, physical_position_from_api(), physical_position_to_api() (+1 more)
+### Community 32 - "api.rs"
+Cohesion: 0.05
+Nodes (25): EventLoopError, EventLoopTerminated, NoEventLoopProvider, invoke_from_event_loop(), logical_physical_pos(), logical_physical_size(), LogicalPosition, LogicalSize (+17 more)
 
 ### Community 34 - "WindowInner"
-Cohesion: 0.10
-Nodes (3): slint_windowrc_hide(), slint_windowrc_request_redraw(), WindowInner
+Cohesion: 0.06
+Nodes (12): LayoutConstraints, PopupWindow, PopupWindowLocation, ChildWindow, TopLevel, PopupWindowPropertiesTracker, WindowAdapter, WindowInner (+4 more)
 
 ### Community 35 - "foyer"
 Cohesion: 0.40
 Nodes (6): emby-api, foyer, foyer-core, i-slint-core, player, seerr-api
 
 ### Community 36 - "Quality"
-Cohesion: 0.14
-Nodes (13): quality_rows(), Source, Live, auto_steps_down_when_link_is_slow(), decide(), explicit_choices_and_config_roundtrip(), Preset, PRESETS (+5 more)
+Cohesion: 0.11
+Nodes (17): quality_rows(), Source, Live, log(), LOG, LogFn, set_log(), auto_steps_down_when_link_is_slow() (+9 more)
 
 ### Community 37 - "Client"
 Cohesion: 0.12
@@ -494,80 +485,80 @@ Cohesion: 0.07
 Nodes (26): Channel, Color, HsvaColor, linear_to_srgb(), OklabColor, OklchColor, quantize(), RgbaColor (+18 more)
 
 ### Community 40 - "adapters.rs"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (30): AscendingSortHelper, check_content(), F, FilterModel, FilterModelInner, MapModel, ReverseModel, ReverseModel<M> (+22 more)
 
 ### Community 41 - "T"
-Cohesion: 0.07
-Nodes (12): InternalToken, ErrorImpl, OutOfBounds, Unsupported, Model, ModelError, ModelIterator, ModelIterator<'a, T> (+4 more)
+Cohesion: 0.05
+Nodes (13): bool, ErrorImpl, OutOfBounds, Unsupported, Model, ModelError, ModelIterator, ModelIterator<'a, T> (+5 more)
 
 ### Community 42 - "Android"
 Cohesion: 0.40
 Nodes (4): Android, Every feature works on both, and lands on `main`, graphify, Rules for keeping it compatible
 
 ### Community 44 - "super"
-Cohesion: 0.08
-Nodes (21): dir(), home_rows_model(), AUTOPLAY_STREAK_LIMIT, BASE, CARD_SCALES, Config, data_dir(), default_accent_mode() (+13 more)
+Cohesion: 0.09
+Nodes (19): home_rows_model(), AUTOPLAY_STREAK_LIMIT, BASE, CARD_SCALES, Config, default_accent_mode(), DEFAULT_ACCENT_MODE, default_accent_rgb() (+11 more)
 
 ### Community 45 - "SharedString"
 Cohesion: 0.07
 Nodes (14): StandardListViewItem, SharedString, simple_test(), slint_shared_string_append(), slint_shared_string_bytes(), String, test_extend_from_chars(), test_slint_shared_string_append() (+6 more)
 
 ### Community 46 - "tests.rs"
-Cohesion: 0.18
-Nodes (18): paragraph_ranges(), bidi_selection_spans_are_ascending_in_x(), layout_text(), layout_text_with_builder(), layout_text_with_options(), layout_with_max_lines(), paragraphs(), test_cursor_affinity_at_soft_line_break() (+10 more)
+Cohesion: 0.17
+Nodes (19): paragraph_ranges(), bidi_selection_spans_are_ascending_in_x(), layout_text(), layout_text_with_builder(), layout_text_with_options(), layout_with_max_lines(), paragraphs(), test_cursor_affinity_at_soft_line_break() (+11 more)
 
-### Community 47 - "Window"
-Cohesion: 0.08
-Nodes (8): logical_physical_size(), LogicalSize, PhysicalSize, Window, WindowSize, Logical, Physical, BoxShadowCache<ImageType>
+### Community 47 - "items.rs"
+Cohesion: 0.07
+Nodes (16): ContextMenu, is_root_window_item(), builtin_struct_field_default!, builtin_struct_field_default_doc!, declare_builtin_structs!, declare_enums!, declare_item_vtable!, MenuEntryArg (+8 more)
 
 ### Community 48 - "properties/ffi.rs"
 Cohesion: 0.10
-Nodes (42): PropertyAnimation, c_set_animated_binding(), c_set_animated_value(), ChangeTrackerOpaque, drop_fn(), eval_fn(), EvalState, ffi_change_tracker_does_not_leak_dep_nodes() (+34 more)
+Nodes (41): c_set_animated_binding(), c_set_animated_value(), ChangeTrackerOpaque, drop_fn(), eval_fn(), EvalState, ffi_change_tracker_does_not_leak_dep_nodes(), make_c_function_binding() (+33 more)
 
-### Community 49 - "core/src/lib.rs"
-Cohesion: 0.24
-Nodes (7): log(), LOG, LogFn, set_log(), format!, T, ToSharedString
+### Community 49 - "format!"
+Cohesion: 0.40
+Nodes (3): format!, T, ToSharedString
 
 ### Community 50 - "graphics/path.rs"
 Cohesion: 0.08
-Nodes (35): elements_path(), events_path(), fitted_path_sample_at_adds_offset_to_position(), fitted_path_sample_at_returns_none_for_zero_length_path(), fitted_path_sample_at_wraps_percent_for_open_path(), line_path(), LyonPathIteratorVariant, FromEvents (+27 more)
+Nodes (36): elements_path(), events_path(), fitted_path_sample_at_adds_offset_to_position(), fitted_path_sample_at_returns_none_for_zero_length_path(), fitted_path_sample_at_wraps_percent_for_open_path(), FittedPath, line_path(), LyonPathIteratorVariant (+28 more)
 
 ### Community 51 - "item_tree.rs"
-Cohesion: 0.16
-Nodes (21): assert_point_approx_eq(), create_subsubtree_items(), ItemTreeNodeArray<'a>, test_absolute_clip_rect_and_geometry_under_transform(), test_map_to_ancestor(), test_map_to_native_window_popup(), test_map_to_native_window_popup_dynamic_element(), test_map_to_window() (+13 more)
+Cohesion: 0.09
+Nodes (41): assert_point_approx_eq(), create_children_nodes(), create_empty_subtree(), create_item_subtree_item(), create_nested_subtrees(), create_one_node_component(), create_subsubtree_items(), create_subsubtree_items_dynamic_elements() (+33 more)
 
 ### Community 52 - "flickable.rs"
 Cohesion: 0.08
-Nodes (19): CaptureEvents, MouseOrTouchScreen, MouseWheel, DECELERATION, DURATION_THRESHOLD, ensure_in_bound(), Flickable, FlickableData (+11 more)
+Nodes (22): abs(), CaptureEvents, MouseOrTouchScreen, MouseWheel, DECELERATION, DISTANCE_THRESHOLD, DURATION_THRESHOLD, ensure_in_bound() (+14 more)
 
 ### Community 53 - "PlatformError"
-Cohesion: 0.10
-Nodes (10): ComponentHandle, PlatformError, NoEventLoopProvider, NoPlatform, Other, OtherError, SetPlatformError, Unsupported (+2 more)
+Cohesion: 0.04
+Nodes (19): CloseRequestResponse, HideWindow, KeepWindowShown, ComponentHandle, Global, PlatformError, NoEventLoopProvider, NoPlatform (+11 more)
 
 ### Community 54 - "PhysicalLength"
-Cohesion: 0.11
-Nodes (18): Glyph, GlyphRenderer, Layout, RectangleBorder, TextParagraph, visible_band(), visible_x_range(), PhysicalLength (+10 more)
-
-### Community 55 - "RenderText"
-Cohesion: 0.14
-Nodes (3): RenderText, (SharedString, Brush), draw_text()
+Cohesion: 0.16
+Nodes (9): Glyph, GlyphRenderer, Layout, RectangleBorder, TextParagraph, visible_band(), visible_x_range(), ElisionInfo (+1 more)
 
 ### Community 56 - "Slot"
 Cohesion: 0.08
-Nodes (21): Active, ACTIVE, Chromecast, Session, CAST_GEN, Ctx, FALLBACK_QUALITY, IDS (+13 more)
+Nodes (22): Active, ACTIVE, Chromecast, Session, CAST_GEN, Ctx, FALLBACK_QUALITY, IDS (+14 more)
 
 ### Community 57 - "i-slint-core/layout.rs"
 Cohesion: 0.07
-Nodes (45): BoxLayoutData, BoxLayoutOrthoData, collect_from_organized_data(), Errors, FlexboxLayoutCacheGenerator, FlexboxLayoutCacheGenerator<'a>, FlexboxMeasureFnC, GridLayoutCacheGenerator (+37 more)
+Nodes (46): BoxLayoutData, collect_from_organized_data(), Errors, FlexboxLayoutCacheGenerator, FlexboxLayoutCacheGenerator<'a>, FlexboxMeasureFnC, GridLayoutCacheGenerator, GridLayoutCacheGenerator<'a> (+38 more)
 
 ### Community 58 - "DataTransfer"
 Cohesion: 0.09
 Nodes (25): DataTransfer, DataTransferError, TypeNotFound, CppUserData, DataTransferOpaque, path_from_units(), path_to_units(), PathValueType (+17 more)
 
-### Community 59 - ".show_detail"
-Cohesion: 0.08
-Nodes (31): apply_image(), card_for(), CardData, cards_model(), episode_row(), episode_tag(), media_info(), set_card_image() (+23 more)
+### Community 59 - "media_info"
+Cohesion: 0.33
+Nodes (4): media_info(), duration_label(), fmt_bps(), fmt_size()
+
+### Community 60 - "items/image.rs"
+Cohesion: 0.07
+Nodes (3): RenderImage, ClippedImage, ImageItem
 
 ### Community 61 - "android.yml"
 Cohesion: 0.25
@@ -578,15 +569,15 @@ Cohesion: 0.08
 Nodes (25): (), BINDING_BORROWED, BINDING_POINTER_MASK, BINDING_POINTER_TO_BINDING, BindingCallable, .IS_TWO_WAY_BINDING, BindingResult, KeepBinding (+17 more)
 
 ### Community 63 - "Item"
-Cohesion: 0.09
-Nodes (15): Value, Item, CallbackInfo, common_property(), (F1, F2), FieldOffset<Item, crate::Callback<(), Ret>>, FieldOffset<Item, crate::Callback<(T,), Ret>>, FieldOffset<Item, Property<T>> (+7 more)
+Cohesion: 0.12
+Nodes (9): Value, Item, CallbackInfo, FieldOffset<Item, crate::Callback<(), Ret>>, FieldOffset<Item, crate::Callback<(T,), Ret>>, FieldOffset<Item, Property<T>>, FieldOffset<Item, T>, MaybeAnimatedPropertyInfoWrapper<Item, Property<T>> (+1 more)
 
 ### Community 64 - "drag_n_drop.rs"
-Cohesion: 0.08
-Nodes (14): ALL, AllowedDragActions, clamp_action_to_allowed(), compute_proposed_action(), compute_proposed_action_modifier_table(), COPY_AND_MOVE, COPY_ONLY, cursor_for_action() (+6 more)
+Cohesion: 0.07
+Nodes (16): ALL, AllowedDragActions, clamp_action_to_allowed(), compute_proposed_action(), compute_proposed_action_modifier_table(), COPY_AND_MOVE, COPY_ONLY, cursor_for_action() (+8 more)
 
 ### Community 65 - "input.rs"
-Cohesion: 0.10
+Cohesion: 0.09
 Nodes (27): Keys, keys_from_parts(), keys_from_parts_inner(), KeysInner, KeysParseError, KeysParseErrorInner, IncompatibleModifiers, MultipleGraphemeClusters (+19 more)
 
 ### Community 66 - "VisitChildrenResult"
@@ -595,11 +586,11 @@ Nodes (26): State, Deceleration, Done, SpringDamper, ItemTreeNode, DynamicTree, 
 
 ### Community 67 - "ModelNotify"
 Cohesion: 0.09
-Nodes (12): BrokenModel, DependencyListHead, ModelChangeListenerBox, ModelChangeListenerBox<T>, ModelChangeListenerContainer, ModelChangeListenerContainer<T>, ModelNotify, ModelNotifyInner (+4 more)
+Nodes (12): BrokenModel, DependencyListHead, ModelChangeListenerBox<T>, ModelChangeListenerContainer<T>, ModelNotify, ModelNotifyInner, ModelPeer, TrackedRows (+4 more)
 
 ### Community 68 - "items/path.rs"
-Cohesion: 0.13
-Nodes (3): Path, slint_path_angle_at(), slint_path_point_at()
+Cohesion: 0.10
+Nodes (8): FittedPathBox, FittedPathInner, Path, slint_path_angle_at(), slint_path_fitted_cache_free(), slint_path_fitted_cache_init(), slint_path_point_at(), Property
 
 ### Community 69 - "CachedRenderingData"
 Cohesion: 0.12
@@ -609,17 +600,17 @@ Nodes (33): .cached_rendering_data_offset, .cached_rendering_data_offset, .cache
 Cohesion: 0.13
 Nodes (25): as_class(), ASKED_PERMISSION, CB, CB_CLASS, CHANNEL, create_session(), enter_pip(), Handler (+17 more)
 
-### Community 71 - "RenderingResult"
-Cohesion: 0.17
-Nodes (5): ItemRendererRef, ItemVTable, RenderingResult, ContinueRenderingChildren, ContinueRenderingWithoutChildren
+### Community 71 - "sharedvector.rs"
+Cohesion: 0.13
+Nodes (16): compute_inner_layout(), insert_out_of_bounds_test(), insert_test(), pop_test(), push_test(), remove_out_of_bounds_test(), remove_test(), SHARED_NULL (+8 more)
 
-### Community 72 - "TestItemTree"
-Cohesion: 0.07
-Nodes (5): core::ops::Range<usize>, IndexRange, ItemTreeWeak, TestItemTree, TransformTestItemTree
+### Community 72 - "ItemTreeVTable"
+Cohesion: 0.05
+Nodes (12): core::ops::Range<usize>, ensure_item_tree_instantiated(), find_sibling_outside_repeater(), IndexRange, ItemTreeVTable, ParentItemTraversalMode, FindAllParents, StopAtPopups (+4 more)
 
 ### Community 73 - "ksni.rs"
-Cohesion: 0.13
-Nodes (10): dispatch_loop(), Event, Activate, Menu, image_to_argb_icon(), KsniTray, node_to_ksni(), PlatformTray (+2 more)
+Cohesion: 0.11
+Nodes (16): build_ksni_menu(), dispatch_loop(), entry_to_node(), Event, Activate, Menu, image_to_argb_icon(), KsniTray (+8 more)
 
 ### Community 74 - ".load_from_data_with_cache_key"
 Cohesion: 0.11
@@ -630,32 +621,36 @@ Cohesion: 0.13
 Nodes (3): const_sentinel(), Property<T>, PropertyHandle
 
 ### Community 76 - "translations.rs"
-Cohesion: 0.06
-Nodes (34): c_char, slint_shared_string_from_bytes(), DisplayOrInt, Display, Int, DisplayOrInt<T>, format(), FormatArgs (+26 more)
-
-### Community 77 - "BoxShadowOptions"
-Cohesion: 0.14
-Nodes (4): BoxShadowOptions, LayerRenderer, render_layer(), PhysicalPx
+Cohesion: 0.08
+Nodes (31): c_char, slint_shared_string_from_bytes(), DisplayOrInt, Display, Int, format(), FormatArgs, FormatResult (+23 more)
 
 ### Community 78 - "TextCursorAffinity"
-Cohesion: 0.15
+Cohesion: 0.18
 Nodes (7): CachedTextInputAccessibilityState, compose_text_selection(), position_for_byte_offset(), selection_offsets(), to_actual_offset(), TextInputLayout<'a>, TextInputParagraph
 
-### Community 79 - ".compute_dirty_regions"
-Cohesion: 0.17
-Nodes (4): CachedItemBoundingBoxAndTransform, ClipItem, ItemWithTransform, RegularItem
+### Community 79 - "partial_renderer.rs"
+Cohesion: 0.06
+Nodes (23): Box2D, ItemTransform, LogicalPx, CachedItemBoundingBoxAndTransform, ClipItem, ItemWithTransform, RegularItem, clipped_screen_rect() (+15 more)
+
+### Community 80 - "appkit.rs"
+Cohesion: 0.06
+Nodes (12): ItemWeak, activate_entry(), AppearanceObserver, AppearanceObserverIvars, build_menu(), entry_to_nsmenuitem(), image_to_nsimage(), MAX_DEPTH (+4 more)
 
 ### Community 81 - "brush.rs"
-Cohesion: 0.11
-Nodes (20): GradientStop, line_for_angle(), LinearGradientBrush, ResolvedConicGradient, ResolvedLinearGradient, ResolvedRadialGradient, sanitize_color_stops(), test_conic_gradient_basic() (+12 more)
+Cohesion: 0.14
+Nodes (14): line_for_angle(), ResolvedBrush, ResolvedConicGradient, ResolvedLinearGradient, ResolvedRadialGradient, test_conic_gradient_all_stops_above_one(), test_conic_gradient_all_stops_below_zero(), test_conic_gradient_basic() (+6 more)
 
 ### Community 82 - "android.rs"
-Cohesion: 0.09
-Nodes (19): AndroidCtx, APP, bring_to_front(), CHANNEL, CTX, CUSTOM_RESIZE, data_base(), drag_resize() (+11 more)
+Cohesion: 0.07
+Nodes (31): AndroidCtx, APP, bring_to_front(), CHANNEL, CTX, CUSTOM_RESIZE, data_base(), drag_resize() (+23 more)
+
+### Community 83 - "render_layer"
+Cohesion: 0.11
+Nodes (3): ItemCache<T>, LayerRenderer, render_layer()
 
 ### Community 84 - "MouseEvent"
-Cohesion: 0.06
-Nodes (27): MouseCursorInner, BuiltIn, CustomMouseCursor, InputEventFilterResult, ForwardAndIgnore, ForwardAndInterceptGrab, ForwardAndObserve, ForwardEvent (+19 more)
+Cohesion: 0.05
+Nodes (26): MouseCursorInner, BuiltIn, CustomMouseCursor, InputEventFilterResult, ForwardAndIgnore, ForwardAndInterceptGrab, ForwardAndObserve, ForwardEvent (+18 more)
 
 ### Community 85 - "two_way_binding.rs"
 Cohesion: 0.11
@@ -682,44 +677,44 @@ Cohesion: 0.16
 Nodes (27): AnimationDetail, Component, DELAY, DURATION, get_prop_value(), properties_test_animation_direction_triggered_by_set(), properties_test_animation_negative_delay_triggered_by_set(), properties_test_animation_triggered_by_binding() (+19 more)
 
 ### Community 91 - "Brush"
-Cohesion: 0.18
-Nodes (18): Brush, ConicGradient, LinearGradient, RadialGradient, SolidColor, resolve_brush(), ResolvedBrush, ConicGradient (+10 more)
+Cohesion: 0.22
+Nodes (15): Brush, ConicGradient, LinearGradient, RadialGradient, SolidColor, resolve_brush(), ConicGradient, LinearGradient (+7 more)
 
 ### Community 92 - "pt"
 Cohesion: 0.31
 Nodes (15): non_primary_move_ignored(), pinch_cancel_emits_cancelled_and_exit(), pinch_end_with_remaining_finger(), pinch_produces_scale_deltas(), pt(), rotation_across_180_degree_boundary(), rotation_produces_correct_deltas(), single_finger_cancel() (+7 more)
 
-### Community 93 - "item_tree.rs"
-Cohesion: 0.11
-Nodes (23): create_children_nodes(), create_empty_subtree(), create_item_subtree_item(), create_nested_subtrees(), create_one_node_component(), create_subsubtree_items_dynamic_elements(), create_subtrees_item(), create_transform_test_items() (+15 more)
+### Community 93 - "RenderBorderRectangle"
+Cohesion: 0.13
+Nodes (4): adjust_rect_and_border_for_inner_drawing(), Rect, BorderRectLayout, RenderBorderRectangle
 
 ### Community 94 - "constant_deceleration.rs"
-Cohesion: 0.16
-Nodes (14): constant_deceleration_decreasing_limit_not_reached(), constant_deceleration_decreasing_limit_reached(), constant_deceleration_increasing_limit_not_reached(), constant_deceleration_increasing_limit_reached(), constant_deceleration_start_eq_limit(), ConstantDeceleration, ConstantDecelerationParameters, Direction (+6 more)
+Cohesion: 0.19
+Nodes (13): constant_deceleration_decreasing_limit_not_reached(), constant_deceleration_decreasing_limit_reached(), constant_deceleration_increasing_limit_not_reached(), constant_deceleration_increasing_limit_reached(), constant_deceleration_start_eq_limit(), ConstantDeceleration, ConstantDecelerationParameters, Direction (+5 more)
 
-### Community 95 - ".find_sibling"
-Cohesion: 0.12
-Nodes (7): find_sibling_outside_repeater(), ItemWeak, register_item_tree(), step_into_node(), activate_entry(), AppearanceObserverIvars, MenuActionIvars
+### Community 95 - "LogicalRect"
+Cohesion: 0.19
+Nodes (8): LogicalRect, fixed_placement(), place_popup(), Placement, Fixed, r(), test_place_popup_fixed_clipped(), test_place_popup_fixed_unclipped()
 
 ### Community 96 - "LogicalLength"
-Cohesion: 0.11
-Nodes (7): abs(), DISTANCE_THRESHOLD, SCROLL_FILTER_DISTANCE_SQUARED, LogicalLength, ListViewProperties, TypedListViewProps, update_visible_instances()
+Cohesion: 0.14
+Nodes (6): LogicalLength, ListViewProperties, RepeaterLayoutState, slint_repeater_ensure_updated_listview(), TypedListViewProps, update_visible_instances()
 
 ### Community 97 - "downloads.rs"
-Cohesion: 0.11
-Nodes (13): Ctx, CANCEL, Ctx, Entry, expand(), fetch_one(), key(), LIST (+5 more)
+Cohesion: 0.09
+Nodes (18): Ctx, CANCEL, Ctx, dir(), Entry, expand(), fetch_one(), key() (+10 more)
 
 ### Community 98 - "linebreaker.rs"
 Cohesion: 0.13
 Nodes (26): char_wrap_sentences(), test_basic_line_break(), test_basic_line_break_anywhere_fallback(), test_basic_line_break_anywhere_fallback_max_lines(), test_basic_line_break_anywhere_fallback_multi_line(), test_basic_line_break_anywhere_fallback_multi_line_char_wrap(), test_basic_line_break_anywhere_fallback_multi_line_v2(), test_basic_line_break_char_wrap() (+18 more)
 
-### Community 99 - "MenuVTable"
-Cohesion: 0.32
-Nodes (4): MenuVTable, slint_windowrc_setup_menu_bar_shortcuts(), slint_windowrc_setup_native_menu_bar(), slint_windowrc_show_native_popup_menu()
+### Community 99 - "SelectionSpan"
+Cohesion: 0.18
+Nodes (10): PhysicalRect, Layout, run_coverage(), RunCoverage, Full, Partial, Unselected, SelectionRendering (+2 more)
 
 ### Community 100 - "vec"
-Cohesion: 0.07
-Nodes (16): EventLoopError, EventLoopTerminated, NoEventLoopProvider, invoke_from_event_loop(), quit_event_loop(), FutureRunner, FutureRunner<T>, FutureRunnerInner (+8 more)
+Cohesion: 0.11
+Nodes (9): FutureRunner, FutureRunner<T>, FutureRunnerInner, FutureState, Finished, Running, JoinHandle, JoinHandle<T> (+1 more)
 
 ### Community 101 - "Rgba8Pixel"
 Cohesion: 0.16
@@ -731,27 +726,27 @@ Nodes (15): F, GraphicsAPI, NativeOpenGL, WebGL, WGPU29, WGPU30, RenderingNotifi
 
 ### Community 103 - "Repeater<C>"
 Cohesion: 0.13
-Nodes (8): Conditional, ItemTreeRc, Repeater, Repeater<C>, RepeaterInner, RepeaterInner<C>, RepeaterTracker, RustRepeaterOps
+Nodes (8): ModelRc, Conditional, ItemTreeRc, Repeater<C>, RepeaterInner, RepeaterInner<C>, RepeaterTracker, RustRepeaterOps
 
 ### Community 104 - "callbacks.rs"
 Cohesion: 0.23
 Nodes (7): Callback<Arg, Ret>, callback_simple_test(), CallbackOpaque, slint_callback_call(), slint_callback_drop(), slint_callback_init(), slint_callback_set_handler()
 
 ### Community 105 - ".key_event"
-Cohesion: 0.14
-Nodes (8): mask_password(), next_paragraph_boundary(), next_word_boundary(), prev_paragraph_boundary(), prev_word_boundary(), safe_byte_offset(), safe_grapheme_boundary_offset(), TextInput
+Cohesion: 0.11
+Nodes (12): next_paragraph_boundary(), next_word_boundary(), prev_paragraph_boundary(), prev_word_boundary(), safe_byte_offset(), safe_grapheme_boundary_offset(), slint_textinput_paste(), TextCursorAffinity (+4 more)
 
-### Community 106 - "with_env"
+### Community 106 - ".from_iter"
 Cohesion: 0.17
-Nodes (10): font_scale(), form_factor(), set_immersive(), move_to_back(), multicast_lock(), os_version(), set_landscape(), system_accent() (+2 more)
+Nodes (8): alloc_with_capacity(), IntoIter, IntoIterInner, Shared, UnShared, invalid_capacity_test(), SharedVectorInner, test_capacity_grows_only_when_needed()
 
 ### Community 107 - "RendererSealed"
-Cohesion: 0.11
-Nodes (7): HasFont, RenderString, Renderer, RendererSealed, T, char_size(), text_input_cursor_rect_for_byte_offset()
+Cohesion: 0.16
+Nodes (3): Renderer, RendererSealed, T
 
 ### Community 108 - "T"
 Cohesion: 0.14
-Nodes (9): Binding, AnimatedBindingCallable, AnimatedBindingCallable<T, A>, AnimatedValueBinding, AnimatedValueBinding<T>, LogicalLength, Property<T>, PropertyValueAnimationData (+1 more)
+Nodes (10): PropertyAnimation, Binding, AnimatedBindingCallable, AnimatedBindingCallable<T, A>, AnimatedValueBinding, AnimatedValueBinding<T>, LogicalLength, Property<T> (+2 more)
 
 ### Community 109 - "ChangeTracker"
 Cohesion: 0.12
@@ -766,24 +761,24 @@ Cohesion: 0.10
 Nodes (6): DEFAULT_FONT_SIZE, test_content_widths(), test_content_widths_max_lines(), test_content_widths_min_never_exceeds_max(), TextLayout, TextParagraphLayout
 
 ### Community 112 - "SlintContext"
-Cohesion: 0.05
-Nodes (9): set_window_event_hook(), set_window_shown_hook(), SlintContext, SlintContextInner, SlintContextWeak, WindowEventHook, with_global_context(), detect_operating_system() (+1 more)
+Cohesion: 0.04
+Nodes (14): set_window_event_hook(), set_window_shown_hook(), SlintContext, SlintContextInner, SlintContextWeak, WindowEventHook, with_global_context(), LogMessageHandler (+6 more)
 
 ### Community 113 - "ConicGradientBrush"
-Cohesion: 0.16
-Nodes (8): center_or_bbox(), ConicGradientBrush, .HEADER, nan_eq(), RadialGradientBrush, .HEADER, slint_conic_gradient_apply_rotation(), slint_conic_gradient_normalize_stops()
+Cohesion: 0.30
+Nodes (6): center_or_bbox(), ConicGradientBrush, .HEADER, nan_eq(), slint_conic_gradient_apply_rotation(), slint_conic_gradient_normalize_stops()
 
 ### Community 114 - "constant_deceleration_spring_damper.rs"
-Cohesion: 0.23
-Nodes (8): calculate_parameters(), constant_deceleration_decreasing_limit_not_reached(), constant_deceleration_increasing_limit_not_reached(), constant_deceleration_spring_damper_decreasing_limit_reached(), constant_deceleration_spring_damper_increasing_limit_reached(), constant_deceleration_start_eq_limit(), ConstantDecelerationSpringDamper, ConstantDecelerationSpringDamperParameters
+Cohesion: 0.19
+Nodes (9): calculate_parameters(), constant_deceleration_decreasing_limit_not_reached(), constant_deceleration_increasing_limit_not_reached(), constant_deceleration_spring_damper_decreasing_limit_reached(), constant_deceleration_spring_damper_increasing_limit_reached(), constant_deceleration_start_eq_limit(), ConstantDecelerationSpringDamper, ConstantDecelerationSpringDamperParameters (+1 more)
 
-### Community 115 - ".process_mouse_input"
-Cohesion: 0.10
-Nodes (9): ItemTreeRefPin, WindowEventDispatchResult, Accepted, Rejected, MouseDispatchResult, previous_focus_item(), slint_windowrc_set_focus_item(), slint_windowrc_supports_native_menu_bar() (+1 more)
+### Community 115 - "WindowEventDispatchResult"
+Cohesion: 0.33
+Nodes (4): WindowEventDispatchResult, Accepted, Rejected, MouseDispatchResult
 
 ### Community 116 - "Slice"
-Cohesion: 0.22
-Nodes (21): box_layout_info(), box_layout_info_ortho(), flexbox_layout_info_cross_axis(), flexbox_layout_info_cross_axis_with_measure(), flexbox_layout_info_main_axis(), flexbox_layout_unwrapped_main(), FlexboxLayoutData, FlexboxLayoutParams (+13 more)
+Cohesion: 0.17
+Nodes (25): box_layout_info(), box_layout_info_ortho(), BoxLayoutOrthoData, flexbox_layout_info_cross_axis(), flexbox_layout_info_main_axis(), flexbox_layout_unwrapped_main(), FlexboxLayoutData, FlexboxLayoutParams (+17 more)
 
 ### Community 117 - "textlayout/shaping.rs"
 Cohesion: 0.11
@@ -793,9 +788,9 @@ Nodes (12): ShapeBoundaries, ShapeBoundaries<'a>, ShapeBuffer<Length>, test_byte
 Cohesion: 0.10
 Nodes (16): regime_decays_to_rest_over_time(), regime_matches_initial_conditions(), SpringDurationBounceParameters, SpringParameters, SpringPhysicalParameters, SpringRegime, Critical, .CRITICAL_ZETA_EPSILON (+8 more)
 
-### Community 119 - "platform.rs"
-Cohesion: 0.10
-Nodes (20): BackendMouseEvent, Exit, Moved, PinchGesture, Pressed, Released, RotationGesture, Wheel (+12 more)
+### Community 119 - "Cast"
+Cohesion: 0.20
+Nodes (9): Cast, Cmd, Load, Pause, Play, Seek, Stop, start() (+1 more)
 
 ### Community 120 - "tvnav.rs"
 Cohesion: 0.15
@@ -807,19 +802,19 @@ Nodes (5): SharedVectorProvider, SharedVectorSubPrinter, SliceProvider, SliceSub
 
 ### Community 122 - "timers.rs"
 Cohesion: 0.10
-Nodes (24): _BUG3019, _BUG6141_SET_INTERVAL_FROM_CALLBACK, _DOUBLY_REGISTER_ACTIVE_TIMER, _DOUBLY_REGISTER_ACTIVE_TIMER_2, LIST_SHIFT, _RESTART_TIMER_BEING_ACTIVATED, _SINGLESHOT_START, slint_timer_destroy() (+16 more)
+Nodes (21): _BUG3019, _BUG6141_SET_INTERVAL_FROM_CALLBACK, _DOUBLY_REGISTER_ACTIVE_TIMER, _DOUBLY_REGISTER_ACTIVE_TIMER_2, LIST_SHIFT, _RESTART_TIMER_BEING_ACTIVATED, _SINGLESHOT_START, slint_timer_destroy() (+13 more)
 
 ### Community 123 - "wgpu_29.rs"
-Cohesion: 0.19
-Nodes (9): any_wgpu29_adapters_with_gpu(), async_init_instance_adapter_device_queue_surface(), default_backends_to_avoid(), default_device_descriptor(), device_descriptor_from_settings(), init_instance_adapter_device_queue_surface(), init_instance_adapter_device_queue_surface_then(), mask_backends() (+1 more)
+Cohesion: 0.18
+Nodes (11): any_wgpu29_adapters_with_gpu(), async_init_instance_adapter_device_queue_surface(), default_backends_to_avoid(), default_device_descriptor(), device_descriptor_from_settings(), init_instance_adapter_device_queue_surface(), init_instance_adapter_device_queue_surface_then(), mask_backends() (+3 more)
 
 ### Community 124 - "TextCursorDirection"
 Cohesion: 0.08
 Nodes (23): TextShortcut, DeleteBackward, DeleteForward, DeleteToStartOfLine, DeleteWordBackward, DeleteWordForward, Move, TextCursorDirection (+15 more)
 
-### Community 125 - "i-slint-core/accessibility.rs"
-Cohesion: 0.12
-Nodes (16): AccessibilityAction, Decrement, Default, Expand, Increment, ReplaceSelectedText, SetSelectionOffsets, SetValue (+8 more)
+### Community 125 - "AccessibilityAction"
+Cohesion: 0.20
+Nodes (8): AccessibilityAction, Decrement, Default, Expand, Increment, ReplaceSelectedText, SetSelectionOffsets, SetValue
 
 ### Community 126 - "step"
 Cohesion: 0.37
@@ -829,9 +824,9 @@ Nodes (9): current(), focus(), focus_in_nav(), focus_start(), has_focus(), R, se
 Cohesion: 0.15
 Nodes (9): PropertyTracker<NEEDS_SET_DIRTY, ()>, PropertyTracker<NEEDS_SET_DIRTY, DirtyHandler>, PropertyTracker<true, DirtyHandler>, test_nested_property_tracker_dirty(), test_nested_property_tracker_evaluate_if_dirty(), test_nested_property_trackers(), test_property_dirty_handler(), test_property_listener_scope() (+1 more)
 
-### Community 128 - "LogicalRect"
-Cohesion: 0.04
-Nodes (16): BorderRectLayout, clip_content_box(), item_children_bounding_rect(), item_children_bounding_rect_transformed(), item_with_children_bounding_rect_transformed(), ItemRenderer, render_component_items(), render_item_children() (+8 more)
+### Community 128 - "ItemRc"
+Cohesion: 0.05
+Nodes (12): clip_content_box(), ItemRenderer, render_component_items(), render_item_children(), ItemRc, ItemRendererRef, ItemVTable, Layer (+4 more)
 
 ### Community 129 - "wgpu_30.rs"
 Cohesion: 0.20
@@ -839,19 +834,19 @@ Nodes (11): any_wgpu30_adapters_with_gpu(), async_init_instance_adapter_device_q
 
 ### Community 130 - "graphics.rs"
 Cohesion: 0.13
-Nodes (7): adjust_rect_and_border_for_inner_drawing(), create_graphics_api_wgpu_29(), create_graphics_api_wgpu_30(), physical_size_from_api(), Point, Rect, Transform
+Nodes (7): create_graphics_api_wgpu_29(), create_graphics_api_wgpu_30(), physical_position_from_api(), physical_position_to_api(), physical_size_from_api(), Point, Transform
 
 ### Community 131 - "fragments.rs"
 Cohesion: 0.15
 Nodes (14): fragment_iterator_break_anywhere(), fragment_iterator_forced_break(), fragment_iterator_forced_break_multi(), fragment_iterator_leading_nbsp(), fragment_iterator_nbsp(), fragment_iterator_simple(), fragment_iterator_simple_v2(), TextFragment (+6 more)
 
 ### Community 132 - "rtti.rs"
-Cohesion: 0.13
-Nodes (6): BuiltinGlobal, BuiltinItem, FieldInfo, declare_ValueType!, declare_ValueType_2!, MaybeAnimatedPropertyInfoWrapper
+Cohesion: 0.12
+Nodes (7): BuiltinGlobal, BuiltinItem, common_property(), FieldInfo, declare_ValueType!, declare_ValueType_2!, MaybeAnimatedPropertyInfoWrapper
 
 ### Community 133 - "RepeaterInstanceOpsVTable"
-Cohesion: 0.09
-Nodes (11): MAX_EAGER_INSTANCE_COUNT, RepeatedInstanceState, Clean, Dirty, RepeaterInstanceOps, RepeaterInstanceOpsVTable, RepeaterLayoutState, RustRepeaterOps<'_, C> (+3 more)
+Cohesion: 0.12
+Nodes (5): RepeaterInstanceOps, RepeaterInstanceOpsVTable, RustRepeaterOps<'_, C>, slint_repeater_ensure_updated(), update_all_instances()
 
 ### Community 134 - "Download"
 Cohesion: 0.21
@@ -866,12 +861,12 @@ Cohesion: 0.19
 Nodes (11): CallbackVariant, Empty, MultiFire, SingleShot, single_shot_on(), SingleShotTimerCallback, TimerCallback, TimerData (+3 more)
 
 ### Community 139 - "LayoutData"
-Cohesion: 0.16
-Nodes (9): text_layout_info(), Adjust, adjust_items(), Constraint, Grow, LayoutData, Shrink, zero_measure() (+1 more)
+Cohesion: 0.18
+Nodes (5): Adjust, adjust_items(), Grow, LayoutData, Shrink
 
 ### Community 140 - "OnceCell"
-Cohesion: 0.15
-Nodes (6): FakeThreadStorage, FakeThreadStorage<T>, FakeThreadStorage<T, F>, SLINT__thread_local_inner!, thread_local_!, OnceCell<T>
+Cohesion: 0.13
+Nodes (9): EVENTLOOP_PROXY, INITIAL_INSTANT, FakeThreadStorage, FakeThreadStorage<T>, FakeThreadStorage<T, F>, SLINT__thread_local_inner!, thread_local_!, OnceCell (+1 more)
 
 ### Community 141 - "AccessibleStringProperty"
 Cohesion: 0.10
@@ -879,18 +874,18 @@ Nodes (20): AccessibleStringProperty, Checkable, Checked, DelegateFocus, Descrip
 
 ### Community 142 - "WindowAdapter"
 Cohesion: 0.03
-Nodes (36): FocusEvent, FocusIn, FocusOut, FocusEventResult, FocusAccepted, FocusIgnored, InternalKeyEvent, KeyEventResult (+28 more)
+Nodes (19): FocusEvent, FocusIn, FocusOut, FocusEventResult, FocusAccepted, FocusIgnored, InternalKeyEvent, KeyEventResult (+11 more)
 
 ### Community 143 - "TouchState"
-Cohesion: 0.13
+Cohesion: 0.19
 Nodes (8): GestureRecognitionState, Idle, Pinching, TwoFingersDown, TouchEventBuffer, TouchState, .PINCH_THRESHOLD, .ROTATION_THRESHOLD
 
 ### Community 144 - "desktop.rs"
-Cohesion: 0.11
-Nodes (10): form_factor(), set_material(), SUPPORTS_MATERIAL, system_notify(), system_notify_rich(), FormFactor, Desktop, Touch (+2 more)
+Cohesion: 0.10
+Nodes (11): form_factor(), form_factor(), set_material(), SUPPORTS_MATERIAL, system_notify(), system_notify_rich(), FormFactor, Desktop (+3 more)
 
 ### Community 145 - ".insert"
-Cohesion: 0.25
+Cohesion: 0.23
 Nodes (10): touch_map_capacity(), touch_map_first(), touch_map_first_two_ids(), touch_map_get_mut(), touch_map_insert_and_get(), touch_map_remove(), touch_map_remove_nonexistent(), touch_map_update_existing() (+2 more)
 
 ### Community 146 - "StyledText"
@@ -899,27 +894,27 @@ Nodes (12): color_to_styled_text(), get_raw_text(), parse_markdown(), slint_styl
 
 ### Community 147 - "Image"
 Cohesion: 0.12
-Nodes (10): &'a ImageInner, ImageCache, Image, NineSlice, load_image_from_embedded_data(), slint_image_compare_equal(), slint_image_load_from_embedded_data(), slint_image_load_from_path() (+2 more)
+Nodes (8): &'a ImageInner, ImageCache, Image, NineSlice, slint_image_compare_equal(), slint_image_load_from_path(), slint_image_path(), slint_image_set_nine_slice_edges()
 
 ### Community 148 - "Instant"
 Cohesion: 0.14
 Nodes (5): animation_tick(), AnimationDriver, current_tick(), Instant, update_animations()
 
 ### Community 149 - "MouseInputState"
-Cohesion: 0.17
+Cohesion: 0.19
 Nodes (10): handle_mouse_grab(), DelayForwarding, MouseGrabResult, MouseInputResult, MouseInputState, offer_native_drag(), process_delayed_event(), process_mouse_input() (+2 more)
 
-### Community 150 - "RepaintBufferType"
-Cohesion: 0.50
-Nodes (4): RepaintBufferType, NewBuffer, ReusedBuffer, SwappedBuffers
+### Community 150 - ".fmt"
+Cohesion: 0.23
+Nodes (3): DisplayOrInt<T>, FormatResult<'_, T>, WithPlural<'_, T>
 
 ### Community 151 - "DependencyNode"
 Cohesion: 0.23
 Nodes (5): DependencyListHead, DependencyListHead<T>, DependencyNode, DependencyNode<T>, mark_dependencies_dirty()
 
 ### Community 152 - "MenuFromItemTree"
-Cohesion: 0.26
-Nodes (3): MenuFromItemTree, ShadowTreeNode, slint_menus_create_wrapper()
+Cohesion: 0.15
+Nodes (6): BoxShadowCache, CacheEntry, MAX_CACHED_SHADOWS, MenuFromItemTree, ShadowTreeNode, slint_menus_create_wrapper()
 
 ### Community 153 - "erased_bindings.rs"
 Cohesion: 0.29
@@ -931,22 +926,22 @@ Nodes (7): logical_point_from_api(), logical_size_from_api(), logical_size_to_ap
 
 ### Community 155 - "solve_flexbox_layout_with_measure"
 Cohesion: 0.14
-Nodes (18): agrees(), agrees_for_a_column(), assert_agrees(), assert_agrees_column(), cell(), constraints(), FlexboxLayoutItemInfo, FlexboxMeasureFn (+10 more)
+Nodes (18): agrees(), agrees_for_a_column(), assert_agrees(), assert_agrees_column(), cell(), constraints(), flexbox_layout_info_cross_axis_with_measure(), FlexboxLayoutItemInfo (+10 more)
 
 ### Community 156 - "Layout"
-Cohesion: 0.09
-Nodes (16): cached_paragraphs(), CachedParagraphs, CachedParagraphsGuard, ENTRY_LIMIT, ElisionCut, ElisionInfo, Layout, layout() (+8 more)
+Cohesion: 0.10
+Nodes (15): cached_paragraphs(), CachedParagraphs, CachedParagraphsGuard, ENTRY_LIMIT, ElisionCut, Layout, layout(), LayoutOptions (+7 more)
 
 ### Community 158 - "system_tray.rs"
-Cohesion: 0.16
-Nodes (5): MenuDirtyHandler, MenuState, slint_system_tray_icon_set_menu(), SystemTrayIcon, VoidArg
+Cohesion: 0.11
+Nodes (7): MenuDirtyHandler, MenuState, slint_system_tray_icon_data_free(), slint_system_tray_icon_data_init(), slint_system_tray_icon_set_menu(), SystemTrayIcon, SystemTrayIconDataBox
 
 ### Community 159 - "platform/windows.rs"
 Cohesion: 0.13
 Nodes (7): RichNote, APP_ID, set_material(), SUPPORTS_MATERIAL, system_notify(), system_notify_rich(), toast_xml()
 
 ### Community 160 - "FontMetrics"
-Cohesion: 0.11
+Cohesion: 0.13
 Nodes (7): single_line_height(), slint_cpp_text_item_fontmetrics(), slint_text_item_fontmetrics(), AbstractFont, FontMetrics, &rustybuzz::Face<'_>, T
 
 ### Community 161 - "ParsedSVG"
@@ -954,40 +949,36 @@ Cohesion: 0.16
 Nodes (4): load_from_data(), load_from_path(), ParsedSVG, svg_options()
 
 ### Community 162 - "debug_log.rs"
-Cohesion: 0.19
-Nodes (9): default_log_message(), log_message(), LogMessage, LogMessage<'a>, LogMessageHandler, LogMessageLocation, LogMessageSource, Runtime (+1 more)
+Cohesion: 0.23
+Nodes (8): default_log_message(), log_message(), LogMessage, LogMessage<'a>, LogMessageLocation, LogMessageSource, Runtime, SlintCode
 
-### Community 163 - "component_factory.rs"
-Cohesion: 0.31
-Nodes (3): ComponentFactory, ComponentFactoryInner, FactoryContext
+### Community 163 - "EasingCurve"
+Cohesion: 0.20
+Nodes (10): EasingCurve, CubicBezier, EaseInBounce, EaseInElastic, EaseInOutBounce, EaseInOutElastic, EaseOutBounce, EaseOutElastic (+2 more)
 
-### Community 165 - "Weak<T>"
-Cohesion: 0.12
-Nodes (4): Global, StrongHandle, Weak, Weak<T>
+### Community 166 - "repeater.rs"
+Cohesion: 0.25
+Nodes (6): ModelChangeListenerContainer, MAX_EAGER_INSTANCE_COUNT, RepeatedInstanceState, Clean, Dirty, Repeater
 
-### Community 166 - "GridLayoutOrganizedData"
+### Community 167 - "GradientStop"
 Cohesion: 0.28
-Nodes (8): GridLayoutInputData, GridLayoutOrganizedData, organize_dialog_button_layout(), organize_grid_layout(), OrganizedDataGenerator, slint_organize_dialog_button_layout(), slint_organize_grid_layout(), to_layout_data()
-
-### Community 167 - ".update_check_inner"
-Cohesion: 0.31
-Nodes (3): cleanup(), Ctx, exe_path()
+Nodes (3): GradientStop, LinearGradientBrush, sanitize_color_stops()
 
 ### Community 168 - "data_ringbuffer.rs"
-Cohesion: 0.36
-Nodes (7): test_empty_buffer(), test_push_beyond_capacity(), test_push_beyond_capacity_wrap_back(), test_push_single_element(), test_push_two_elements(), test_push_until_full(), VelocityRingBuffer
+Cohesion: 0.20
+Nodes (8): test_empty_buffer(), test_push_beyond_capacity(), test_push_beyond_capacity_wrap_back(), test_push_single_element(), test_push_two_elements(), test_push_until_full(), VelocityRingBuffer, VelocityRingBuffer<N>
 
-### Community 169 - "FittedPathBox"
-Cohesion: 0.24
-Nodes (5): FittedPath, FittedPathBox, FittedPathInner, slint_path_fitted_cache_free(), slint_path_fitted_cache_init()
+### Community 169 - ".new_circle"
+Cohesion: 0.39
+Nodes (6): test_radial_gradient_default_center(), test_radial_gradient_interpolation_reaches_default_metadata(), test_radial_gradient_interpolation_reaches_explicit_metadata(), test_radial_gradient_preserves_center_on_brighter(), test_radial_gradient_scaled_defaults_use_physical_frame(), test_radial_gradient_scaled_explicit_values()
 
-### Community 170 - "ksni.rs"
-Cohesion: 0.33
-Nodes (6): build_ksni_menu(), entry_to_node(), MenuNode, Separator, Standard, SubMenu
+### Community 170 - "i-slint-core/accessibility.rs"
+Cohesion: 0.46
+Nodes (5): accessible_descendents(), find_exposed_text_input(), find_text_input(), find_text_input_with_rc(), nearest_accessible_item()
 
 ### Community 171 - "Changelog"
 Cohesion: 0.06
-Nodes (34): Changelog, Foyer 0.23.0, Foyer 0.23.1, Foyer 0.23.2, Foyer 0.26.10, Foyer 0.26.11, Foyer 0.26.12, Foyer 0.26.5 (+26 more)
+Nodes (35): Changelog, Foyer 0.23.0, Foyer 0.23.1, Foyer 0.23.2, Foyer 0.26.10, Foyer 0.26.11, Foyer 0.26.12, Foyer 0.26.5 (+27 more)
 
 ### Community 172 - "android_notify.rs"
 Cohesion: 0.18
@@ -1002,12 +993,8 @@ Cohesion: 0.17
 Nodes (12): date_now(), format_date(), month_day_count(), month_offset(), parse_date(), slint_date_time_date_now(), slint_date_time_format_date(), slint_date_time_month_day_count() (+4 more)
 
 ### Community 175 - "animations.rs"
-Cohesion: 0.08
-Nodes (24): CubicBezierSegment, ease_out_bounce_curve(), easing_curve(), EasingCurve, CubicBezier, EaseInBounce, EaseInElastic, EaseInOutBounce (+16 more)
-
-### Community 176 - "PlatformTray"
-Cohesion: 0.16
-Nodes (6): AppearanceObserver, build_menu(), entry_to_nsmenuitem(), image_to_nsimage(), MenuAction, PlatformTray
+Cohesion: 0.23
+Nodes (7): CubicBezierSegment, ease_out_bounce_curve(), easing_curve(), S, SPRING_SETTLE_POSITION_EPSILON, SPRING_SETTLE_VELOCITY_EPSILON, SPRING_SETTLE_ZETA
 
 ### Community 177 - "Error"
 Cohesion: 0.14
@@ -1015,7 +1002,7 @@ Nodes (7): PlatformTray, Error, EventLoopError, PlatformError, Rgba8, Unsupporte
 
 ### Community 178 - "ScaleFactor"
 Cohesion: 0.12
-Nodes (16): FontRequest, ScaleFactor, font_metrics(), FontContext, Brush, content_widths_builder(), create_text_paragraphs(), INLINE_CODE_FONT_SCALE (+8 more)
+Nodes (11): FontRequest, font_metrics(), FontContext, Brush, content_widths_builder(), create_text_paragraphs(), INLINE_CODE_FONT_SCALE, LayoutWithoutLineBreaksBuilder (+3 more)
 
 ### Community 179 - "Length"
 Cohesion: 0.26
@@ -1037,9 +1024,13 @@ Nodes (8): AnimationState, Animating, Delaying, Done, Property<Length<crate::Coo
 Cohesion: 0.21
 Nodes (7): debug_log!, FrameData, RefreshMode, FullSpeed, Lazy, RenderingMetrics, RenderingMetricsCollector
 
-### Community 185 - "DirtyRegion"
-Cohesion: 0.17
-Nodes (7): Box2D, CachedGraphicsData<T>, LogicalPx, dirty_region_ignores_empty_rects(), dirty_region_no_intersection(), DirtyRegion, .MAX_COUNT
+### Community 184 - "Scalar"
+Cohesion: 0.25
+Nodes (7): f32, Scalar, .HALF, .NINE, .ONE, .SIX, .THREE
+
+### Community 185 - "TexturePixelFormat"
+Cohesion: 0.25
+Nodes (7): test_image_load_from_data_png(), TexturePixelFormat, AlphaMap, Rgb, Rgba, RgbaPremultiplied, SignedDistanceField
 
 ### Community 186 - "Slint Software License"
 Cohesion: 0.13
@@ -1053,16 +1044,16 @@ Nodes (4): StringArg, ComplexText, SimpleText, StyledTextItem
 Cohesion: 0.13
 Nodes (5): f32, i32, i64, InterpolatedPropertyValue, u8
 
-### Community 190 - ".apply_dirty_region"
-Cohesion: 0.27
-Nodes (3): PartialRenderer, PartialRenderer<'a, T>, PartialRenderingState
+### Community 190 - "android"
+Cohesion: 0.29
+Nodes (7): secrets, uses, with, android, ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, release
 
 ### Community 191 - "ItemRef"
-Cohesion: 0.24
-Nodes (4): ItemTreeRef, slint_unregister_item_tree(), unregister_item_tree(), ItemRef
+Cohesion: 0.14
+Nodes (11): item_children_bounding_rect(), item_children_bounding_rect_transformed(), item_with_children_bounding_rect_transformed(), ItemRendererFeatures, .SUPPORTS_TRANSFORMATIONS, ItemTreeRef, slint_unregister_item_tree(), T (+3 more)
 
 ### Community 193 - "TimerList"
-Cohesion: 0.27
+Cohesion: 0.26
 Nodes (3): ActiveTimer, current_timers(), TimerList
 
 ### Community 194 - "KeyboardModifiers"
@@ -1078,8 +1069,8 @@ Cohesion: 0.16
 Nodes (16): GH_TOKEN, NOTES, RUSTFLAGS, UPDATE_SIGNING_KEY, steps, env, id, name (+8 more)
 
 ### Community 197 - "graphics/image.rs"
-Cohesion: 0.09
-Nodes (24): f32, fit(), fit9slice(), FitResult, StaticTextures, RemEuclid, scalable_render_size(), slint_image_from_embedded_textures() (+16 more)
+Cohesion: 0.11
+Nodes (20): f32, fit(), fit9slice(), FitResult, StaticTextures, load_image_from_embedded_data(), RemEuclid, scalable_render_size() (+12 more)
 
 ### Community 198 - "RequestedGraphicsAPI"
 Cohesion: 0.19
@@ -1093,25 +1084,17 @@ Nodes (14): classify(), Ev, Exit, Moved, PinchCancelled, PinchEnded, PinchMoved,
 Cohesion: 0.32
 Nodes (3): big_list(), SingleLinkedListPinHead<T>, test_list()
 
-### Community 201 - ".init"
-Cohesion: 0.11
-Nodes (5): slint_system_tray_icon_data_free(), slint_system_tray_icon_data_init(), SystemTrayIconData, SystemTrayIconDataBox, SystemTrayIconHandle
-
-### Community 202 - "Kind"
-Cohesion: 0.22
-Nodes (6): detect(), Kind, .ALL, Emby, Jellyfin, Plex
+### Community 202 - "TwoWayBindingMapping"
+Cohesion: 0.38
+Nodes (3): (F1, F2), link_common_properties(), TwoWayBindingMapping
 
 ### Community 203 - "winit_ops.rs"
-Cohesion: 0.13
+Cohesion: 0.14
 Nodes (9): bring_to_front(), CUSTOM_RESIZE, drag_resize(), drag_window(), monitor_area(), set_cursor_visible(), set_decorations(), set_window_rect() (+1 more)
 
 ### Community 204 - "SurfaceTarget"
 Cohesion: 0.47
 Nodes (3): SurfaceTarget, Drm, WindowHandle
-
-### Community 205 - "WGPUSettings"
-Cohesion: 0.16
-Nodes (4): WGPUConfiguration, Automatic, Manual, WGPUSettings
 
 ### Community 207 - "StandardShortcut"
 Cohesion: 0.17
@@ -1121,44 +1104,40 @@ Nodes (11): StandardShortcut, Copy, Cut, Find, Paste, Print, Redo, Refresh (+3 m
 Cohesion: 0.08
 Nodes (4): Export, Immersive, Installer, BroadcastReceiver
 
-### Community 211 - ".window_item"
-Cohesion: 0.13
-Nodes (5): LayoutConstraints, slint_windowrc_is_fullscreen(), slint_windowrc_is_maximized(), slint_windowrc_is_minimized(), WindowProperties
+### Community 211 - "slint_timer_start"
+Cohesion: 0.38
+Nodes (3): slint_timer_singleshot(), slint_timer_start(), WrapFn
 
 ### Community 212 - ".visual_representation"
-Cohesion: 0.17
-Nodes (5): TextCursorAffinity, NextCharacter, PreviousCharacter, TextInputVisualRepresentation, parley::layout::Affinity
+Cohesion: 0.18
+Nodes (4): cursor_uses_selection_color(), mask_password(), PreEditSelection, TextInputVisualRepresentation
 
-### Community 213 - "InputMethodProperties"
-Cohesion: 0.20
-Nodes (6): InputMethodProperties, InputMethodRequest, Disable, Enable, Update, slint_windowrc_set_text_input_focused()
-
-### Community 214 - "Inner"
-Cohesion: 0.39
-Nodes (3): Inner, show_popup_menu(), wnd_proc()
+### Community 216 - "Client"
+Cohesion: 0.13
+Nodes (4): AuthResult, Policy, User, Client
 
 ### Community 217 - "User"
 Cohesion: 0.20
 Nodes (3): Comment, Issue, User
 
 ### Community 219 - "text.rs"
-Cohesion: 0.10
-Nodes (17): PointArg, cursor_uses_selection_color(), PASSWORD_CHARACTER, PreEditSelection, slint_textinput_clear_selection(), slint_textinput_copy(), slint_textinput_cut(), slint_textinput_paste() (+9 more)
-
-### Community 220 - "Renderer"
 Cohesion: 0.11
-Nodes (8): Renderer, fixed_placement(), place_popup(), Placement, Fixed, r(), test_place_popup_fixed_clipped(), test_place_popup_fixed_unclipped()
+Nodes (17): PointArg, PASSWORD_CHARACTER, slint_textinput_clear_selection(), slint_textinput_copy(), slint_textinput_cut(), slint_textinput_redo(), slint_textinput_select_all(), slint_textinput_set_selection_offsets() (+9 more)
+
+### Community 221 - ".next"
+Cohesion: 0.19
+Nodes (3): TextFragmentIterator<'_, Length>, GlyphClusterIterator<'_, Length>, LineBreakIterator<'a>
 
 ### Community 226 - "benches/string.rs"
 Cohesion: 0.31
 Nodes (5): REFERENCE_NUMBER, RESULT_NUMBER, string_replace(), string_replace_own_character(), string_replacen()
 
 ### Community 227 - "android"
-Cohesion: 0.09
-Nodes (22): secrets, uses, with, notes, jobs, android, publish, name (+14 more)
+Cohesion: 0.08
+Nodes (23): run, notes, jobs, publish, windows, name, default, description (+15 more)
 
 ### Community 228 - "TimerListRc"
-Cohesion: 0.22
+Cohesion: 0.24
 Nodes (7): list_from_handle(), list_handle(), set_owning_context(), take_pending_timers(), ThreadTimers, Timer, TimerListRc
 
 ### Community 229 - "TextLineBreaker"
@@ -1170,12 +1149,8 @@ Cohesion: 0.20
 Nodes (4): LyonPathEventIterator, FromEvents, FromPath, TransformedLyonPathIterator<EventIt>
 
 ### Community 231 - "pathbuf"
-Cohesion: 0.38
+Cohesion: 0.32
 Nodes (5): Asset, find_dll(), install(), Release, RELEASES
-
-### Community 234 - "windows"
-Cohesion: 0.25
-Nodes (8): run, windows, tag, version, shell, defaults, outputs, runs-on
 
 ### Community 235 - "steps"
 Cohesion: 0.15
@@ -1185,17 +1160,17 @@ Nodes (13): steps, id, if, name, run, uses, with, working-directory (+5 more)
 Cohesion: 0.43
 Nodes (4): BitmapFont, BitmapGlyph, BitmapGlyphs, CharacterMapEntry
 
-### Community 237 - "PlatformTray"
-Cohesion: 0.22
-Nodes (5): create_hicon(), ensure_class_registered(), notify_icon_data(), PlatformTray, taskbar_created_message()
+### Community 237 - "Inner"
+Cohesion: 0.12
+Nodes (9): append_menu_entry(), create_hicon(), ensure_class_registered(), Inner, notify_icon_data(), PlatformTray, show_popup_menu(), taskbar_created_message() (+1 more)
 
 ### Community 238 - "env"
 Cohesion: 0.25
 Nodes (8): ARMV7_ONLY, FOYER_CLASSES_DEX, GH_TOKEN, KEYSTORE_B64, KEYSTORE_PASSWORD, OVERRIDE_URL, RELEASE, env
 
 ### Community 240 - "Community 240"
-Cohesion: 0.08
-Nodes (24): (), AbsentRowModel, model_all(), model_any(), model_find_index(), ModelIterator<'_, T>, ModelRc, report_model_error() (+16 more)
+Cohesion: 0.09
+Nodes (21): InternalToken, (), AbsentRowModel, model_all(), model_any(), model_find_index(), T, test_any_change_subsumes_row_tracking() (+13 more)
 
 ### Community 242 - "Slint Royalty-free Desktop, Mobile, and Web Applications License"
 Cohesion: 0.29
@@ -1245,9 +1220,9 @@ Nodes (4): Foyer 0.24.0, ✨ Highlights, 🔧 Other, 🎬 Player
 Cohesion: 0.50
 Nodes (3): Foyer's patch to i-slint-core 1.18.1, Updating Slint, What changed
 
-### Community 257 - "WindowHandle"
-Cohesion: 0.27
-Nodes (4): WindowHandle, WindowHandleInner, HandleByAdapter, HandleByRcRWH
+### Community 257 - "WindowAdapterInternal"
+Cohesion: 0.07
+Nodes (11): WindowHandle, WindowHandleInner, HandleByAdapter, HandleByRcRWH, ItemTreeRefPin, has_display_handle(), InputMethodRequest, Disable (+3 more)
 
 ### Community 258 - "Foyer 0.26.3"
 Cohesion: 0.67
@@ -1268,10 +1243,6 @@ Nodes (3): 🐞 Fixes, Foyer 0.25.0, ✨ Highlights
 ### Community 262 - "Foyer 0.26.0"
 Cohesion: 0.67
 Nodes (3): Foyer 0.26.0, ✨ Highlights, 🔧 Under the hood
-
-### Community 266 - "CloseRequestResponse"
-Cohesion: 0.22
-Nodes (6): CloseRequestResponse, HideWindow, KeepWindowShown, slint_windowrc_on_close_requested(), WithUserData<extern "C" fn(user_data: *mut c_void) -> CloseRequestResponse>, WithUserData<extern "C" fn(user_data: *mut c_void, is_open: bool)>
 
 ### Community 267 - "secrets"
 Cohesion: 0.40
@@ -1294,44 +1265,28 @@ Cohesion: 0.33
 Nodes (3): Detail, Genre, Season
 
 ### Community 322 - "AnimatedBindingKind"
-Cohesion: 0.33
+Cohesion: 0.40
 Nodes (4): AnimatedBindingKind, Animation, NotAnimated, Transition
 
-### Community 325 - "Clipboard"
-Cohesion: 0.40
-Nodes (3): Clipboard, DefaultClipboard, SelectionClipboard
-
-### Community 326 - "DrawOutcome"
-Cohesion: 0.40
-Nodes (5): DrawOutcome, Occluded, Skipped, Success, Timeout
-
-### Community 328 - "save_to_downloads"
-Cohesion: 0.67
-Nodes (3): export_logs(), save_to_downloads(), save_to_downloads()
-
-### Community 329 - "TextChangeNotify"
-Cohesion: 0.67
-Nodes (3): TextChangeNotify, SkipCallbacks, TriggerCallbacks
-
 ## Knowledge Gaps
-- **460 isolated node(s):** `CachedGraphicsData<T>`, `FakeThreadStorage<T, F>`, `ShapeBuffer<Length>`, `NativeOpenGL`, `WebGL` (+455 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1784 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **89 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **460 isolated node(s):** `Home`, `Backdrop`, `Poster`, `DetailLogo`, `SRow` (+455 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1786 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **83 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Property` connect `Property` to `input_items.rs`, `rtti.rs`, `RepeaterInstanceOpsVTable`, `LayoutData`, `WindowAdapter`, `window.rs`, `Instant`, `MenuFromItemTree`, `erased_bindings.rs`, `system_tray.rs`, `WindowInner`, `properties/ffi.rs`, `flickable.rs`, `.evaluate`, `StyledTextItem`, `items/image.rs`, `T`, `Item`, `drag_n_drop.rs`, `input.rs`, `ModelNotify`, `items/path.rs`, `.get`, `two_way_binding.rs`, `IntSize`, `properties_animations.rs`, `text.rs`, `item_tree.rs`, `constant_deceleration.rs`, `LogicalLength`, `Repeater<C>`, `.key_event`, `ChangeTracker`, `TextCursorBlinker`, `SlintContext`, `Community 240`, `constant_deceleration_spring_damper.rs`?**
-  _High betweenness centrality (0.084) - this node is a cross-community bridge._
+- **Why does `ItemRc` connect `ItemRc` to `input_items.rs`, `PartialRenderer<'_, T>`, `sharedparley.rs`, `AccessibleStringProperty`, `WindowAdapter`, `window.rs`, `MouseInputState`, `MenuFromItemTree`, `Coord`, `component_container.rs`, `Layout`, `system_tray.rs`, `FontMetrics`, `WindowInner`, `i-slint-core/accessibility.rs`, `items.rs`, `ScaleFactor`, `item_tree.rs`, `flickable.rs`, `RenderText`, `items/image.rs`, `StyledTextItem`, `ItemRef`, `drag_n_drop.rs`, `input.rs`, `items/path.rs`, `ItemTreeVTable`, `.init`, `TextCursorAffinity`, `partial_renderer.rs`, `render_layer`, `MouseEvent`, `text.rs`, `Renderer`, `RenderBorderRectangle`, `.raw_element_infos`, `LogicalRect`, `.key_event`, `RendererSealed`, `SlintContext`, `tvnav.rs`, `AccessibilityAction`, `step`?**
+  _High betweenness centrality (0.080) - this node is a cross-community bridge._
 - **Are the 46 inferred relationships involving `ItemRc` (e.g. with `.font_request()` and `item_children_bounding_rect()`) actually correct?**
   _`ItemRc` has 46 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `CachedGraphicsData<T>`, `FakeThreadStorage<T, F>`, `ShapeBuffer<Length>` to the rest of the system?**
+- **What connects `Home`, `Backdrop`, `Poster` to the rest of the system?**
   _460 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `input_items.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.04637157482685938 - nodes in this community are weakly interconnected._
-- **Why does `ItemRc` connect `MouseEvent` to `LogicalRect`, `input_items.rs`, `PartialRenderer<'_, T>`, `LayoutData`, `sharedparley.rs`, `AccessibleStringProperty`, `WindowAdapter`, `window.rs`, `MouseInputState`, `MenuFromItemTree`, `.from_pub`, `Property`, `Layout`, `PartialRendererCache`, `system_tray.rs`, `FontMetrics`, `WindowInner`, `ScaleFactor`, `item_tree.rs`, `flickable.rs`, `RenderText`, `items/image.rs`, `StyledTextItem`, `drag_n_drop.rs`, `input.rs`, `items/path.rs`, `RenderingResult`, `TestItemTree`, `.init`, `BoxShadowOptions`, `TextCursorAffinity`, `.compute_dirty_regions`, `render_layer`, `.visual_representation`, `text.rs`, `Renderer`, `item_tree.rs`, `.raw_element_infos`, `.find_sibling`, `MenuVTable`, `.key_event`, `RendererSealed`, `SlintContext`, `.process_mouse_input`, `tvnav.rs`, `i-slint-core/accessibility.rs`, `step`?**
-  _High betweenness centrality (0.084) - this node is a cross-community bridge._
+  _Cohesion score 0.05109218807848945 - nodes in this community are weakly interconnected._
+- **Why does `()` connect `Community 240` to `LogicalLength`, `ModelNotify`, `vec`, `app/src/lib.rs`, `repeater.rs`, `sharedvector.rs`, `adapters.rs`, `T`, `Repeater<C>`, `RepeatedItemTree`, `items/path.rs`, `SharedString`, `ModelTracker`, `flickable.rs`, `spring.rs`, `MenuFromItemTree`, `i-slint-core/layout.rs`, `component_container.rs`?**
+  _High betweenness centrality (0.071) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `SharedString` (e.g. with `.set_xdg_app_id()` and `.xdg_app_id()`) actually correct?**
   _`SharedString` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Should `player/src/lib.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.10121457489878542 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08970099667774087 - nodes in this community are weakly interconnected._

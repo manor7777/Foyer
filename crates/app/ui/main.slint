@@ -1152,6 +1152,9 @@ component TrackMenu inherits PopupWindow {
     callback pick(int);
     callback search();
     callback sync(float);
+    // Only a click outside closes the menu: the sync - / + buttons must be clickable repeatedly. Choosing a row
+    // closes it explicitly below.
+    close-policy: PopupClosePolicy.close-on-click-outside;
     width: 340px;
     height: min(380px, (root.items.length + (root.allow-search ? 1 : 0)) * 36px + 56px + (root.allow-sync ? 40px : 0px));
     // TV remote: keys from the menu's rows stop at the popup, so move between them and close it here.
@@ -1217,12 +1220,12 @@ component TrackMenu inherits PopupWindow {
                     for t in root.items: MenuRow {
                         label: t.label;
                         selected: t.selected;
-                        clicked => { root.pick(t.id); }
+                        clicked => { root.pick(t.id); root.close(); }
                     }
                     if root.allow-search: MenuRow {
                         label: "Search for subtitles…";
                         icon: @image-url("icons/search.svg");
-                        clicked => { root.search(); }
+                        clicked => { root.search(); root.close(); }
                     }
                 }
             }
@@ -2976,7 +2979,12 @@ export component AppWindow inherits Window {
 
     // Lift the subtitles clear of the bottom control bar as it fades in/out (ratio of window height).
     callback sub-lift(float);
-    changed controls-op => { root.sub-lift(root.controls-op * 170px / max(root.height, 1px)); }
+    callback ui-busy(bool);
+    changed controls-op => {
+        root.sub-lift(root.controls-op * 170px / max(root.height, 1px));
+        // Don't let the video's frame timing throttle redraws while the controls are up or fading.
+        root.ui-busy(root.controls-op > 0);
+    }
     // The lift is a fraction of the window height, so it must be recomputed when the height changes too (going
     // fullscreen with the controls up left a subtitle stranded mid-screen until the controls next faded).
     changed full-player => { root.sub-lift(root.controls-op * 170px / max(root.height, 1px)); }

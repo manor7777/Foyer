@@ -14,7 +14,7 @@
 use libloading::Library;
 use std::ffi::{c_char, c_double, c_int, c_void, CStr, CString};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -94,8 +94,9 @@ pub enum Control {
     /// -1 turns subtitles off
     SelectSub(i64),
     AddSubtitle { url: String, title: String, lang: String },
-    /// Subtitle vertical position, mpv `sub-pos` (100 = bottom, lower = higher up).
-    SubPos(i64),
+    /// Subtitle vertical position, mpv `sub-pos` (100 = bottom, lower = higher up). Fractions are used when
+    /// this mpv accepts them, so the slide with the controls is smooth.
+    SubPos(f64),
     /// Save the current frame (with subtitles) to this PNG path.
     Screenshot(String),
 }
@@ -290,6 +291,14 @@ type GlLoader<'a> = &'a dyn Fn(&CStr) -> *const c_void;
 
 /// Address of the host's current GL loader (a `&dyn Fn`), valid only inside `Surface::render`.
 static GL_LOADER: AtomicUsize = AtomicUsize::new(0);
+/// While set, rendering does not wait for each video frame's display time. mpv's wait throttles every redraw to the
+/// video's frame rate (24 fps), which made the controls' fade and the subtitle slide look choppy.
+static UNBLOCKED: AtomicBool = AtomicBool::new(false);
+
+/// Called by the UI: true while it is animating (the player controls are showing or fading).
+pub fn set_unblocked(on: bool) {
+    UNBLOCKED.store(on, Ordering::Relaxed);
+}
 
 unsafe extern "C" fn gl_trampoline(_ctx: *mut c_void, name: *const c_char) -> *mut c_void {
     let p = GL_LOADER.load(Ordering::Acquire);
@@ -685,7 +694,7 @@ impl Surface {
                 let mut flip: c_int = if target.is_some() { 0 } else { 1 };
                 // By default mpv waits inside render for the frame's display time. In the small player that wait
                 // stalls the whole UI (drags, hovers, the page behind), so don't wait there.
-                let mut block: c_int = if target.is_some() { 0 } else { 1 };
+                let mut block: c_int = if target.is_some() || UNBLOCKED.load(Ordering::Relaxed) { 0 } else { 1 };
                 let mut params = [
                     RenderParam { kind: PARAM_GL_FBO, data: &mut fbo as *mut GlFbo as *mut c_void },
                     RenderParam { kind: PARAM_FLIP_Y, data: &mut flip as *mut c_int as *mut c_void },
@@ -911,9 +920,10 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
         let mut last_diag = Instant::now();
         let mut tracks_due: Option<Instant> = Some(Instant::now() + Duration::from_millis(800));
         let mut sub_ids: Vec<i64> = Vec::new(); // selectable subtitle track ids, for cycling
+        let mut sub_float: Option<bool> = None; // does this mpv accept a fractional sub-pos?
         'play: loop {
             let mut forced_poll = false;
-            let mut sub_pos: Option<i64> = None;
+            let mut sub_pos: Option<f64> = None;
             while let Ok(ctl) = controls.try_recv() {
                 // Sub-position nudges arrive every frame while the controls fade; only the latest matters,
                 // and they must not trigger the (slow) property poll below.
@@ -997,10 +1007,16 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                 }
             }
             if let Some(p) = sub_pos {
-                let args: Vec<CString> = ["set", "sub-pos", &p.to_string()].iter().map(|a| c(a)).collect();
+                // Older mpv builds only take whole percentages: the first fractional attempt tells which.
+                let text = if sub_float != Some(false) { format!("{p:.2}") } else { format!("{}", p.round() as i64) };
+                let args: Vec<CString> = ["set", "sub-pos", &text].iter().map(|a| c(a)).collect();
                 let mut argv: Vec<*const c_char> = args.iter().map(|a| a.as_ptr()).collect();
                 argv.push(std::ptr::null());
-                (api.command_async)(ctx, 0, argv.as_ptr());
+                if sub_float.is_none() {
+                    sub_float = Some((api.command)(ctx, argv.as_ptr()) >= 0);
+                } else {
+                    (api.command_async)(ctx, 0, argv.as_ptr());
+                }
             }
             let ev = &*(api.wait)(ctx, if sub_pos.is_some() { 0.008 } else { 0.03 });
             match ev.event_id {

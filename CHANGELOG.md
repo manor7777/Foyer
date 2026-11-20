@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.6
+
+**Windows and Android**
+
+- The subtitle menu no longer closes when you press the sync - / + buttons or Reset, so you can nudge the timing several times in a row. It still closes when you pick a track, open the subtitle search, or click outside it.
+- Clicking an alert during playback no longer leaves the poster of what you were watching as the background of the page it opens (Alerts, Settings, a title).
+- The subtitle slide and the controls' fade are smooth again (they were limited to the video's frame rate while the controls were up). Subtitles also move in finer steps where the player supports it.
+
 ## Foyer 0.29.5
 
 **Windows and Android**

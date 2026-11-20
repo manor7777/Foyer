@@ -858,6 +858,12 @@ impl Ctx {
         // Offline there is nothing to browse but downloads (and settings).
         let page = if OFFLINE.load(Ordering::SeqCst) && !matches!(page, Page::Downloads | Page::Settings | Page::Notifications) { Page::Downloads } else { page };
         dlog(&format!("navigate {page:?} push={push}"));
+        // A hovered poster's banner art must not outlive the page it was hovered on (it showed behind the Alerts or
+        // Settings page opened from a notification during playback).
+        HOVER_GEN.fetch_add(1, Ordering::SeqCst);
+        if let Some(ui) = self.ui.upgrade() {
+            ui.global::<Hover>().set_active(false);
+        }
         let target_y = {
             let mut s = self.st.lock().unwrap();
             let live = self.ui.upgrade().map_or(0.0, |ui| ui.global::<PageScroll>().get_y());
@@ -5034,15 +5040,17 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
         }
     });
     let c = ctx.clone();
-    let last_pos = std::cell::Cell::new(100i64);
+    let last_pos = std::cell::Cell::new(1000i64);
     ui.on_sub_lift(move |ratio| {
-        let pos = (100.0 - ratio * 100.0).round() as i64;
-        if pos != last_pos.replace(pos) {
+        // Tenths of a percent (the player drops the fraction on an mpv that only takes whole numbers).
+        let tenths = ((100.0 - ratio * 100.0) * 10.0).round() as i64;
+        if tenths != last_pos.replace(tenths) {
             if let Some(tx) = &c.st.lock().unwrap().player_tx {
-                let _ = tx.send(player::Control::SubPos(pos));
+                let _ = tx.send(player::Control::SubPos(tenths as f64 / 10.0));
             }
         }
     });
+    ui.on_ui_busy(|busy| player::set_unblocked(busy));
 
     // Hide the player controls after 3 s without mouse movement (unless paused or a menu is open).
     // Time of day for the player's corner, e.g. "12:00am" (or "17:05").
