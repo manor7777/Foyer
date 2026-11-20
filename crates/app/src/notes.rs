@@ -185,6 +185,10 @@ impl Ctx {
         self.edit_notes(|n| n.iter_mut().for_each(|x| x.read = true));
     }
 
+    pub fn note_delete(&self, id: &str) {
+        self.edit_notes(|n| n.retain(|x| x.id.to_string() != id));
+    }
+
     pub fn notes_clear(&self) {
         self.edit_notes(|n| n.clear());
     }
@@ -250,6 +254,42 @@ impl Ctx {
             });
         }
         true
+    }
+
+    /// Settings > Alerts: the series being followed.
+    pub fn sync_followed_rows(&self, ui: &AppWindow) {
+        let rows: Vec<HideRow> = self.st.lock().unwrap().cfg.followed.iter().map(|f| HideRow { id: f.id.clone().into(), name: f.name.clone().into(), cw: false }).collect();
+        ui.set_followed_rows(ModelRc::new(VecModel::from(rows)));
+    }
+
+    /// Stops following a series from the manage list (and clears its bell elsewhere).
+    pub fn unfollow(&self, id: &str) {
+        if self.is_following(id) {
+            self.flip_follow(id, "");
+        }
+        let Some(ui) = self.ui.upgrade() else { return };
+        let m = ui.get_cards();
+        for i in 0..m.row_count() {
+            if let Some(mut c) = m.row_data(i) {
+                if c.id.as_str() == id {
+                    c.followed = false;
+                    m.set_row_data(i, c);
+                }
+            }
+        }
+        if ui.get_detail().id.as_str() == id {
+            ui.set_following(false);
+        }
+        self.sync_followed_rows(&ui);
+    }
+
+    /// "Manage alerts": the Alerts tab of Settings.
+    pub fn open_alert_settings(&self) {
+        if let Some(ui) = self.ui.upgrade() {
+            ui.global::<SettingsUi>().set_tab(4);
+            ui.global::<SettingsUi>().set_query("".into());
+        }
+        self.navigate(Page::Settings, true);
     }
 
     /// The bell on a series page: start or stop being told about its new episodes.

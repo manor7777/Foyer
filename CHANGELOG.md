@@ -2,6 +2,14 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.3
+
+**Manage alerts, and glass buttons everywhere (Windows and Android)**
+
+- New **Manage alerts** button on the Alerts page opens a new **Alerts** tab in Settings. It lists every series you follow, each with a **Stop alerts** button, so a "New episodes of ..." alert can be stopped for good. The alert switches (including the system notification one) now live there too, and no longer depend on Requests being enabled.
+- Every alert on the Alerts page now has an X to delete it.
+- Settings buttons, tabs, setting groups, dropdowns and text boxes now use the same liquid glass as the bottom bar and sidebar: pill shapes, a lit rim and a soft shadow. Secondary pill buttons elsewhere use the raised glass too.
+
 ## Foyer 0.29.2
 
 **Android TV and Chromecast with Google TV**

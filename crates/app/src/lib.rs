@@ -1665,6 +1665,7 @@ impl Ctx {
         if let Some(ui) = self.ui.upgrade() {
             ui.set_busy(false);
             self.sync_settings(&ui);
+            self.sync_followed_rows(&ui);
             ui.set_page("settings".into());
         }
     }
@@ -4564,6 +4565,12 @@ pub fn run() -> Result<(), slint::PlatformError> {
     });
     let c = ctx.clone();
     ui.on_open_notifications(move || c.navigate(Page::Notifications, true));
+    let c = ctx.clone();
+    ui.on_open_alert_settings(move || c.open_alert_settings());
+    let c = ctx.clone();
+    ui.on_unfollow(move |id| c.unfollow(id.as_str()));
+    let c = ctx.clone();
+    ui.on_note_delete(move |id| c.note_delete(id.as_str()));
     let c = ctx.clone();
     ui.on_note_click(move |id, item| {
         c.note_mark_read(id.as_str());

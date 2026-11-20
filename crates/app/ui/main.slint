@@ -105,13 +105,17 @@ component Button inherits Rectangle {
     in property <bool> primary: false;
     in property <bool> enabled: true;
     callback clicked();
-    height: Device.touch ? 44px : 32px;
-    border-radius: 4px;
+    height: Device.touch ? 44px : 34px;
+    border-radius: self.height / 2;
     border-width: root.primary ? 0px : 1px;
-    border-color: Palette.border;
-    background: !root.enabled ? (root.primary ? Palette.accent-background.with-alpha(0.4) : Palette.control-background.with-alpha(0.5))
+    border-color: Palette.lens-rim;
+    // The same raised glass as the lens in the bottom bar.
+    background: !root.enabled ? (root.primary ? Palette.accent-background.with-alpha(0.4) : Palette.lens-body.with-alpha(0.4))
         : root.primary ? (ta.pressed ? Palette.accent-background.darker(0.2) : (ta.has-hover ? Palette.accent-background.brighter(0.1) : Palette.accent-background))
-        : (ta.pressed ? Palette.control-background.darker(0.15) : (ta.has-hover ? Palette.control-hover : Palette.control-background));
+        : (ta.pressed ? Palette.lens-body.darker(0.2) : (ta.has-hover ? Palette.lens-body.brighter(0.25) : Palette.lens-body));
+    drop-shadow-blur: root.primary || !root.enabled ? 0px : 10px;
+    drop-shadow-color: Palette.glass-shadow;
+    drop-shadow-offset-y: 3px;
     HorizontalLayout {
         padding-left: 16px;
         padding-right: 16px;
@@ -121,7 +125,7 @@ component Button inherits Rectangle {
             color: root.primary ? Palette.accent-foreground : Palette.foreground;
             opacity: root.enabled ? 1 : 0.5;
             font-size: 13px * Scale.text-scale;
-            font-weight: root.primary ? 600 : 400;
+            font-weight: root.primary ? 600 : 500;
             vertical-alignment: center;
         }
     }
@@ -163,10 +167,10 @@ component LineEdit inherits FocusScope {
         return reject;
     }
     Rectangle {
-        border-radius: 4px;
+        border-radius: 12px;
         border-width: 1px;
-        border-color: Palette.border;
-        background: Palette.control-background;
+        border-color: Palette.lens-rim;
+        background: Palette.lens-body;
         clip: true;
         HorizontalLayout {
             padding-left: 10px;
@@ -294,10 +298,10 @@ component Dropdown inherits Rectangle {
     callback selected(string);
     min-width: 140px;
     height: root.compact ? (Device.touch ? 36px : 28px) : (Device.touch ? 44px : 32px);
-    border-radius: 4px;
+    border-radius: 12px;
     border-width: 1px;
-    border-color: Palette.border;
-    background: ta.has-hover ? Palette.control-hover : Palette.control-background;
+    border-color: Palette.lens-rim;
+    background: ta.has-hover ? Palette.lens-body.brighter(0.25) : Palette.lens-body;
     HorizontalLayout {
         padding-left: 12px;
         padding-right: 10px;
@@ -542,10 +546,13 @@ export global SettingsUi {
 }
 
 component SettingCard inherits Rectangle {
-    background: SettingsUi.query == "" ? Palette.control-background : transparent;
-    border-radius: 8px;
+    background: SettingsUi.query == "" ? Palette.glass-body : transparent;
+    border-radius: 16px;
     border-width: SettingsUi.query == "" ? 1px : 0px;
-    border-color: Palette.border;
+    border-color: Palette.glass-rim;
+    drop-shadow-blur: SettingsUi.query == "" ? 22px : 0px;
+    drop-shadow-color: Palette.glass-shadow;
+    drop-shadow-offset-y: 6px;
     VerticalLayout {
         @children
     }
@@ -626,12 +633,17 @@ component SettingsTab inherits Rectangle {
     width: lbl.preferred-width + 28px;
     height: 36px;
     border-radius: 18px;
-    background: root.selected ? Palette.accent-background : (ta.has-hover ? Palette.control-hover : Palette.control-background);
+    background: root.selected ? Palette.accent-background.with-alpha(0.3) : (ta.has-hover ? Palette.glass-body.brighter(0.2) : Palette.glass-body);
+    border-width: 1px;
+    border-color: root.selected ? Palette.lens-rim : Palette.glass-rim;
+    drop-shadow-blur: 10px;
+    drop-shadow-color: Palette.glass-shadow;
+    drop-shadow-offset-y: 3px;
     lbl := Text {
         text: root.label;
         font-size: 13px * Scale.text-scale;
-        font-weight: root.selected ? 600 : 400;
-        color: root.selected ? Palette.accent-foreground : Palette.foreground;
+        font-weight: root.selected ? 600 : 500;
+        color: root.selected ? Palette.accent-background : Palette.foreground;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -1316,9 +1328,9 @@ component PillButton inherits Rectangle {
     border-radius: 20px;
     background: !root.enabled ? Palette.foreground.with-alpha(0.08)
         : root.primary ? (ta.pressed ? Palette.accent-background.darker(0.2) : (ta.has-hover ? Palette.accent-background.brighter(0.12) : Palette.accent-background))
-        : (ta.pressed ? Palette.foreground.with-alpha(0.26) : (ta.has-hover ? Palette.foreground.with-alpha(0.22) : Palette.foreground.with-alpha(0.14)));
+        : (ta.pressed ? Palette.lens-body.darker(0.2) : (ta.has-hover ? Palette.lens-body.brighter(0.25) : Palette.lens-body));
     border-width: root.primary ? 0px : 1px;
-    border-color: Palette.foreground.with-alpha(0.22);
+    border-color: Palette.lens-rim;
     HorizontalLayout {
         padding-left: 18px;
         padding-right: 22px;
@@ -2613,6 +2625,10 @@ export component AppWindow inherits Window {
     in property <[NoteRow]> notes;
     in property <int> unread-count: 0;
     callback open-notifications();
+    callback open-alert-settings();
+    callback note-delete(string);
+    in property <[HideRow]> followed-rows;
+    callback unfollow(string);
     callback note-click(string, string);
     callback note-mark-read(string);
     callback notes-mark-all-read();
@@ -3577,6 +3593,11 @@ export component AppWindow inherits Window {
                     HorizontalLayout {
                         spacing: 10px;
                         Heading { text: "Alerts"; horizontal-stretch: 1; vertical-alignment: center; }
+                        if !root.narrow: PillButton {
+                            text: "Manage alerts";
+                            icon: @image-url("icons/settings.svg");
+                            clicked => { root.open-alert-settings(); }
+                        }
                         if !root.narrow && root.unread-count > 0: PillButton {
                             text: "Mark all read";
                             icon: @image-url("icons/check.svg");
@@ -3586,6 +3607,15 @@ export component AppWindow inherits Window {
                             text: "Clear all";
                             icon: @image-url("icons/delete.svg");
                             clicked => { root.notes-clear(); }
+                        }
+                    }
+                    if root.narrow: HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+                        PillButton {
+                            text: "Manage alerts";
+                            icon: @image-url("icons/settings.svg");
+                            clicked => { root.open-alert-settings(); }
                         }
                     }
                     if root.narrow && root.notes.length > 0: HorizontalLayout {
@@ -3612,7 +3642,7 @@ export component AppWindow inherits Window {
                     // computed from the wrapped texts at the width they are given.
                     for n in root.notes: Rectangle {
                         property <length> ox: n.image.width > 0 ? 58px : 0px;
-                        property <length> tw: self.width - 46px - self.ox - (n.read ? 0px : 44px);
+                        property <length> tw: self.width - 46px - self.ox - (n.read ? 44px : 84px);
                         height: max(24px + nt.preferred-height + (n.body != "" ? 3px + nb.preferred-height : 0px) + 3px + nw.preferred-height, n.image.width > 0 ? 90px : 0px);
                         border-radius: 10px;
                         background: n.read ? Palette.control-background.with-alpha(0.6) : Palette.control-background;
@@ -3668,8 +3698,16 @@ export component AppWindow inherits Window {
                             opacity: 0.5;
                             font-size: 11px * Scale.text-scale;
                         }
-                        if !n.read: IconButton {
+                        IconButton {
                             x: parent.width - self.width - 12px;
+                            y: (parent.height - self.height) / 2;
+                            icon: @image-url("icons/close.svg");
+                            size: 32px;
+                            tint: Palette.foreground;
+                            clicked => { root.note-delete(n.id); }
+                        }
+                        if !n.read: IconButton {
+                            x: parent.width - self.width - 52px;
                             y: (parent.height - self.height) / 2;
                             icon: @image-url("icons/check.svg");
                             size: 32px;
@@ -4156,7 +4194,7 @@ export component AppWindow inherits Window {
                         interactive: true;
                         tabrow := HorizontalLayout {
                             spacing: 6px;
-                            for name[i] in ["Playback", "Library", "Appearance", "Requests", "Accounts", "Advanced", "About"]: SettingsTab {
+                            for name[i] in ["Playback", "Library", "Appearance", "Requests", "Alerts", "Accounts", "Advanced", "About"]: SettingsTab {
                                 label: name;
                                 selected: SettingsUi.tab == i;
                                 clicked => { SettingsUi.tab = i; }
@@ -4579,81 +4617,98 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if root.seerr-on: VerticalLayout {
-                        spacing: 8px;
-                        if SettingsUi.shows(3): SettingGroup {
-                            label: "Alerts";
-                            SettingRow {
-                                title: "Tell me when my requests arrive";
-                                description: "Checks your library for titles you requested and notifies you. Works while Foyer is open.";
-                                ToggleSwitch {
-                                    checked <=> root.notify-enabled;
-                                    toggled(c) => { root.set-notify-enabled(c); }
-                                }
-                            }
-                            SettingRow {
-                                title: "Movies";
-                                description: "When a requested movie is available.";
-                                ToggleSwitch {
-                                    checked <=> root.notify-movies;
-                                    toggled(c) => { root.set-notify-movies(c); }
-                                }
-                            }
-                            SettingRow {
-                                title: "Series episodes";
-                                description: "Seerr only announces whole seasons. Foyer also tells you when the first episodes of a new series are ready.";
-                                ToggleSwitch {
-                                    checked <=> root.notify-episodes;
-                                    toggled(c) => { root.set-notify-episodes(c); }
-                                }
-                            }
-                            SettingRow {
-                                title: "Episode alerts";
-                                description: "How often to alert you about a series.";
-                                Dropdown {
-                                    width: 260px;
-                                    model: ["Each batch of new episodes", "Only when a season is complete"];
-                                    current-index <=> root.notify-mode;
-                                    selected => { root.set-notify-mode(self.current-index); }
-                                }
-                            }
-                            SettingRow {
-                                title: "Check every";
-                                Dropdown {
-                                    width: 260px;
-                                    model: ["5 minutes", "10 minutes", "30 minutes", "1 hour"];
-                                    current-index <=> root.notify-interval;
-                                    selected => { root.set-notify-interval(self.current-index); }
-                                }
-                            }
-                            SettingRow {
-                                title: "Issues reported";
-                                description: "If you manage issues: when someone reports a problem.";
-                                ToggleSwitch {
-                                    checked <=> root.notify-issues;
-                                    toggled(c) => { root.set-notify-issues(c); }
-                                }
-                            }
-                            SettingRow {
-                                title: "Replies on my issues";
-                                description: "When an issue you reported is resolved or gets a reply.";
-                                ToggleSwitch {
-                                    checked <=> root.notify-my-issues;
-                                    toggled(c) => { root.set-notify-my-issues(c); }
-                                }
-                            }
-                            SettingRow {
-                                title: Device.desktop ? "Windows notifications" : "System notifications";
-                                description: Device.desktop ? "Also show a Windows notification, not just the banner inside Foyer." : "Also show an Android notification, not just the banner inside Foyer.";
-                                divider: false;
-                                ToggleSwitch {
-                                    checked <=> root.notify-windows;
-                                    toggled(c) => { root.set-notify-windows(c); }
-                                }
+                    if SettingsUi.shows(4): SettingGroup {
+                        label: "Followed series";
+                        if root.followed-rows.length == 0: SettingRow {
+                            title: "Not following any series";
+                            description: "Tap the bell on a series to be told when new episodes arrive. They will be listed here.";
+                            divider: false;
+                        }
+                        for f[i] in root.followed-rows: SettingRow {
+                            title: f.name;
+                            description: "Alerts for new episodes";
+                            divider: i < root.followed-rows.length - 1;
+                            Button {
+                                text: "Stop alerts";
+                                clicked => { root.unfollow(f.id); }
                             }
                         }
                     }
-                    if SettingsUi.shows(5) && Device.desktop && DownloadsUi.allowed: SettingGroup {
+                    if SettingsUi.shows(4): SettingGroup {
+                        label: "Alerts";
+                        SettingRow {
+                            title: "Show alerts";
+                            description: "Master switch for every alert below, including new episodes of series you follow. Works while Foyer is open.";
+                            ToggleSwitch {
+                                checked <=> root.notify-enabled;
+                                toggled(c) => { root.set-notify-enabled(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: Device.desktop ? "Windows notifications" : "System notifications";
+                            description: Device.desktop ? "Also show a Windows notification, not just the banner inside Foyer." : "Also show an Android notification, not just the banner inside Foyer.";
+                            divider: false;
+                            ToggleSwitch {
+                                checked <=> root.notify-windows;
+                                toggled(c) => { root.set-notify-windows(c); }
+                            }
+                        }
+                    }
+                    if SettingsUi.shows(4) && root.seerr-on: SettingGroup {
+                        label: "Requests and issues";
+                        SettingRow {
+                            title: "Movies";
+                            description: "When a requested movie is available.";
+                            ToggleSwitch {
+                                checked <=> root.notify-movies;
+                                toggled(c) => { root.set-notify-movies(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Series episodes";
+                            description: "Seerr only announces whole seasons. Foyer also tells you when the first episodes of a new series are ready.";
+                            ToggleSwitch {
+                                checked <=> root.notify-episodes;
+                                toggled(c) => { root.set-notify-episodes(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Episode alerts";
+                            description: "How often to alert you about a series.";
+                            Dropdown {
+                                width: 260px;
+                                model: ["Each batch of new episodes", "Only when a season is complete"];
+                                current-index <=> root.notify-mode;
+                                selected => { root.set-notify-mode(self.current-index); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Check every";
+                            Dropdown {
+                                width: 260px;
+                                model: ["5 minutes", "10 minutes", "30 minutes", "1 hour"];
+                                current-index <=> root.notify-interval;
+                                selected => { root.set-notify-interval(self.current-index); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Issues reported";
+                            description: "If you manage issues: when someone reports a problem.";
+                            ToggleSwitch {
+                                checked <=> root.notify-issues;
+                                toggled(c) => { root.set-notify-issues(c); }
+                            }
+                        }
+                        SettingRow {
+                            title: "Replies on my issues";
+                            description: "When an issue you reported is resolved or gets a reply.";
+                            ToggleSwitch {
+                                checked <=> root.notify-my-issues;
+                                toggled(c) => { root.set-notify-my-issues(c); }
+                            }
+                        }
+                    }
+                    if SettingsUi.shows(6) && Device.desktop && DownloadsUi.allowed: SettingGroup {
                         label: "Downloads";
                         SettingRow {
                             title: "Save downloaded files to";
@@ -4667,7 +4722,7 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if SettingsUi.shows(5): SettingGroup {
+                    if SettingsUi.shows(6): SettingGroup {
                         label: "Advanced";
                         SettingRow {
                             title: "Extensive debug logging";
@@ -4696,7 +4751,7 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if SettingsUi.shows(4): SettingGroup {
+                    if SettingsUi.shows(5): SettingGroup {
                         label: "Servers";
                         SettingRow {
                             title: "Multiple servers";
@@ -4727,7 +4782,7 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if SettingsUi.shows(4): SettingGroup {
+                    if SettingsUi.shows(5): SettingGroup {
                         label: "Account";
                         SettingRow {
                             title: root.user-name;
@@ -4743,7 +4798,7 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if SettingsUi.shows(6): SettingGroup {
+                    if SettingsUi.shows(7): SettingGroup {
                         label: "About";
                         SettingRow {
                             title: "Foyer " + root.app-version;
