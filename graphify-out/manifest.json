@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/update.rs": {
-    "mtime": 1795192374.823982,
-    "seen": 1795192644.7612593,
-    "ast_hash": "7868ac24da64a7e10680a249cc16279e",
+    "mtime": 1795193143.9210207,
+    "seen": 1795193206.30886,
+    "ast_hash": "6cb63cd4b54f7c7502eb11a1a9a4227e",
     "semantic_hash": ""
   },
   "crates/emby-api/Cargo.toml": {

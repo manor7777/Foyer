@@ -202,8 +202,8 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
         let _ = std::fs::remove_file(&new);
         return Err(format!("Couldn't put the new version in place ({e})."));
     }
-    Ok(())
     }
+    Ok(())
 }
 
 /// Removes files an earlier update left behind.
