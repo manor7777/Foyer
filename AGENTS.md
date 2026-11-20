@@ -44,3 +44,24 @@ Play Protect has flagged Foyer as a "harmful app" more than once, and the cause 
 - No runtime code loading (no `DexClassLoader`): helpers go in the APK's own `classes.dex`. Do not install by writing the APK to Downloads and firing a view intent.
 - Be careful adding any new Android permission or native/library change, and say so in `CHANGELOG.md`.
 - If a build is flagged, find the cause by experiment: build variants that change one thing each (a permission, the installer path) on a scratch branch and scan each one in Play Protect, rather than guessing.
+
+#### What was tested (Play Protect scans, 19-20 Nov 2026)
+
+Verdicts are from scanning each APK on a phone (Play Protect's own scan, and the install-time check). "Flagged" means "Harmful app blocked".
+
+| Build | What it had | Result |
+| --- | --- | --- |
+| 0.28.16 | install permission, multicast permission, update by saving the APK to Downloads and a view intent, runtime-loaded dex | **Flagged** |
+| 0.28.17 (test) | no install and no multicast permission | Safe |
+| 0.28.18 (test) | multicast kept, install permission removed | Safe. But in-app update cannot work without that permission, so this was an experiment only |
+| 0.28.19 / 0.29.0 | install permission back, update through a PackageInstaller session, helper in the APK's own `classes.dex` (no runtime dex) | Safe, by manual install and by in-app update |
+| 0.29.6 | same manifest and installer as 0.29.0 | **Flagged** when installed, although the Play Protect page scan was not flagging it. Cause unknown: little Android code changed since 0.29.0 |
+| 0.29.7 | install permission and PackageInstaller removed, update opens the browser | Safe |
+| Firsthand (separate app) | same permission and PackageInstaller session | Safe |
+
+What this does and does not show:
+
+- The install permission is **not** flagged on its own (Firsthand and 0.29.0 have it and are safe). Removing it always passed, but it also removes in-app updating, so it is not an acceptable fix.
+- The verdict seems to depend on the whole APK (permissions together, how it installs, runtime code loading, the large native libmpv/FFmpeg libraries) and possibly on per-APK reputation, so a build that was clean can be flagged later with almost no code change. The real cause was never pinned down.
+- Fixes that were made and kept: no runtime dex loading (0.28.15), updates through a PackageInstaller session instead of Downloads plus a view intent (0.28.19).
+- If it happens again: do not strip the permission. Scan the last clean release (for example 0.29.0) and the flagged one on the same phone, then bisect with one-change-at-a-time scratch builds, and consider a Play Protect false-positive appeal to Google for the flagged APK.
