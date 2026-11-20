@@ -3651,9 +3651,11 @@ export component AppWindow inherits Window {
                         property <length> tw: self.width - 46px - self.ox - (n.read ? 44px : 84px);
                         height: max(24px + nt.preferred-height + (n.body != "" ? 3px + nb.preferred-height : 0px) + 3px + nw.preferred-height, n.image.width > 0 ? 90px : 0px);
                         border-radius: 10px;
-                        background: n.read ? Palette.control-background.with-alpha(0.6) : Palette.control-background;
+                        // Read cards stay as solid as unread ones (a see-through fill let the bright backdrop wash out
+                        // the white text); they are told apart by the accent border, the dot and the bolder title.
+                        background: Palette.glass-body;
                         border-width: 1px;
-                        border-color: n.read ? Palette.border : Palette.accent-background;
+                        border-color: n.read ? Palette.glass-rim : Palette.accent-background;
                         Tap {
                             mouse-cursor: pointer;
                             clicked => { root.note-click(n.id, n.item); }
@@ -3681,7 +3683,8 @@ export component AppWindow inherits Window {
                             text: n.title;
                             color: Palette.foreground;
                             font-size: 14px * Scale.text-scale;
-                            font-weight: n.read ? 400 : 700;
+                            font-weight: n.read ? 500 : 700;
+                            opacity: n.read ? 0.85 : 1;
                             wrap: word-wrap;
                         }
                         nb := Text {
@@ -3691,7 +3694,7 @@ export component AppWindow inherits Window {
                             width: parent.tw;
                             text: n.body;
                             color: Palette.foreground;
-                            opacity: 0.7;
+                            opacity: n.read ? 0.7 : 0.8;
                             font-size: 12px * Scale.text-scale;
                             wrap: word-wrap;
                         }

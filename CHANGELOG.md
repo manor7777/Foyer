@@ -2,6 +2,12 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.5
+
+**Windows and Android**
+
+- Read alerts are readable again: they used a see-through fill that let a bright backdrop wash out the white text. They now use the same solid glass as unread ones, told apart by the accent border, the dot and a bolder title.
+
 ## Foyer 0.29.4
 
 **Windows**
