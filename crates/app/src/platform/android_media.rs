@@ -116,14 +116,6 @@ fn helper_class<'a>(env: &mut JNIEnv<'a>, act: &JObject<'_>, name: &str) -> jni:
     Ok(JClass::from(class))
 }
 
-/// Starts a PackageInstaller session for the APK at `path` (the dex helper `Installer`).
-pub fn install_session(env: &mut JNIEnv<'_>, act: &JObject<'_>, path: &str) -> jni::errors::Result<()> {
-    let class = helper_class(env, act, "app.foyer.player.Installer")?;
-    let p = env.new_string(path)?;
-    env.call_static_method(class, "install", "(Landroid/app/Activity;Ljava/lang/String;)V", &[JValue::Object(act), JValue::Object(&p)])?;
-    Ok(())
-}
-
 /// Hides (or restores) the system navigation bar and taskbar through the dex helper `Immersive`.
 pub fn set_immersive(on: bool) -> Result<(), String> {
     with_env(|env, act| {
@@ -141,6 +133,44 @@ pub fn save_to_downloads(path: &str, name: &str) -> Result<(), String> {
         env.call_static_method(class, "save", "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)V", &[JValue::Object(act), JValue::Object(&p), JValue::Object(&n)])?;
         Ok(())
     })
+}
+
+/// Starts downloading an update with Android's DownloadManager (the dex helper `Updater`).
+pub fn update_start(url: &str, name: &str) -> Result<(), String> {
+    with_env(|env, act| {
+        let class = helper_class(env, act, "app.foyer.player.Updater")?;
+        let (u, n) = (env.new_string(url)?, env.new_string(name)?);
+        env.call_static_method(class, "start", "(Landroid/app/Activity;Ljava/lang/String;Ljava/lang/String;)V", &[JValue::Object(act), JValue::Object(&u), JValue::Object(&n)])?;
+        Ok(())
+    })
+    .map_err(|e| format!("Couldn't start the download ({e})."))
+}
+
+/// "run:PCT" while downloading, "ok" when finished, "fail:reason" otherwise.
+pub fn update_poll() -> Result<String, String> {
+    with_env(|env, act| {
+        let class = helper_class(env, act, "app.foyer.player.Updater")?;
+        let s = env.call_static_method(class, "poll", "(Landroid/app/Activity;)Ljava/lang/String;", &[JValue::Object(act)])?.l()?;
+        Ok(env.get_string(&s.into())?.into())
+    })
+}
+
+/// SHA-256 (hex) of the finished download, or "" if it can't be read.
+pub fn update_sha256() -> Result<String, String> {
+    with_env(|env, act| {
+        let class = helper_class(env, act, "app.foyer.player.Updater")?;
+        let s = env.call_static_method(class, "sha256", "(Landroid/app/Activity;)Ljava/lang/String;", &[JValue::Object(act)])?.l()?;
+        Ok(env.get_string(&s.into())?.into())
+    })
+}
+
+/// Removes the downloaded update again (a download that failed its checksum).
+pub fn update_cancel() {
+    let _ = with_env(|env, act| {
+        let class = helper_class(env, act, "app.foyer.player.Updater")?;
+        env.call_static_method(class, "cancel", "(Landroid/app/Activity;)V", &[JValue::Object(act)])?;
+        Ok(())
+    });
 }
 
 // ---------------------------------------------------------------- media session

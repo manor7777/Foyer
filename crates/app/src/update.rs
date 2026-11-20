@@ -134,6 +134,7 @@ async fn fetch(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
 
 /// Downloads, verifies and swaps in the new exe. The running exe is renamed to `.old` (Windows
 /// allows that, not deleting), so the next start picks up the new one.
+#[cfg_attr(target_os = "android", allow(unreachable_code, unused_variables, unused_mut))]
 pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String> {
     let http = http()?;
     let sha = fetch(&http, &rel.sha_url).await?;
@@ -142,6 +143,40 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
     let (wanted, signed_version) = parse_checksum(&String::from_utf8_lossy(&sha))?;
     if signed_version != rel.version {
         return Err("The release's signed version does not match its name. Nothing was installed.".into());
+    }
+
+    // Android: Foyer has no permission to install apps (Google Play Protect flags that). Android's download
+    // service fetches the APK (with a progress notification); when it is done, Android's own notification opens
+    // the standard install screen. Android refuses anything not signed with Foyer's key; the checksum is checked
+    // here as well, so a corrupt or swapped file is thrown away.
+    #[cfg(target_os = "android")]
+    {
+        let name = format!("Foyer-{}.apk", rel.version);
+        crate::platform::update_start(&rel.exe_url, &name)?;
+        let started = std::time::Instant::now();
+        loop {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            let state = crate::platform::update_poll()?;
+            if state == "ok" {
+                break;
+            } else if let Some(p) = state.strip_prefix("run:") {
+                if let Ok(pct) = p.parse::<u32>() {
+                    progress(pct.min(100));
+                }
+            } else if let Some(why) = state.strip_prefix("fail:") {
+                return Err(why.to_string());
+            }
+            if started.elapsed() > Duration::from_secs(1800) {
+                crate::platform::update_cancel();
+                return Err("The download took too long.".into());
+            }
+        }
+        let got = crate::platform::update_sha256().unwrap_or_default();
+        if got != wanted {
+            crate::platform::update_cancel();
+            return Err("The download doesn't match its signed checksum. Nothing was installed.".into());
+        }
+        return Ok(());
     }
 
     #[cfg(not(target_os = "android"))]
@@ -178,10 +213,6 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
     if hex(&Sha256::digest(&data)) != wanted {
         return Err("The download doesn't match its signed checksum. Nothing was installed.".into());
     }
-    // Android replaces the app itself: hand the verified APK to the system installer (which also
-    // insists on the same signing key as the installed app).
-    #[cfg(target_os = "android")]
-    return crate::platform::install_package(&data, &format!("Foyer-{}.apk", rel.version));
     #[cfg(not(target_os = "android"))]
     {
     std::fs::write(&new, &data).map_err(|e| format!("Couldn't save the update ({e})."))?;
@@ -196,8 +227,8 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
         let _ = std::fs::remove_file(&new);
         return Err(format!("Couldn't put the new version in place ({e})."));
     }
-    Ok(())
     }
+    Ok(())
 }
 
 /// Removes files an earlier update left behind.
@@ -324,7 +355,7 @@ impl Ctx {
                     ui.set_update_available(false);
                     ui.set_update_ready(true);
                     let msg = if cfg!(target_os = "android") {
-                        format!("Version {v} is ready. Confirm the install in the Android screen that opened.")
+                        format!("Version {v} is downloaded. Tap the \"Foyer update\" notification to install it (or open Foyer-{v}.apk in your Downloads/Foyer folder).")
                     } else {
                         format!("Version {v} is installed. Restart Foyer to finish.")
                     };

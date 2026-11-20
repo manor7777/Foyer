@@ -2,6 +2,13 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.9
+
+**Android: updates without the install permission**
+
+- **Google Play Protect no longer blocks Foyer.** It was flagging every build that carried the "install apps" permission as a harmful app, even builds it had accepted the day before. Foyer no longer asks for that permission and no longer installs packages itself.
+- **Updating still happens in the app.** Settings > About > Install update downloads the update with Android's own download service (progress shows in a notification), checks it against the release's signed checksum, and then the "Foyer update" notification opens Android's standard install screen. Android still refuses anything not signed with Foyer's key. Downloaded updates are saved in Downloads/Foyer.
+
 ## Foyer 0.29.8
 
 **Android: in-app updates are back**
