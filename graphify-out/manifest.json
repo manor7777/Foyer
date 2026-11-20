@@ -18,15 +18,15 @@
     "semantic_hash": ""
   },
   "Cargo.toml": {
-    "mtime": 1795186984.3664703,
-    "seen": 1795187366.981358,
-    "ast_hash": "b2608048b55ed553d6aa63ab622a0b39",
+    "mtime": 1795192385.5702999,
+    "seen": 1795192644.7612324,
+    "ast_hash": "fcdbb2315b9bc60f0ee0eee97ec5b106",
     "semantic_hash": ""
   },
   "crates/app/Cargo.toml": {
-    "mtime": 1795177518.5783706,
-    "seen": 1795184167.732628,
-    "ast_hash": "1d36a849645b74a278e2b3085030ae7e",
+    "mtime": 1795192369.733313,
+    "seen": 1795192644.7612338,
+    "ast_hash": "01f2a539d673bce32661be1cc1c14c34",
     "semantic_hash": ""
   },
   "crates/app/build.rs": {
@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "crates/app/src/update.rs": {
-    "mtime": 1795177518.5837088,
-    "seen": 1795184167.7326627,
-    "ast_hash": "d1a2c8d60f5696c9710e35941e059c04",
+    "mtime": 1795192374.823982,
+    "seen": 1795192644.7612593,
+    "ast_hash": "7868ac24da64a7e10680a249cc16279e",
     "semantic_hash": ""
   },
   "crates/emby-api/Cargo.toml": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1795187182.9738498,
-    "seen": 1795187366.981537,
-    "ast_hash": "dfd77052601eada4c12b8b51c6019538",
+    "mtime": 1795192385.5841608,
+    "seen": 1795192644.7613795,
+    "ast_hash": "b2cd13fdc6e5e741cc2cdbd9a18184cb",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -504,15 +504,15 @@
     "semantic_hash": ""
   },
   "crates/app/src/platform/android.rs": {
-    "mtime": 1795177518.5816388,
-    "seen": 1795184167.7326493,
-    "ast_hash": "c02e0ca92a5445adb7306a7e36fe3f98",
+    "mtime": 1795192369.7525144,
+    "seen": 1795192644.7612493,
+    "ast_hash": "299e7b83f1167f81f8f25b5d34b9d21a",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android_media.rs": {
-    "mtime": 1795177518.5837088,
-    "seen": 1795184167.7326508,
-    "ast_hash": "3e9ff59f433f9f53b2de602594b69e14",
+    "mtime": 1795192369.752853,
+    "seen": 1795192644.7612503,
+    "ast_hash": "d6757c805aa6d863453852bbc13635fe",
     "semantic_hash": ""
   },
   "crates/app/src/platform/android_notify.rs": {
@@ -1287,12 +1287,6 @@
     "mtime": 1795177518.5837088,
     "seen": 1795184167.7326617,
     "ast_hash": "0ac69eb44d04388251fdf332494bad4c",
-    "semantic_hash": ""
-  },
-  "crates/app/android/java/app/foyer/player/Installer.java": {
-    "mtime": 1795177518.5785162,
-    "seen": 1795184167.7326324,
-    "ast_hash": "cdc85678ca54dcf4d97a742764f18f21",
     "semantic_hash": ""
   }
 }

@@ -94,9 +94,6 @@ name = "android.permission.CHANGE_WIFI_MULTICAST_STATE"
 [[package.metadata.android.uses_permission]]
 name = "android.permission.POST_NOTIFICATIONS"
 
-[[package.metadata.android.uses_permission]]
-name = "android.permission.REQUEST_INSTALL_PACKAGES"
-
 # Shows up in both the phone launcher and the TV launcher.
 [[package.metadata.android.application.activity.intent_filter]]
 actions = ["android.intent.action.MAIN"]

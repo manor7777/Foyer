@@ -2,6 +2,13 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.7
+
+**Android: Google Play Protect (again)**
+
+- Play Protect blocked Foyer as a "harmful app" again. Foyer no longer asks for Android's permission to install apps, and no longer installs its own updates: **Install update** now checks the signed checksum, then opens the download in your browser, and you open the downloaded file to install it. Android still refuses anything not signed with Foyer's key. The PackageInstaller helper is removed from the APK.
+- Windows is unchanged (it still updates itself).
+
 ## Foyer 0.29.6
 
 **Windows and Android**

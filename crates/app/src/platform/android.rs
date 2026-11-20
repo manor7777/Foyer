@@ -156,49 +156,20 @@ pub fn system_notify(title: &str, body: &str) {
 
 // ---------------------------------------------------------------- updates
 
-/// Installs the (already verified) APK with Android's PackageInstaller (the dex helper `Installer`), which
-/// then shows its own confirm screen. If Foyer isn't yet allowed to install apps, opens that settings page
-/// and returns a message asking the user to allow it and try again.
-pub fn install_package(apk: &[u8], file_name: &str) -> Result<(), String> {
-    // Earlier staged updates are no use any more (each is ~100 MB).
-    if let Ok(dir) = std::fs::read_dir(data_base()) {
-        for f in dir.flatten() {
-            let n = f.file_name().to_string_lossy().to_string();
-            if n.starts_with("Foyer-") && n.ends_with(".apk") {
-                let _ = std::fs::remove_file(f.path());
-            }
-        }
-    }
-    let path = data_base().join(file_name);
-    std::fs::write(&path, apk).map_err(|e| format!("Couldn't save the update ({e})."))?;
-    let path_str = path.to_string_lossy().to_string();
+/// Opens the update's download link in the browser, which downloads the APK and offers to install it. Foyer
+/// itself no longer installs apps (it has no install permission), which Google Play Protect objected to.
+pub fn open_download(url: &str) -> Result<(), String> {
     with_env(|env, act| {
-        let sdk = env.get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?.i()?;
-        if sdk < 26 {
-            return Err(jni::errors::Error::JavaException);
-        }
-        let pm = env.call_method(act, "getPackageManager", "()Landroid/content/pm/PackageManager;", &[])?.l()?;
-        let allowed = env.call_method(&pm, "canRequestPackageInstalls", "()Z", &[])?.z()?;
-        if !allowed {
-            let pkg = env.call_method(act, "getPackageName", "()Ljava/lang/String;", &[])?.l()?;
-            let pkg: String = env.get_string(&pkg.into())?.into();
-            let uri_class = env.find_class("android/net/Uri")?;
-            let spec = env.new_string(format!("package:{pkg}"))?;
-            let uri = env.call_static_method(uri_class, "parse", "(Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&spec)])?.l()?;
-            let action = env.new_string("android.settings.MANAGE_UNKNOWN_APP_SOURCES")?;
-            let intent = env.new_object("android/content/Intent", "(Ljava/lang/String;Landroid/net/Uri;)V", &[JValue::Object(&action), JValue::Object(&uri)])?;
-            env.call_method(&intent, "addFlags", "(I)Landroid/content/Intent;", &[JValue::Int(0x1000_0000)])?;
-            env.call_method(act, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])?;
-            return Err(jni::errors::Error::NullPtr("install permission"));
-        }
-
-        android_media::install_session(env, act, &path_str)
+        let uri_class = env.find_class("android/net/Uri")?;
+        let spec = env.new_string(url)?;
+        let uri = env.call_static_method(uri_class, "parse", "(Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&spec)])?.l()?;
+        let action = env.new_string("android.intent.action.VIEW")?;
+        let intent = env.new_object("android/content/Intent", "(Ljava/lang/String;Landroid/net/Uri;)V", &[JValue::Object(&action), JValue::Object(&uri)])?;
+        env.call_method(&intent, "addFlags", "(I)Landroid/content/Intent;", &[JValue::Int(0x1000_0000)])?;
+        env.call_method(act, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])?;
+        Ok(())
     })
-    .map_err(|e| match e.as_str() {
-        s if s.contains("install permission") => "Allow Foyer to install apps in the settings page that just opened, then try the update again.".to_string(),
-        "An Android call failed" | "Java exception was thrown" => "Android couldn't open the installer for this update.".to_string(),
-        s => format!("Couldn't hand the update to Android ({s})."),
-    })
+    .map_err(|_| "Couldn't open the browser for the download.".to_string())
 }
 
 /// While a video plays on a phone or tablet, turn to landscape (and let go again afterwards).

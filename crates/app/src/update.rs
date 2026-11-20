@@ -134,6 +134,7 @@ async fn fetch(http: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
 
 /// Downloads, verifies and swaps in the new exe. The running exe is renamed to `.old` (Windows
 /// allows that, not deleting), so the next start picks up the new one.
+#[cfg_attr(target_os = "android", allow(unreachable_code, unused_variables, unused_mut))]
 pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String> {
     let http = http()?;
     let sha = fetch(&http, &rel.sha_url).await?;
@@ -142,6 +143,15 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
     let (wanted, signed_version) = parse_checksum(&String::from_utf8_lossy(&sha))?;
     if signed_version != rel.version {
         return Err("The release's signed version does not match its name. Nothing was installed.".into());
+    }
+
+    // Android: the signed checksum above proves this release is genuine. Foyer has no permission to install apps
+    // (Play Protect flagged that), so the browser downloads the APK and offers to install it; Android refuses
+    // anything not signed with Foyer's key.
+    #[cfg(target_os = "android")]
+    {
+        let _ = (&progress, &wanted);
+        return crate::platform::open_download(&rel.exe_url);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -178,10 +188,6 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
     if hex(&Sha256::digest(&data)) != wanted {
         return Err("The download doesn't match its signed checksum. Nothing was installed.".into());
     }
-    // Android replaces the app itself: hand the verified APK to the system installer (which also
-    // insists on the same signing key as the installed app).
-    #[cfg(target_os = "android")]
-    return crate::platform::install_package(&data, &format!("Foyer-{}.apk", rel.version));
     #[cfg(not(target_os = "android"))]
     {
     std::fs::write(&new, &data).map_err(|e| format!("Couldn't save the update ({e})."))?;
@@ -324,7 +330,7 @@ impl Ctx {
                     ui.set_update_available(false);
                     ui.set_update_ready(true);
                     let msg = if cfg!(target_os = "android") {
-                        format!("Version {v} is ready. Confirm the install in the Android screen that opened.")
+                        format!("Version {v} is downloading in your browser. When it finishes, open the file to install it.")
                     } else {
                         format!("Version {v} is installed. Restart Foyer to finish.")
                     };
