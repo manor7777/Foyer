@@ -1028,7 +1028,9 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
                 }
                 _ => {}
             }
-            if !forced_poll && last_poll.elapsed() < Duration::from_millis(250) {
+            // While subtitles are sliding with the controls, don't stall the loop on the property poll: each poll
+            // blocks for a moment, which made the slide hitch about four times a second. It runs right after.
+            if !forced_poll && (sub_pos.is_some() || last_poll.elapsed() < Duration::from_millis(250)) {
                 continue;
             }
             last_poll = Instant::now();

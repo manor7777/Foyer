@@ -2479,7 +2479,7 @@ export component AppWindow inherits Window {
     callback pip-resize(int);
     callback pip-resized();
     in property <float> video-aspect: 1.7778;
-    changed height => { Scale.window-h = self.height; root.pip-resized(); }
+    changed height => { Scale.window-h = self.height; root.pip-resized(); root.sub-lift(root.controls-op * 170px / max(root.height, 1px)); }
     no-frame: root.pip;
     changed pip => { root.pip-changed(root.pip); }
     in property <[string]> discovered;
@@ -2867,6 +2867,9 @@ export component AppWindow inherits Window {
     in-out property <bool> clock-24h: false;
     in-out property <bool> clock-with-controls: false;
     callback set-clock-with-controls(bool);
+    /// Clock size while the controls are hidden (0 small .. 3 extra large).
+    in-out property <int> clock-size: 0;
+    callback set-clock-size(int);
     callback set-show-clock(bool);
     callback set-clock-24h(bool);
     in-out property <bool> hw-decode: true;
@@ -2974,6 +2977,9 @@ export component AppWindow inherits Window {
     // Lift the subtitles clear of the bottom control bar as it fades in/out (ratio of window height).
     callback sub-lift(float);
     changed controls-op => { root.sub-lift(root.controls-op * 170px / max(root.height, 1px)); }
+    // The lift is a fraction of the window height, so it must be recomputed when the height changes too (going
+    // fullscreen with the controls up left a subtitle stranded mid-screen until the controls next faded).
+    changed full-player => { root.sub-lift(root.controls-op * 170px / max(root.height, 1px)); }
     // TV: when the controls fade, the remote's focus must not stay on a button that is no longer there.
     changed controls-on => {
         if Device.tv && !root.controls-on && root.full-player { root-focus.focus(); }
@@ -4235,6 +4241,16 @@ export component AppWindow inherits Window {
                             ToggleSwitch {
                                 checked <=> root.clock-with-controls;
                                 toggled(c) => { root.set-clock-with-controls(c); }
+                            }
+                        }
+                        if root.show-clock && !root.clock-with-controls: SettingRow {
+                            title: "Clock size";
+                            description: "How big the time is while the controls are hidden. With the controls showing it keeps its normal size.";
+                            Dropdown {
+                                width: 200px;
+                                model: ["Small", "Medium", "Large", "Extra large"];
+                                current-index <=> root.clock-size;
+                                selected => { root.set-clock-size(self.current-index); }
                             }
                         }
                         SettingRow {
@@ -6738,13 +6754,15 @@ export component AppWindow inherits Window {
         if root.show-clock && root.clock-text != "" && root.player-started: Text {
             text: root.clock-text;
             color: white;
-            font-size: 16px * Scale.text-scale;
+            // The chosen size only applies in the corner (controls hidden); beside the controls it stays 16 px.
+            property <length> fs: (root.controls-op > 0 || root.clock-with-controls ? 16px : (root.clock-size == 1 ? 22px : (root.clock-size == 2 ? 30px : (root.clock-size == 3 ? 40px : 16px)))) * Scale.text-scale;
+            font-size: self.fs;
             font-weight: 600;
             opacity: root.clock-with-controls ? root.controls-op * 0.9 : (root.controls-op > 0 ? 0.9 : 0.7);
             horizontal-alignment: right;
             vertical-alignment: center;
-            width: 96px;
-            height: 40px;
+            width: max(96px, self.fs * 6.5);
+            height: max(40px, self.fs * 1.5);
             y: 14px;
             // 14 px bar padding, then (on desktop) two 40 px buttons and the 12 px gaps around them
             x: parent.width - self.width - (root.controls-op > 0 ? (Device.desktop ? 170px : (Device.touch ? 118px : 66px)) : 16px);

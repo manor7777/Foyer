@@ -4,6 +4,13 @@ use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
 
 pub fn set_cursor_visible(w: &slint::Window, visible: bool) {
     w.with_winit_window(|win| win.set_cursor_visible(visible));
+    // A pinned (always-on-top) fullscreen window can miss the cursor-enter notification winit relies on to
+    // apply the change, which left the cursor invisible. Put a real cursor back directly as well.
+    #[cfg(windows)]
+    if visible {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{LoadCursorW, SetCursor, IDC_ARROW};
+        unsafe { SetCursor(LoadCursorW(std::ptr::null_mut(), IDC_ARROW)) };
+    }
 }
 
 pub fn drag_window(w: &slint::Window) {

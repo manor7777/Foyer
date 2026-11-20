@@ -74,6 +74,9 @@ pub struct Config {
     /// Show the clock only while the player controls are showing (paused or hovered).
     #[serde(default)]
     pub clock_with_controls: bool,
+    /// Size of the clock while the controls are hidden: 0 small (the normal size), 1 medium, 2 large, 3 extra large.
+    #[serde(default)]
+    pub clock_size: usize,
     /// 24-hour clock instead of 12-hour (e.g. 17:05 rather than 5:05pm).
     #[serde(default)]
     pub clock_24h: bool,
@@ -249,6 +252,7 @@ impl Default for Config {
             show_clock: true,
             clock_24h: false,
             clock_with_controls: false,
+            clock_size: 0,
             hw_decode: true,
             auto_skip_intro: false,
             rewind_secs: default_rewind_secs(),

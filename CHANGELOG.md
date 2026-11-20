@@ -2,6 +2,15 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.4
+
+**Windows**
+
+- Fixed the mouse pointer staying hidden in fullscreen with "Keep player on top" (the pin) enabled: the pointer is now put back explicitly when the controls return.
+- Fixed a subtitle staying stranded in the middle of the screen when you go fullscreen while one is showing and the controls are up. It now moves to the right place straight away instead of waiting for the controls to fade and the next subtitle.
+- New **Clock size** setting (Settings > Playback): Small, Medium, Large or Extra large. It applies only when the clock is always shown and the controls are hidden; beside the controls the clock keeps its size.
+- Subtitles now slide smoothly when the controls hide or show, instead of stepping about four times a second.
+
 ## Foyer 0.29.3
 
 **Manage alerts, and glass buttons everywhere (Windows and Android)**

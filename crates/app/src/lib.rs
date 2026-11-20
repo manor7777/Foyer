@@ -1603,6 +1603,7 @@ impl Ctx {
         ui.set_show_clock(s.cfg.show_clock);
         ui.set_clock_24h(s.cfg.clock_24h);
         ui.set_clock_with_controls(s.cfg.clock_with_controls);
+        ui.set_clock_size(s.cfg.clock_size as i32);
         ui.set_auto_skip_intro(s.cfg.auto_skip_intro);
         ui.set_rewind_secs(s.cfg.rewind_secs);
         ui.set_forward_secs(s.cfg.forward_secs);
@@ -4738,6 +4739,8 @@ pub fn run() -> Result<(), slint::PlatformError> {
     ui.on_set_show_clock(move |v| c.update_cfg(|cfg| cfg.show_clock = v));
     let c = ctx.clone();
     ui.on_set_clock_with_controls(move |v| c.update_cfg(|cfg| cfg.clock_with_controls = v));
+    let c = ctx.clone();
+    ui.on_set_clock_size(move |i| c.update_cfg(|cfg| cfg.clock_size = i.clamp(0, 3) as usize));
     let c = ctx.clone();
     ui.on_set_clock_24h(move |v| {
         c.update_cfg(|cfg| cfg.clock_24h = v);
