@@ -34,3 +34,10 @@ Foyer ships for Windows (`Foyer.exe`) and Android phones, tablets and TV (`Foyer
 - Disk in cloud sessions is limited: build with `CARGO_INCREMENTAL=0` and delete `target/debug/incremental` if the disk fills.
 
 - The Android media-session helper (`crates/app/android/java`) is compiled to `crates/app/android/mediacb.dex` by `.github/scripts/build-mediacb.sh` (needs a JDK and the Android SDK); the Android build embeds it. The APK is built with a patched cargo-apk (`.github/scripts/patch-cargo-apk.py`) so the manifest can declare picture-in-picture.
+
+### Google Play Protect: never add the install-apps permission
+
+Play Protect blocked Foyer as a "harmful app" twice. What cleared it was removing `android.permission.REQUEST_INSTALL_PACKAGES` and the in-app PackageInstaller helper (0.29.7); an experiment build without the permission was clean, and the build that put it back was flagged. So:
+
+- **Never add `REQUEST_INSTALL_PACKAGES`, a PackageInstaller session, or any code that installs an APK itself** (or other install, accessibility, overlay or "all files" permissions) to the Android build. The Android "Install update" button only verifies the signed checksum and opens the APK download in the browser.
+- Do not load code at runtime (no `DexClassLoader`): helpers go in the APK's own `classes.dex`. Before adding any new Android permission, ask whether it can be avoided, and say so in `CHANGELOG.md`.
