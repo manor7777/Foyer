@@ -2,6 +2,12 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.8
+
+**Android: in-app updates are back**
+
+- **Install update** installs inside Foyer again: it downloads the update, checks the signed checksum, and shows Android's standard install screen, with no browser. 0.29.7 had replaced this with a browser download while chasing a Play Protect block; the permission it needs (`REQUEST_INSTALL_PACKAGES`) is back, as in 0.29.0.
+
 ## Foyer 0.29.7
 
 **Android: Google Play Protect (again)**

@@ -116,6 +116,14 @@ fn helper_class<'a>(env: &mut JNIEnv<'a>, act: &JObject<'_>, name: &str) -> jni:
     Ok(JClass::from(class))
 }
 
+/// Starts a PackageInstaller session for the APK at `path` (the dex helper `Installer`).
+pub fn install_session(env: &mut JNIEnv<'_>, act: &JObject<'_>, path: &str) -> jni::errors::Result<()> {
+    let class = helper_class(env, act, "app.foyer.player.Installer")?;
+    let p = env.new_string(path)?;
+    env.call_static_method(class, "install", "(Landroid/app/Activity;Ljava/lang/String;)V", &[JValue::Object(act), JValue::Object(&p)])?;
+    Ok(())
+}
+
 /// Hides (or restores) the system navigation bar and taskbar through the dex helper `Immersive`.
 pub fn set_immersive(on: bool) -> Result<(), String> {
     with_env(|env, act| {

@@ -35,9 +35,12 @@ Foyer ships for Windows (`Foyer.exe`) and Android phones, tablets and TV (`Foyer
 
 - The Android media-session helper (`crates/app/android/java`) is compiled to `crates/app/android/mediacb.dex` by `.github/scripts/build-mediacb.sh` (needs a JDK and the Android SDK); the Android build embeds it. The APK is built with a patched cargo-apk (`.github/scripts/patch-cargo-apk.py`) so the manifest can declare picture-in-picture.
 
-### Google Play Protect: never add the install-apps permission
+### Google Play Protect: keep in-app updates, change one thing at a time
 
-Play Protect blocked Foyer as a "harmful app" twice. What cleared it was removing `android.permission.REQUEST_INSTALL_PACKAGES` and the in-app PackageInstaller helper (0.29.7); an experiment build without the permission was clean, and the build that put it back was flagged. So:
+Foyer must keep updating itself inside the app: Android's standard install screen, no browser. That needs `android.permission.REQUEST_INSTALL_PACKAGES` and a PackageInstaller session (`Installer.java`), and builds with both have scanned clean (0.28.19, 0.29.0; Firsthand does the same). Do not remove them to dodge a Play Protect block.
 
-- **Never add `REQUEST_INSTALL_PACKAGES`, a PackageInstaller session, or any code that installs an APK itself** (or other install, accessibility, overlay or "all files" permissions) to the Android build. The Android "Install update" button only verifies the signed checksum and opens the APK download in the browser.
-- Do not load code at runtime (no `DexClassLoader`): helpers go in the APK's own `classes.dex`. Before adding any new Android permission, ask whether it can be avoided, and say so in `CHANGELOG.md`.
+Play Protect has flagged Foyer as a "harmful app" more than once, and the cause is not known for certain. Tests showed it flips with the manifest and with how the APK is installed or loads code. So:
+
+- No runtime code loading (no `DexClassLoader`): helpers go in the APK's own `classes.dex`. Do not install by writing the APK to Downloads and firing a view intent.
+- Be careful adding any new Android permission or native/library change, and say so in `CHANGELOG.md`.
+- If a build is flagged, find the cause by experiment: build variants that change one thing each (a permission, the installer path) on a scratch branch and scan each one in Play Protect, rather than guessing.
