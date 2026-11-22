@@ -1126,8 +1126,14 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
 }
 
 /// mpv logs the stream URL, which carries the access token: blank it out of the debug log.
-fn redact_log(path: &str) {
-    let Ok(text) = std::fs::read_to_string(path) else { return };
+/// Run when playback ends, and by the app at start-up, because a hang or crash skips the first.
+pub fn redact_log(path: &str) {
+    // Bytes, not read_to_string: a stray invalid byte must not make the redaction silently skip the file.
+    let Ok(bytes) = std::fs::read(path) else { return };
+    let text = String::from_utf8_lossy(&bytes);
+    if !text.contains("api_key=") {
+        return;
+    }
     let mut out = String::with_capacity(text.len());
     for line in text.lines() {
         let mut rest = line;

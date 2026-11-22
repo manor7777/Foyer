@@ -3959,6 +3959,8 @@ pub fn run() -> Result<(), slint::PlatformError> {
         foyer_core::set_default_accent_mode(0);
     }
     foyer_core::set_log(applog);
+    // A hang or crash during playback skips the end-of-playback redaction; do it now, before anything new is logged.
+    player::redact_log(&logs_dir().join("mpv.log").to_string_lossy());
     std::panic::set_hook(Box::new(|info| {
         let _ = std::fs::create_dir_all(data_dir());
         let _ = std::fs::write(data_dir().join("crash.log"), format!("{info}\n"));
