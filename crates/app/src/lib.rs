@@ -3192,7 +3192,9 @@ impl Ctx {
             }
             let last_id = source.id().to_string();
             let ctx2 = ctx.clone();
+            applog("play: play thread finished, handing back to the UI");
             let _ = slint::invoke_from_event_loop(move || {
+                applog("ui: leaving the player");
                 {
                     let mut s = ctx2.st.lock().unwrap();
                     // Started from an episode's page and finished on a later one: show the later one.
@@ -3231,6 +3233,7 @@ impl Ctx {
                     );
                     ui.set_message_open(true);
                 }
+                applog("ui: left the player");
             });
         });
     }
@@ -3897,6 +3900,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
         },
     );
 
+    applog("play: mpv finished");
     // Keep the screen awake across the handover to the next episode (the next player turns it off at the end).
     keep_display_on(matches!(outcome, player::Outcome::Finished) && next_ep.is_some());
     let stop_pos = if real || is_live { last_pos } else { start };
@@ -3919,6 +3923,7 @@ fn play_one(rt: &Handle, client: &Client, uid: &str, src: &Source, env: &PlayEnv
     }
     drop(rtx);
     let _ = rt.block_on(async { tokio::time::timeout(Duration::from_secs(2), rh).await });
+    applog("play: progress reporter finished");
     if let Some(ls) = live_stream {
         rt.block_on(client.close_live(&ls));
     }
@@ -4027,6 +4032,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
     }
     notes::serve_instance(instance_lock, ui.as_weak());
 
+    player::set_log(applog);
     // Video: mpv draws into this window's OpenGL surface before Slint draws the UI over it.
     let surface = {
         let weak = Mutex::new(ui.as_weak());

@@ -2,6 +2,15 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.11
+
+**Android: diagnostic build for a freeze when leaving the player**
+
+- **Closing the player can no longer wait forever on mpv.** Some Android phones froze on a black screen after skipping near the end of a film and pressing back (then "Foyer isn't responding"). Foyer now gives mpv 3 seconds to shut down and, if it has not finished, lets go of it so the player closes. This is a safety net: the cause of the hang itself is still being tracked down.
+- **More detail in the debug log** (Settings > Advanced): the steps of closing the player are now logged (`player:`, `play:` and `ui:` lines), so a freeze shows where it stopped.
+- **The mpv log is cleaned of access tokens at start-up**, so a hang or crash during playback cannot leave one in `mpv.log`.
+- Windows is unchanged apart from the same 3-second limit on mpv's shutdown.
+
 ## Foyer 0.29.10
 
 **Android: updates without the install permission**

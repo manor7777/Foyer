@@ -294,6 +294,41 @@ static GL_LOADER: AtomicUsize = AtomicUsize::new(0);
 /// While set, rendering does not wait for each video frame's display time. mpv's wait throttles every redraw to the
 /// video's frame rate (24 fps), which made the controls' fade and the subtitle slide look choppy.
 static UNBLOCKED: AtomicBool = AtomicBool::new(false);
+static LOG_HOOK: std::sync::OnceLock<fn(&str)> = std::sync::OnceLock::new();
+
+/// The host's diagnostic logger, so the player's teardown steps show up in its debug log.
+pub fn set_log(f: fn(&str)) {
+    let _ = LOG_HOOK.set(f);
+}
+
+fn plog(msg: &str) {
+    if let Some(f) = LOG_HOOK.get() {
+        f(msg);
+    }
+}
+
+/// Destroys the mpv core. On Android `mpv_terminate_destroy` has been seen never to return, which left the
+/// player thread (and so the UI, which waits for it) stuck on a black screen. It runs on a helper thread and is
+/// given a few seconds; after that the instance is abandoned (leaked) so the player can close.
+fn destroy_core(api: Api, ctx: *mut c_void) {
+    let t0 = Instant::now();
+    plog("player: destroying the mpv core");
+    let p = ctx as usize;
+    let (tx, rx) = std::sync::mpsc::channel();
+    let spawned = std::thread::Builder::new().name("mpv-destroy".into()).spawn(move || {
+        // SAFETY: the pointer is the core handle this player created, and nothing else uses it any more.
+        unsafe { (api.destroy)(p as *mut c_void) };
+        let _ = tx.send(());
+    });
+    match spawned {
+        Ok(_) => match rx.recv_timeout(Duration::from_secs(3)) {
+            Ok(()) => plog(&format!("player: mpv core destroyed in {} ms", t0.elapsed().as_millis())),
+            Err(_) => plog("player: the mpv core did not shut down within 3 s: abandoned, so the player can close"),
+        },
+        // SAFETY: as above.
+        Err(_) => unsafe { (api.destroy)(ctx) },
+    }
+}
 
 /// Called by the UI: true while it is animating (the player controls are showing or fading).
 pub fn set_unblocked(on: bool) {
@@ -1115,9 +1150,13 @@ fn play_inner(url: &str, opts: &Options, controls: &Receiver<Control>, surface: 
             }
         }
         // The render context must be freed (on the GL thread) before the core is destroyed.
+        plog("player: playback loop ended, releasing the render context");
         if surface.unpublish() {
-            (api.destroy)(ctx);
+            destroy_core(api, ctx);
+        } else {
+            plog("player: the render context was not released in time, so the mpv core is left alive");
         }
+        plog("player: teardown finished");
         if let Some(path) = &opts.debug_log {
             redact_log(path);
         }
