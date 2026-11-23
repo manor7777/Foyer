@@ -2,6 +2,15 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.13
+
+**Double-tap to skip, and the Android freeze is fixed**
+
+- **Double-tap to skip (phones and tablets).** Double-tap the left half of the picture to jump back, or the right half to jump forward, by the steps set in Settings > Playback (the same ones as the skip buttons and the media keys). A round marker shows the jump on the side you tapped. A single tap still shows or hides the controls; it now waits a moment (about a quarter of a second) to tell the two apart. Windows and TV are unchanged.
+- **Fixed: the app freezing on a black screen after a film ends or you leave the player (Android).** It could then show "Foyer isn't responding". When the player let the screen sleep again it called into Android's native-activity glue from the player thread, which can deadlock with the UI thread. The screen-on flag is now set by a small Java helper on Android's own UI thread. (This is the fix tested in 0.29.12.)
+- **mpv's shutdown now has a 3-second limit**, so a stuck player can never keep the screen waiting, and closing the player writes a few lines to the debug log.
+- **The mpv log is cleaned of access tokens at start-up**, so a hang or crash during playback cannot leave one in `mpv.log`.
+
 ## Foyer 0.29.12
 
 **Android: fixes the freeze when a film ends or you leave the player**

@@ -2961,6 +2961,39 @@ export component AppWindow inherits Window {
         triggered => { root.controls-lock = false; }
     }
 
+    // Touch: double-tap the left or right half of the picture to skip back or forward by the steps chosen in
+    // Settings > Playback. A single tap waits a moment to see whether a second one follows, then shows or hides
+    // the controls as before.
+    property <int> skip-flash: 0; // the skip just made: -1 back, 1 forward, 0 nothing to show
+    tap-timer := Timer {
+        interval: 260ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            if root.controls-shown { root.controls-shown = false; } else { root.poke-controls(); }
+        }
+    }
+    flash-timer := Timer {
+        interval: 650ms;
+        running: false;
+        triggered => { self.running = false; root.skip-flash = 0; }
+    }
+    function video-tap(x: length, w: length) {
+        if tap-timer.running {
+            tap-timer.running = false;
+            if x < w / 2 {
+                root.player-key("back10");
+                root.skip-flash = -1;
+            } else {
+                root.player-key("fwd30");
+                root.skip-flash = 1;
+            }
+            flash-timer.running = true;
+        } else {
+            tap-timer.running = true;
+        }
+    }
+
     function poke-controls() {
         if root.controls-lock { return; }
         controls-shown = true;
@@ -6752,8 +6785,8 @@ export component AppWindow inherits Window {
             pointer-event(e) => { root.player-pointer(e); }
             clicked => {
                 if Device.touch {
-                    // tap shows or hides the controls; pause is the button
-                    if root.controls-shown { root.controls-shown = false; } else { root.poke-controls(); }
+                    // a tap shows or hides the controls (pause is the button); a double-tap skips
+                    root.video-tap(self.mouse-x, self.width);
                 } else {
                     root.video-click();
                 }
@@ -6823,6 +6856,68 @@ export component AppWindow inherits Window {
                     root.player-key("pause");
                     root.poke-controls();
                 }
+            }
+        }
+
+        // Touch: the skip a double-tap just made, shown over the side that was tapped.
+        if root.skip-flash != 0: Rectangle {
+            width: 120px;
+            height: 120px;
+            border-radius: 60px;
+            x: root.skip-flash < 0 ? parent.width * 0.25 - 60px : parent.width * 0.75 - 60px;
+            y: (parent.height - self.height) / 2;
+            background: #000000a8;
+            border-width: 1px;
+            border-color: #ffffff45;
+            // Plain shapes rather than icons or text glyphs, as in the play button above.
+            if root.skip-flash < 0: Path {
+                x: 44px;
+                y: 28px;
+                width: 15px;
+                height: 24px;
+                viewbox-width: 15;
+                viewbox-height: 24;
+                commands: "M 15 0 L 0 12 L 15 24 Z";
+                fill: white;
+            }
+            if root.skip-flash < 0: Path {
+                x: 61px;
+                y: 28px;
+                width: 15px;
+                height: 24px;
+                viewbox-width: 15;
+                viewbox-height: 24;
+                commands: "M 15 0 L 0 12 L 15 24 Z";
+                fill: white;
+            }
+            if root.skip-flash > 0: Path {
+                x: 44px;
+                y: 28px;
+                width: 15px;
+                height: 24px;
+                viewbox-width: 15;
+                viewbox-height: 24;
+                commands: "M 0 0 L 15 12 L 0 24 Z";
+                fill: white;
+            }
+            if root.skip-flash > 0: Path {
+                x: 61px;
+                y: 28px;
+                width: 15px;
+                height: 24px;
+                viewbox-width: 15;
+                viewbox-height: 24;
+                commands: "M 0 0 L 15 12 L 0 24 Z";
+                fill: white;
+            }
+            Text {
+                y: 66px;
+                width: parent.width;
+                text: root.skip-flash < 0 ? "\{root.rewind-secs} s" : "\{root.forward-secs} s";
+                color: white;
+                font-size: 18px * Scale.text-scale;
+                font-weight: 600;
+                horizontal-alignment: center;
             }
         }
 
