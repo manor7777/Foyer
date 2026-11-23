@@ -90,3 +90,9 @@ Also try: does it reproduce with hardware decoding off (Settings > hardware deco
 - Android rules (both platforms, Play Protect, versioning): `AGENTS.md`. `docs/ANDROID-PLAN.md` tracks Android work.
 - `graphify` was not installed in the cloud session, so no graph queries were run.
 - Note: line endings in `crates/player/src/lib.rs` and `crates/app/src/lib.rs` are CRLF. Preserve them when editing.
+
+## Resolution (23 Nov 2026, 0.29.11 thread dump with symbols)
+
+mpv was not the cause. The 0.29.11 debug log shows mpv's core destroyed in about 30 ms and then `play: mpv finished`, after which nothing. The symbolized ANR dump shows the player thread blocked in `AndroidApp::set_window_flags` (`RwLock::write_contended`, reached from `keep_display_on` at the end of `play_one`) and the UI thread blocked in `AndroidApp::native_window` (`RwLock::read_contended`). The UI thread already holds android-activity's read lock for the whole of `poll_events`, so when a writer is waiting, its own second read (a Slint timer calling `Window::size`) waits behind that writer: a deadlock. The Java main thread then blocks in `on_pause` waiting for the native thread, which is the ANR on Home.
+
+Fix (0.29.12): `keep_screen_on` no longer calls `set_window_flags`; the Java helper `KeepOn` sets the flag on Android's UI thread. Never call `AndroidApp` methods that take the window lock from another thread.

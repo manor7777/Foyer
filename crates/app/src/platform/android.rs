@@ -182,17 +182,11 @@ pub fn move_to_back() {
     }
 }
 
-static APP: OnceLock<slint::android::AndroidApp> = OnceLock::new();
-
-/// Called once from `android_main`, so the window flags below can be changed later.
-pub fn set_app(app: slint::android::AndroidApp) {
-    let _ = APP.set(app);
-}
-
-/// Keeps the screen on (no screensaver, no sleep) while a video plays. Android applies the flag on
-/// its UI thread; only changes are sent, as the player reports its state several times a second.
+/// Keeps the screen on (no screensaver, no sleep) while a video plays. The Java helper `KeepOn` applies the
+/// flag on Android's UI thread (never use the native glue's `set_window_flags` from the player thread: its
+/// window lock deadlocks with the UI thread); only changes are sent, as the player reports its state several
+/// times a second.
 pub fn keep_screen_on(on: bool) {
-    use slint::android::android_activity::WindowManagerFlags as F;
     use std::sync::atomic::{AtomicU8, Ordering};
     static LAST: AtomicU8 = AtomicU8::new(2);
     // Re-apply every 15 s while on: a flag change can be lost around activity/window changes (the TV went to sleep mid-film).
@@ -201,12 +195,8 @@ pub fn keep_screen_on(on: bool) {
     if LAST.swap(on as u8, Ordering::Relaxed) == on as u8 && !stale {
         return;
     }
-    if let Some(app) = APP.get() {
-        if on {
-            app.set_window_flags(F::KEEP_SCREEN_ON, F::empty());
-        } else {
-            app.set_window_flags(F::empty(), F::KEEP_SCREEN_ON);
-        }
+    if let Err(e) = android_media::set_keep_screen_on(on) {
+        eprintln!("keep screen on failed: {e}");
     }
 }
 

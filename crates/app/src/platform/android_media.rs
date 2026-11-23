@@ -125,6 +125,15 @@ pub fn set_immersive(on: bool) -> Result<(), String> {
     })
 }
 
+/// Keeps the screen on (or lets it sleep) through the dex helper `KeepOn`, which runs on the Java UI thread.
+pub fn set_keep_screen_on(on: bool) -> Result<(), String> {
+    with_env(|env, act| {
+        let class = helper_class(env, act, "app.foyer.player.KeepOn")?;
+        env.call_static_method(class, "set", "(Landroid/app/Activity;Z)V", &[JValue::Object(act), JValue::Bool(on as u8)])?;
+        Ok(())
+    })
+}
+
 /// Copies a file into the public Downloads/Foyer folder as `name`.
 pub fn save_to_downloads(path: &str, name: &str) -> Result<(), String> {
     with_env(|env, act| {

@@ -2,6 +2,13 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.12
+
+**Android: fixes the freeze when a film ends or you leave the player**
+
+- **Found and fixed the freeze.** After a film ended or you pressed back, the app could stay on a black screen and then show "Foyer isn't responding". When the player let the screen sleep again it called into Android's native-activity glue from the player thread, and that call can deadlock with the UI thread (a lock taken twice, once while waiting for a writer). The screen-on flag is now set by a small Java helper on Android's own UI thread instead, so the two can no longer wait on each other.
+- Keeps the 0.29.11 safety net (mpv gets 3 seconds to shut down) and the extra debug-log lines for closing the player.
+
 ## Foyer 0.29.11
 
 **Android: diagnostic build for a freeze when leaving the player**

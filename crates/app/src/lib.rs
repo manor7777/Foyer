@@ -5253,7 +5253,6 @@ fn android_main(app: slint::android::AndroidApp) {
     }
     let (vm, activity) = (app.vm_as_ptr(), app.activity_as_ptr());
     platform::init(vm, activity);
-    platform::set_app(app.clone());
     player::set_java_vm(vm);
     slint::android::init(app).expect("slint android init");
     if let Err(e) = run() {
