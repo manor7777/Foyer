@@ -144,42 +144,15 @@ pub fn save_to_downloads(path: &str, name: &str) -> Result<(), String> {
     })
 }
 
-/// Starts downloading an update with Android's DownloadManager (the dex helper `Updater`).
-pub fn update_start(url: &str, name: &str) -> Result<(), String> {
+/// Opens the update's APK link in the browser (the dex helper `Updater`), which downloads it.
+pub fn update_open(url: &str) -> Result<(), String> {
     with_env(|env, act| {
         let class = helper_class(env, act, "app.foyer.player.Updater")?;
-        let (u, n) = (env.new_string(url)?, env.new_string(name)?);
-        env.call_static_method(class, "start", "(Landroid/app/Activity;Ljava/lang/String;Ljava/lang/String;)V", &[JValue::Object(act), JValue::Object(&u), JValue::Object(&n)])?;
+        let u = env.new_string(url)?;
+        env.call_static_method(class, "open", "(Landroid/app/Activity;Ljava/lang/String;)V", &[JValue::Object(act), JValue::Object(&u)])?;
         Ok(())
     })
-    .map_err(|e| format!("Couldn't start the download ({e})."))
-}
-
-/// "run:PCT" while downloading, "ok" when finished, "fail:reason" otherwise.
-pub fn update_poll() -> Result<String, String> {
-    with_env(|env, act| {
-        let class = helper_class(env, act, "app.foyer.player.Updater")?;
-        let s = env.call_static_method(class, "poll", "(Landroid/app/Activity;)Ljava/lang/String;", &[JValue::Object(act)])?.l()?;
-        Ok(env.get_string(&s.into())?.into())
-    })
-}
-
-/// SHA-256 (hex) of the finished download, or "" if it can't be read.
-pub fn update_sha256() -> Result<String, String> {
-    with_env(|env, act| {
-        let class = helper_class(env, act, "app.foyer.player.Updater")?;
-        let s = env.call_static_method(class, "sha256", "(Landroid/app/Activity;)Ljava/lang/String;", &[JValue::Object(act)])?.l()?;
-        Ok(env.get_string(&s.into())?.into())
-    })
-}
-
-/// Removes the downloaded update again (a download that failed its checksum).
-pub fn update_cancel() {
-    let _ = with_env(|env, act| {
-        let class = helper_class(env, act, "app.foyer.player.Updater")?;
-        env.call_static_method(class, "cancel", "(Landroid/app/Activity;)V", &[JValue::Object(act)])?;
-        Ok(())
-    });
+    .map_err(|e| format!("Couldn't open the browser ({e})."))
 }
 
 // ---------------------------------------------------------------- media session

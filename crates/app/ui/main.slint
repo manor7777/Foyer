@@ -4864,7 +4864,7 @@ export component AppWindow inherits Window {
                             title: "Foyer " + root.app-version;
                             description: root.update-status == "" ? "A native Rust media client. Playback by mpv." : root.update-status;
                             Button {
-                                text: root.update-ready ? "Restart now" : (root.update-available ? "Install update" : "Check for updates");
+                                text: root.update-ready ? "Restart now" : (root.update-available ? (Device.desktop ? "Install update" : "Download update") : "Check for updates");
                                 enabled: !root.update-checking && !root.update-installing;
                                 clicked => {
                                     if root.update-ready { root.restart-app(); }

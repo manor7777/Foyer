@@ -145,40 +145,6 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
         return Err("The release's signed version does not match its name. Nothing was installed.".into());
     }
 
-    // Android: Foyer has no permission to install apps (Google Play Protect flags that). Android's download
-    // service fetches the APK (with a progress notification); when it is done, Android's own notification opens
-    // the standard install screen. Android refuses anything not signed with Foyer's key; the checksum is checked
-    // here as well, so a corrupt or swapped file is thrown away.
-    #[cfg(target_os = "android")]
-    {
-        let name = format!("Foyer-{}.apk", rel.version);
-        crate::platform::update_start(&rel.exe_url, &name)?;
-        let started = std::time::Instant::now();
-        loop {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            let state = crate::platform::update_poll()?;
-            if state == "ok" {
-                break;
-            } else if let Some(p) = state.strip_prefix("run:") {
-                if let Ok(pct) = p.parse::<u32>() {
-                    progress(pct.min(100));
-                }
-            } else if let Some(why) = state.strip_prefix("fail:") {
-                return Err(why.to_string());
-            }
-            if started.elapsed() > Duration::from_secs(1800) {
-                crate::platform::update_cancel();
-                return Err("The download took too long.".into());
-            }
-        }
-        let got = crate::platform::update_sha256().unwrap_or_default();
-        if got != wanted {
-            crate::platform::update_cancel();
-            return Err("The download doesn't match its signed checksum. Nothing was installed.".into());
-        }
-        return Ok(());
-    }
-
     #[cfg(not(target_os = "android"))]
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     #[cfg(not(target_os = "android"))]
@@ -229,6 +195,18 @@ pub async fn install(rel: &Release, progress: impl Fn(u32)) -> Result<(), String
     }
     }
     Ok(())
+}
+
+/// Android only: opens the release APK's link in the browser. Nothing is downloaded or installed by Foyer itself there
+/// (it has no install permission, which Google Play Protect blocks); Android's installer refuses anything not signed with
+/// Foyer's key.
+#[cfg(target_os = "android")]
+fn open_download(url: &str) -> Result<(), String> {
+    crate::platform::update_open(url)
+}
+#[cfg(not(target_os = "android"))]
+fn open_download(_url: &str) -> Result<(), String> {
+    Err("Updates download inside the app on this platform.".into())
 }
 
 /// Removes files an earlier update left behind.
@@ -316,7 +294,7 @@ impl Ctx {
                 if auto_install && !playing {
                     self.update_install_inner().await;
                 } else if !manual {
-                    self.notify_user("Update available".into(), format!("Foyer {v} is ready to install (Settings → About)."), Some("settings".into()));
+                    self.notify_user("Update available".into(), if cfg!(target_os = "android") { format!("Foyer {v} is ready to download (Settings → About).") } else { format!("Foyer {v} is ready to install (Settings → About).") }, Some("settings".into()));
                 }
             }
             Err(e) => {
@@ -336,6 +314,19 @@ impl Ctx {
 
     async fn update_install_inner(&self) {
         let Some(rel) = FOUND.lock().unwrap().clone() else { return };
+        if cfg!(target_os = "android") {
+            let (v, url) = (rel.version.clone(), rel.exe_url.clone());
+            let result = open_download(&url);
+            applog(&format!("update download opened: {v} ({})", if result.is_ok() { "ok" } else { "failed" }));
+            self.update_ui(move |ui| {
+                ui.set_update_installing(false);
+                ui.set_update_status(match result {
+                    Ok(()) => format!("Version {v} is downloading in your browser. When it finishes, open the file and tap Install."),
+                    Err(e) => format!("{e} Download it from {url}"),
+                }.into());
+            });
+            return;
+        }
         self.update_ui(|ui| {
             ui.set_update_installing(true);
             ui.set_update_status("Downloading the update…".into());
@@ -354,16 +345,10 @@ impl Ctx {
                     ui.set_update_installing(false);
                     ui.set_update_available(false);
                     ui.set_update_ready(true);
-                    let msg = if cfg!(target_os = "android") {
-                        format!("Version {v} is downloaded. Tap the \"Foyer update\" notification to install it (or open Foyer-{v}.apk in your Downloads/Foyer folder).")
-                    } else {
-                        format!("Version {v} is installed. Restart Foyer to finish.")
-                    };
+                    let msg = format!("Version {v} is installed. Restart Foyer to finish.");
                     ui.set_update_status(msg.into());
                 });
-                if !cfg!(target_os = "android") {
-                    self.notify_user("Foyer updated".into(), format!("Version {} is installed. Restart Foyer to use it.", rel.version), None);
-                }
+                self.notify_user("Foyer updated".into(), format!("Version {} is installed. Restart Foyer to use it.", rel.version), None);
             }
             Err(e) => {
                 applog(&format!("update failed: {e}"));

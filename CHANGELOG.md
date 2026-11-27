@@ -2,6 +2,15 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.14
+
+**Android: updates download in your browser**
+
+- **Android updates now open the download in your browser.** Settings > About still checks for a new version (and, if switched on, looks when Foyer opens and sends an "update available" notification). When one is found the button reads *Download update*: it opens the APK's link in your browser, and when the download finishes you open the file and tap Install. Android's own installer does the rest and refuses anything not signed with Foyer's key. This replaces the 0.29.9 to 0.29.13 download inside the app (Android's DownloadManager), which was hard to follow.
+- **Why not install inside the app.** An app that declares the install permission or installs packages is blocked as harmful by Google Play Protect (a build with only that permission removed scanned clean; the same build with it did not). Foyer has neither, and now no longer downloads the file itself either.
+- Windows is unchanged: it still downloads, checks the signed checksum and replaces `Foyer.exe` for you.
+- No new permissions, no new libraries.
+
 ## Foyer 0.29.13
 
 **Double-tap to skip, and the Android freeze is fixed**

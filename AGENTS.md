@@ -35,11 +35,11 @@ Foyer ships for Windows (`Foyer.exe`) and Android phones, tablets and TV (`Foyer
 
 - The Android media-session helper (`crates/app/android/java`) is compiled to `crates/app/android/mediacb.dex` by `.github/scripts/build-mediacb.sh` (needs a JDK and the Android SDK); the Android build embeds it. The APK is built with a patched cargo-apk (`.github/scripts/patch-cargo-apk.py`) so the manifest can declare picture-in-picture.
 
-### Google Play Protect: no install permission, updates download in the app
+### Google Play Protect: no install permission, updates download in the browser
 
 Foyer must not declare `android.permission.REQUEST_INSTALL_PACKAGES`, and must not install packages itself (no PackageInstaller session, no view intent on a downloaded APK). Every build that had the permission was flagged "Harmful app blocked" by Play Protect's cloud scan (`JIT scan response: POTENTIALLY_UNWANTED`, threat type `generic_malware`) by 20 Nov 2026, including builds that had scanned clean the day before. Builds without it were safe every time.
 
-Updating still happens inside the app: Settings > About > Install update downloads the APK with Android's DownloadManager (`Updater.java`, shown as a progress notification), checks it against the release's signed SHA-256, and then Android's own "Foyer update" notification opens the standard install screen. Android refuses anything not signed with Foyer's key.
+Updating: Settings > About checks the latest release (on start too, with an "update available" notification, if switched on). On Android, *Download update* opens the release's APK link in the browser (`Updater.java`); the user opens the downloaded file and Android's own installer takes over. Android refuses anything not signed with Foyer's key. Windows still downloads, verifies the signed checksum and replaces `Foyer.exe` itself. Do not bring back a download or install path inside the Android app (DownloadManager was tried in 0.29.9 to 0.29.13 and worked poorly).
 
 Rules that keep Play Protect quiet:
 
@@ -57,6 +57,19 @@ Rules that keep Play Protect quiet:
 | 0.29.4, 0.29.6, 0.29.8 | same | Flagged |
 | 0.29.9 scratch (target SDK 36) | same, plus target SDK 36 | Flagged: the target SDK does not matter |
 | 0.29.7 | no install permission, update opens the browser | Safe (stored "known safe" verdict hours later) |
-| Firsthand (separate app) | same permission and a PackageInstaller session | Safe, probably because it is small and plain |
+| Firsthand (separate app, Kotlin) | same permission and a PackageInstaller session | Safe until 27 Nov, then **flagged** on every build, see below |
 
 What this shows: with the install permission Foyer scores as malware, and the verdict for the same file drifted from clean to flagged over a day, so appealing one build does not help. Without it every build was safe. Comparing the native code of 0.29.0 and 0.29.6 found only ordinary UI strings. Appeals (https://support.google.com/googleplay/android-developer/contact/protectappeals) work per file hash and get no reply.
+
+#### Firsthand, 27 Nov 2026: it is the permission, not the code, the key or the package
+
+Firsthand (same author, Kotlin, no automatic update check at all) was blocked from 0.1.195 on. Its flagged builds differed from the last clean one (0.1.193) only by a few local strings, and removing the two things that looked suspicious (a Googlebot user-agent, an `archive.ph` fetch) changed nothing. Then:
+
+| Build | What it had | Result |
+| --- | --- | --- |
+| 0.1.201 | the exact 0.1.193 source, rebuilt | Flagged |
+| 0.1.203 | new signing key and a new package name | Flagged |
+| 0.1.206 | new key, new package, only `REQUEST_INSTALL_PACKAGES` removed | **Safe** |
+| 0.1.208 | the real key and package, no permission and no installer | Safe |
+
+So the verdict follows the install permission (with a self-updater) and nothing else we could change: not the code, the signing key, the package name, the startup update check, or the native-code shape. The cause of the stricter scoring is on Google's side, and the same app can scan clean one day and flagged a week later. Apps like Aurora and F-Droid keep the permission, probably because Google trusts them by reputation.
