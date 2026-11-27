@@ -43,7 +43,7 @@ Updating: Settings > About checks the latest release (on start too, with an "upd
 
 Rules that keep Play Protect quiet:
 
-- Do not add `REQUEST_INSTALL_PACKAGES`, and do not add code that installs APKs. Be careful with any new permission or large native/library change, and say so in `CHANGELOG.md`.
+- Do not add `REQUEST_INSTALL_PACKAGES`, and do not add code that installs APKs (the Android workflow's first step fails the build if the permission or `PackageInstaller` appears in `crates/` or `.github/scripts/`). Be careful with any new permission or large native/library change, and say so in `CHANGELOG.md`.
 - No runtime code loading (no `DexClassLoader`): helpers go in the APK's own `classes.dex`.
 - Test an Android build before releasing it: install the APK from Files on a phone and read the verdict from logcat (`adb logcat | grep "JIT scan response"`; `overallScanResult` 15 or a SAFE response means safe). The dialog alone can mislead.
 

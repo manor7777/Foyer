@@ -44,6 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Guard - no install permission or installer (Google Play Protect)
+        run: |
+          # Play Protect blocked every build that declared the install permission; builds without it were safe (see AGENTS.md).
+          if grep -rnE "REQUEST_INSTALL_PACKAGES|PackageInstaller|canRequestPackageInstalls|MANAGE_UNKNOWN_APP_SOURCES" crates .github/scripts; then
+            echo "::error::Foyer must not declare the install permission or install packages itself: Google Play Protect blocks it. See AGENTS.md."
+            exit 1
+          fi
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi
