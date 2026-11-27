@@ -9,6 +9,7 @@
 use crate::{applog, Ctx};
 use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
 use serde::Deserialize;
+use slint::ComponentHandle;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -248,8 +249,9 @@ impl Ctx {
         cleanup();
         let (check, install) = {
             let s = self.st.lock().unwrap();
-            // Android always asks: its installer shows a confirmation screen, which must not pop up unprompted.
-            (s.cfg.update_check, s.cfg.update_install && !cfg!(target_os = "android"))
+            // Android never installs by itself (it opens the download in the browser). A copy that was just started by an
+            // update restart doesn't install again either, so a swap that failed can't turn into a restart loop.
+            (s.cfg.update_check, s.cfg.update_install && !cfg!(target_os = "android") && !std::env::args().any(|a| a == "--restarted"))
         };
         if !check {
             return;
@@ -292,7 +294,7 @@ impl Ctx {
                     ui.set_update_status(format!("Version {v2} is available.").into());
                 });
                 if auto_install && !playing {
-                    self.update_install_inner().await;
+                    self.update_install_inner(true).await;
                 } else if !manual {
                     self.notify_user("Update available".into(), if cfg!(target_os = "android") { format!("Foyer {v} is ready to download (Settings → About).") } else { format!("Foyer {v} is ready to install (Settings → About).") }, Some("settings".into()));
                 }
@@ -309,10 +311,11 @@ impl Ctx {
 
     pub fn update_install(&self) {
         let ctx = self.clone();
-        self.rt.spawn(async move { ctx.update_install_inner().await });
+        self.rt.spawn(async move { ctx.update_install_inner(false).await });
     }
 
-    async fn update_install_inner(&self) {
+    /// `auto`: installed by the automatic setting rather than the button, so Foyer also restarts itself once idle.
+    async fn update_install_inner(&self, auto: bool) {
         let Some(rel) = FOUND.lock().unwrap().clone() else { return };
         if cfg!(target_os = "android") {
             let (v, url) = (rel.version.clone(), rel.exe_url.clone());
@@ -345,10 +348,15 @@ impl Ctx {
                     ui.set_update_installing(false);
                     ui.set_update_available(false);
                     ui.set_update_ready(true);
-                    let msg = format!("Version {v} is installed. Restart Foyer to finish.");
+                    let msg = if auto { format!("Version {v} is installed. Foyer restarts by itself once nothing is playing or downloading.") } else { format!("Version {v} is installed. Restart Foyer to finish.") };
                     ui.set_update_status(msg.into());
                 });
-                self.notify_user("Foyer updated".into(), format!("Version {} is installed. Restart Foyer to use it.", rel.version), None);
+                if auto {
+                    applog("update: restarting once idle");
+                    self.restart_when_idle();
+                } else {
+                    self.notify_user("Foyer updated".into(), format!("Version {} is installed. Restart Foyer to use it.", rel.version), None);
+                }
             }
             Err(e) => {
                 applog(&format!("update failed: {e}"));
@@ -366,11 +374,52 @@ impl Ctx {
             self.update_ui(|ui| ui.set_update_status("Stop playback first, then restart.".into()));
             return;
         }
-        if let Some(exe) = exe_path() {
-            // The new copy waits for this one to exit (single-instance), so there's never two.
-            if std::process::Command::new(exe).arg("--restarted").spawn().is_ok() {
-                let _ = slint::quit_event_loop();
+        if !relaunch(false) {
+            self.update_ui(|ui| ui.set_update_status("Couldn't start the new version. Close Foyer and open it again.".into()));
+        }
+    }
+
+    /// After an automatic update: restarts into the new version as soon as nothing is playing or downloading. A copy
+    /// that was hidden in the tray comes back hidden; one with its window open comes back open.
+    fn restart_when_idle(&self) {
+        let ctx = self.clone();
+        self.rt.spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(20)).await;
+                if ctx.st.lock().unwrap().playing || crate::downloads::any_active() {
+                    continue;
+                }
+                let weak = ctx.ui.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = weak.upgrade() {
+                        let hidden = !ui.window().is_visible() || ui.window().is_minimized();
+                        relaunch(hidden);
+                    }
+                });
+                break;
             }
+        });
+    }
+}
+
+/// Starts the new copy (it waits for this one to exit, so there's never two) and closes this one. `hidden`: the new
+/// copy stays in the tray instead of opening its window. Returns false if it couldn't be started.
+fn relaunch(hidden: bool) -> bool {
+    let Some(exe) = exe_path() else { return false };
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("--restarted");
+    if hidden {
+        cmd.arg("--hidden");
+    }
+    match cmd.spawn() {
+        Ok(_) => {
+            applog(&format!("update: restarting (hidden: {hidden})"));
+            let _ = slint::quit_event_loop();
+            true
+        }
+        Err(e) => {
+            applog(&format!("update: couldn't start the new copy: {e}"));
+            false
         }
     }
 }

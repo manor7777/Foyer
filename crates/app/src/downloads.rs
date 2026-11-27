@@ -61,6 +61,11 @@ pub fn offline_item(id: &str) -> Option<Item> {
     serde_json::from_slice(&std::fs::read(dir().join(format!("{id}.json"))).ok()?).ok()
 }
 
+/// Something is waiting or downloading right now (not a good moment to restart Foyer).
+pub fn any_active() -> bool {
+    LIST.lock().unwrap().iter().any(|e| e.state <= 1)
+}
+
 pub fn any_offline() -> bool {
     LIST.lock().unwrap().iter().any(|e| e.state == 2 && e.offline)
 }

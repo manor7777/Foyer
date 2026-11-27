@@ -4883,7 +4883,7 @@ export component AppWindow inherits Window {
                         }
                         if Device.desktop: SettingRow {
                             title: "Install updates automatically";
-                            description: "Downloads a new version in the background. It takes effect the next time you start Foyer.";
+                            description: "Downloads a new version in the background, then restarts Foyer by itself once nothing is playing or downloading (back to the tray if it was hidden there).";
                             divider: false;
                             ToggleSwitch {
                                 checked <=> root.update-install-on;

@@ -439,7 +439,7 @@ const INSTANCE_ADDR: &str = "127.0.0.1:47836";
 /// its window. After an update restart (`wait`) the old copy is given time to finish closing.
 pub fn single_instance(wait: bool) -> Option<std::net::TcpListener> {
     use std::io::Write;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(if wait { 15 } else { 0 });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(if wait { 30 } else { 0 });
     loop {
         match std::net::TcpListener::bind(INSTANCE_ADDR) {
             Ok(l) => return Some(l),

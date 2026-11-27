@@ -5132,7 +5132,12 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
         }
         notes::set_tray(cfg.close_to_tray);
     }
-    let _ = ui.show();
+    // An automatic update restart of a copy that was hidden in the tray comes back hidden too (needs the tray, or the
+    // window could never be reached).
+    let start_hidden = std::env::args().any(|a| a == "--hidden") && ctx.st.lock().unwrap().cfg.close_to_tray;
+    if !start_hidden {
+        let _ = ui.show();
+    }
     if ctx.st.lock().unwrap().cfg.win_max {
         ui.window().set_maximized(true);
     }
@@ -5185,6 +5190,17 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     ctx.dl_sync_ui();
     ctx.try_saved_login();
     let result = slint::run_event_loop_until_quit();
+    applog("shutdown: window closed");
+    // Make sure the process really ends. Until it does it keeps the single-instance port, and a copy started by an
+    // update restart (or from the Start menu) waits for that port and then gives up, so Foyer "closed and never reopened".
+    // Dropping the runtime below waits for any task still blocked (a network call, a notification), which could take
+    // many seconds, so this thread ends the process after a short grace period whatever is still running.
+    #[cfg(not(target_os = "android"))]
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_secs(3));
+        applog("shutdown: still running 3 s after the window closed; ending the process");
+        std::process::exit(0);
+    });
     // Remove the tray icon explicitly; otherwise Windows can leave a dead one behind.
     notes::set_tray(false);
     drop(window_timer);
@@ -5192,6 +5208,8 @@ Place libmpv-2.dll (or mpv-1.dll) next to foyer.exe and restart."));
     drop(hide_timer);
     drop(media_timer);
     drop(accent_timer);
+    rt.shutdown_timeout(Duration::from_secs(2));
+    applog("shutdown: done");
     result
 }
 

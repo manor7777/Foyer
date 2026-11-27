@@ -2,6 +2,15 @@
 
 Each release gets a section headed `## Foyer X.Y.Z`. The Release workflow publishes that section as the GitHub release notes, so write it before you run the workflow.
 
+## Foyer 0.29.15
+
+**Windows: updates restart properly**
+
+- **Fixed: "Restart now" closing Foyer and never reopening it (Windows).** After an update Foyer starts the new copy and then closes itself, and the new copy waits for the old one to let go of the "only one Foyer" port. The old copy could take far longer than the 15 seconds the new one was willing to wait (it was still tidying up background network work), so the new copy gave up and quit, and opening Foyer from the Start menu did nothing until the old one finally ended. Foyer now always ends within about three seconds of its window closing, and the new copy waits up to 30 seconds. Closing Foyer in the normal way is quicker for the same reason.
+- **Automatic updates now restart by themselves (Windows).** With *Install updates automatically* on, once an update is installed Foyer restarts into it as soon as nothing is playing or downloading (it checks every 20 seconds). If Foyer was hidden in the tray, the new copy stays hidden in the tray; if its window was open, it comes back open. A copy that has just restarted does not install another update on that start, so a failed swap cannot loop. Updating with the button still shows *Restart now* instead.
+- A few lines in the debug log (`shutdown:` and `update:`) show how a close or restart went, if it ever misbehaves again.
+- Android is unchanged (its updates still open the download in your browser).
+
 ## Foyer 0.29.14
 
 **Android: updates download in your browser**
